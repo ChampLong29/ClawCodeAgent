@@ -3,7 +3,7 @@
 import unittest
 from src.agent_types import (
     ModelConfig, ModelPricing, BudgetConfig, UsageStats,
-    ToolCall, AssistantTurn, ToolExecutionResult, AgentRunResult,
+    ToolCall, AssistantTurn, AgentRunResult,
 )
 
 

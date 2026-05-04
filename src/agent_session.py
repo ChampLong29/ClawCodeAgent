@@ -20,6 +20,7 @@ class AgentSession:
     updated_at: Optional[float] = None
     model: Optional[str] = None
     stop_reason: Optional[str] = None
+    cwd: Optional[str] = None
 
     def __post_init__(self):
         if self.created_at is None:
@@ -82,6 +83,7 @@ class AgentSession:
             "updated_at": self.updated_at,
             "model": self.model,
             "stop_reason": self.stop_reason,
+            "cwd": self.cwd,
         }
 
     @classmethod
@@ -95,4 +97,5 @@ class AgentSession:
             updated_at=data.get("updated_at"),
             model=data.get("model"),
             stop_reason=data.get("stop_reason"),
+            cwd=data.get("cwd"),
         )

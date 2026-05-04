@@ -65,22 +65,24 @@ User (CLI/GUI)
 
 ### Core Modules
 
-**Agent Core (22 files in src/):**
-- `main.py` - CLI entry point with commands for agent, session, runtime management
-- `agent_runtime.py` - Main agent loop, handles tool call loop, budget, compact, retry, permission callback, MCP tool registration, turn reset per query
+**Agent Core (27 files in src/):**
+- `main.py` - CLI entry point with commands for agent, session, runtime management, and `sessions` command for listing all saved sessions
+- `agent_runtime.py` - Main agent loop, handles tool call loop, budget, compact, retry, permission callback, MCP tool registration, turn reset per query; populates `session.cwd` and `session.model`
 - `agent_tools.py` - Tool protocol and execution; 10 built-in tools: list_dir, read_file, write_file, edit_file, glob_search, grep_search, bash, non_tool_call, web_search, web_fetch; plus dynamic MCP tools registered as mcp__{server}__{tool}
 - `openai_compat.py` - OpenAI-compatible model client with streaming support
 - `agent_context.py` - Context injection (git state, shell, platform, CLAUDE.md, runtime summaries)
 - `agent_prompting.py` - System prompt assembly by runtime capability
-- `agent_session.py` - Session message/transcript mutation
-- `session_store.py` - Session persistence to `.port_sessions/agent/<id>.json`
+- `agent_session.py` - Session message/transcript mutation; includes `cwd` field for working directory tracking
+- `session_store.py` - Session persistence to `.port_sessions/agent/<id>.json`; `list_sessions()` returns enriched fields: model, stop_reason, cwd, updated_at
 - `token_budget.py` - Budget tracking and preflight checks
 - `bash_security.py` - Bash command security validation (~1260 lines), SecurityResult: ALLOW/ASK/DENY/PASSTHROUGH
 - `compact.py` - Context compression (~650 lines), controlled by AUTOCOMPACT_BUFFER_TOKENS
 - `microcompact.py` - Lightweight compaction: tool result truncation (2000 chars), message count capping
-- `query_engine.py` - Facade that drives LocalCodingAgent
+- `query_engine.py` - Facade that drives LocalCodingAgent; supports `permission_callback` in config for GUI integration
+- `devflow_runtime.py` - DevFlow structured development workflow runtime (~460 lines), drives lifecycle state machine
+- `devflow_skills.py` - 4 DevFlow skill prompt templates (architect, step-planner, implementer, verifier)
 
-**Runtime Modules (18 files in src/, each provides get_state()):**
+**Runtime Modules (19 files in src/, each provides get_state()):**
 - `mcp_runtime.py` - MCP protocol integration with `MCPRuntime` (config discovery: `.claw-mcp.json`, `.mcp.json`, `.codex-mcp.json`, `mcp.json`) and `MCPClient` (stdio subprocess management, JSON-RPC 2.0: initialize → tools/list → tools/call). Tools auto-registered in agent on startup
 - `search_runtime.py` - Search providers, env var injection (SEARXNG_BASE_URL, BRAVE_SEARCH_API_KEY, TAVILY_API_KEY)
 - `remote_runtime.py` - SSH/Teleport connections, discovers `.claw-remote.json`, `.remote.json`, etc.
@@ -89,11 +91,18 @@ User (CLI/GUI)
 - `remote_trigger_runtime.py` - Remote triggers, **no walk-up** (only cwd + additional_working_directories)
 - `worktree_runtime.py` - Git worktree management, state path: `<git_common_dir>/claw_worktree_runtime.json`
 - `team_runtime.py` - Team config, discovers `.claw-teams.json`, `.claw-team.json`, `.claude/teams.json`
+- `devflow_runtime.py` - DevFlow structured development workflow: lifecycle state machine (INIT → ARCHITECTURE → STEP_DEFINITION → IMPLEMENTATION → VERIFY → DONE), session persistence to `.port_sessions/devflow/<id>.json`, terminal visualization via REPL `/devflow` commands
 
 ### GUI Subsystem
-- 18 route modules under `src/gui/*_routes.py`, each maps to an HTTP API path prefix
+- 21 route modules under `src/gui/`, each maps to an HTTP API path prefix
 - Entry point: `python3 -m src.gui`
-- AgentState fields: model_name, allowed_tools, permission_mode, session_id, streaming
+- Multi-threaded HTTP server (`ThreadingHTTPServer`) for concurrent request handling
+- **Chat UI** — Three-panel layout (session list, chat area, input area) with streaming SSE support
+- **SSE streaming** — `/api/stream` endpoint pushes real-time events: text, tool_call, permission_required, done, error
+- **Permission system** — `PermissionManager` provides thread-safe blocking permission requests; GUI shows shell permission confirmation cards
+- **Session management** — `/api/sessions` CRUD endpoints (list, detail, resume, delete) with enriched metadata
+- `AgentState` fields: model_name, allowed_tools, permission_mode, session_id, streaming, cwd, api_config
+- `GUIDatabase` manages in-memory state: event_queue for SSE, PermissionManager, sessions cache
 
 ## Configuration Discovery Patterns
 
@@ -111,12 +120,20 @@ User (CLI/GUI)
 
 ```
 .
-├── src/                        # Agent source code (29 modules)
+├── src/                        # Agent source code (34 modules)
+│   ├── gui/
+│   │   ├── server.py           # GUI server (ThreadingHTTPServer, chat UI, SSE, permission)
+│   │   ├── permission_manager.py  # Thread-safe permission request manager
+│   │   ├── sse_routes.py       # SSE real-time streaming endpoint
+│   │   └── session_routes.py   # Session CRUD API
+│   ├── ...
 ├── tests/                      # Unit tests
 ├── benchmarks/                 # Reserved for future benchmark tests (currently empty)
 ├── .port_sessions/             # Agent session persistence
-│   └── agent/
-│       └── <session_id>.json   # One JSON file per session
+│   ├── agent/
+│   │   └── <session_id>.json   # One JSON file per agent session
+│   └── devflow/
+│       └── <session_id>.json   # One JSON file per DevFlow session
 ├── .venv/                      # Python virtual environment
 ├── pyproject.toml              # Project metadata and dependencies
 └── CLAUDE.md                   # This file
@@ -383,6 +400,10 @@ _run_loop() 工具执行
 | `review-code` | 代码审查 | `code` (string) |
 | `generate-tests` | 生成单元测试 | `code` (string), `language` (string) |
 | `document-code` | 生成文档 | `code` (string) |
+| `devflow-architect` | 分析需求并提议架构 | `goal` (string), `constraints` (string) |
+| `devflow-step-planner` | 将架构拆解为步骤 | `goal` (string), `architecture` (string) |
+| `devflow-implementer` | 实现单个步骤 | `goal`, `architecture`, `step_title`, `step_goal`, `step_constraints`, `acceptance_criteria`, `previous_steps_summary` |
+| `devflow-verifier` | 验证实现是否满足验收标准 | `step_title` (string), `acceptance_criteria` (string), `implementation_result` (string) |
 
 **调用流程**：
 ```
@@ -411,6 +432,133 @@ _run_loop() 工具执行
 | 工具别名 | 插件 `plugin.json` → `_tool_aliases` | 重映射到已有 handler | ✅ 配置文件 | ✅ 完成 |
 | 内置技能 | 代码硬编码 `BUNDLED_SKILLS` | `_use_skill()` → 提示词模板格式化 | ❌ | ⚠️ 无扩展点 |
 | 策略/钩子 | `*.json` 配置文件 → `HookPolicyRuntime` | budget 收紧 + 工具屏蔽 + 提示注入 | ✅ 配置文件 | ✅ 完成 |
+
+---
+
+## DevFlow: 结构化开发工作流系统
+
+**文件**: `src/devflow_runtime.py`, `src/devflow_skills.py`, `src/bundled_skills.py`, `src/repl.py`
+
+### 概述
+
+DevFlow 是一个结构化的开发流程管理系统，通过四层联动（Workflow + Skills + Runtime + REPL）引导完整开发流程：
+
+| 层级 | 组件 | 职责 |
+|------|------|------|
+| Workflow | `DevFlowSession` | 定义开发生命周期状态机 |
+| Skills | 4 个 bundled skills | 每个阶段注入专门的提示词模板 |
+| Runtime | `DevFlowRuntime` | 持久化 session 状态，驱动阶段切换 |
+| REPL | `/devflow` 命令族 | 用户交互界面 |
+
+### 生命周期状态机
+
+```
+INIT → ARCHITECTURE → STEP_DEFINITION → IMPLEMENTATION → VERIFY → DONE
+  │         │               │                │            │         │
+  │    Agent分析需求    Agent生成步骤    Agent实现    Agent验证   所有步骤
+  │    生成架构提议     含依赖关系       当前步骤    验收标准     完成
+```
+
+### DevFlowSession 数据结构
+
+```
+DevFlowSession:
+  session_id: str              # 唯一会话 ID
+  overall_goal: str            # 开发总目标
+  user_constraints: str        # 用户额外约束
+  architecture: Optional[str]  # Agent 提议的架构（Markdown）
+  steps: List[DevFlowStep]     # 步骤列表
+  current_step_index: int      # 当前步骤索引
+  phase: str                   # 状态机阶段
+
+DevFlowStep:
+  id: str                      # 步骤 ID（如 step-1）
+  title: str                   # 步骤标题
+  goal: str                    # 本步骤目标
+  constraints: str             # 本步骤约束条件
+  acceptance_criteria: str     # 验收标准
+  status: str                  # pending | in_progress | implemented | verified | failed
+  depends_on: List[str]        # 依赖的步骤 ID
+  implementation_result: Optional[str]
+  verification_result: Optional[str]
+```
+
+### 4 个 DevFlow Skills
+
+| Skill | 用途 | 注入时机 |
+|-------|------|----------|
+| `devflow-architect` | 分析需求并提议架构 | ARCHITECTURE 阶段 |
+| `devflow-step-planner` | 将架构拆解为步骤（含依赖） | STEP_DEFINITION 阶段 |
+| `devflow-implementer` | 实现单个步骤，严格按约束 | IMPLEMENTATION 阶段 |
+| `devflow-verifier` | 逐条验证验收标准 | VERIFY 阶段 |
+
+每个 Skill 通过 `use_skill` 工具调用，或由 `DevFlowRuntime.get_prompt_guidance()` 自动注入到 system prompt。
+
+### DevFlowRuntime 核心方法
+
+```python
+class DevFlowRuntime(RuntimeBase):
+    start_session(goal, constraints="") → DevFlowSession
+    propose_architecture(agent) → str
+    approve_architecture(architecture=None) → None
+    generate_steps(agent) → List[DevFlowStep]
+    approve_steps(steps=None) → None
+    execute_step(agent) → str
+    verify_step(agent) → str
+    next_step() → bool
+    skip_step() → bool
+    retry_step() → None
+    save() / load(session_id)
+    archive(output_path=None) → str  # Markdown report
+```
+
+### System Prompt 注入机制
+
+当 DevFlow 活跃时，`DevFlowRuntime.get_prompt_guidance()` 根据当前阶段返回专用提示：
+- **ARCHITECTURE**: 分析需求、提议架构的指令
+- **STEP_DEFINITION**: 拆解步骤、定义依赖的指令
+- **IMPLEMENTATION**: 当前步骤的目标、约束、验收标准 + 之前步骤摘要
+- **VERIFY**: 验收标准 + 实现结果，要求逐条检查
+- **DONE**: 完成总结
+
+注入通过 `agent_prompting.py` 的 `render_system_prompt()` 自动完成（遍历所有 runtime 调用 `get_prompt_guidance()`）。
+
+### REPL 命令
+
+| 命令 | 功能 |
+|------|------|
+| `/devflow start <目标>` | 启动新开发流程 |
+| `/devflow status` | 查看整体进度和依赖树 |
+| `/devflow step` | 查看当前步骤详情 |
+| `/devflow accept` | 批准当前阶段输出（架构 / 步骤 / 验证结果） |
+| `/devflow reject [原因]` | 拒绝并要求重新生成 |
+| `/devflow skip` | 跳过当前步骤 |
+| `/devflow archive` | 保存完整 session 到 Markdown 文件 |
+| `/devflow list` | 列出所有已保存的 session |
+| `/devflow load <id>` | 加载已保存的 session |
+
+### 终端可视化
+
+**依赖树**（`/devflow status`）:
+```
+╭─ DevFlow: 用户认证系统 ──────────────────────╮
+│  ✅ step-1: 定义数据模型           [verified] │
+│  ├── ✅ step-2: 实现注册接口       [verified] │
+│  │   └── ▶ step-3: 实现登录接口 [in_progress] │
+│  └── ◇ step-4: 密码加密工具        [pending]  │
+│  Progress: ████████░░░░ 50% (2/4 verified)    │
+╰───────────────────────────────────────────────╯
+```
+
+图例: `✅` verified, `▶` in_progress, `●` implemented, `◇` pending, `✖` failed
+
+**步骤详情**（`/devflow step`）:
+显示当前步骤的目标、约束、验收标准、依赖关系和状态。
+
+### 持久化
+
+- Session 文件: `.port_sessions/devflow/<session_id>.json`
+- 归档文件: `devflow-<session_id>.md`（通过 `/devflow archive` 生成）
 
 ---
 

@@ -35,7 +35,7 @@ User (CLI / REPL / GUI)
             ├── Model Client (openai_compat.py / anthropic_compat.py)
             ├── Tool Registry + Executor (agent_tools.py)
             ├── Session + Store (agent_session.py + session_store.py)
-            └── Runtime Modules (18 modules: mcp, search, remote, ...)
+            └── Runtime Modules (19 modules: mcp, search, remote, devflow, ...)
 ```
 
 ### Key Components
@@ -49,8 +49,13 @@ User (CLI / REPL / GUI)
 | `token_budget.py` | Per-run token / model-call / tool-call budget enforcement |
 | `mcp_runtime.py` | MCP protocol: server process management + JSON-RPC tool bridging |
 | `plugin_runtime.py` | Plugin discovery, virtual tool registration, tool aliases / blocks |
-| `repl.py` | Interactive terminal with permission prompts and session management |
+| `devflow_runtime.py` | Structured development workflow: lifecycle state machine, step execution, persistence |
+| `repl.py` | Interactive terminal with permission prompts, /devflow commands, session history + resume |
 | `query_engine.py` | Facade API for embedding the agent in other applications |
+| `gui/server.py` | ThreadingHTTPServer with chat UI, SSE streaming, and interactive permission confirmation |
+| `gui/permission_manager.py` | Thread-safe permission request manager for GUI agent workflows |
+| `gui/sse_routes.py` | Server-Sent Events endpoint for real-time agent streaming |
+| `gui/session_routes.py` | Session CRUD API: list, detail, resume, delete |
 
 ### Built-in Tools
 
@@ -80,6 +85,12 @@ python3 -m src.main agent-chat --cwd . --max-turns 30
 | `/status` | Agent + runtime status dump |
 | `/compact` | Trigger context compaction |
 | `/budget` | Show token usage |
+| `/sessions` | List all saved agent sessions |
+| `/resume <id>` | Resume a saved session |
+| `/devflow start <goal>` | Start structured development workflow |
+| `/devflow status` | Show DevFlow progress + dependency tree |
+| `/devflow accept` | Accept architecture / steps / verified result |
+| `/devflow reject` | Reject and request regeneration |
 
 ### Plugin Configuration
 

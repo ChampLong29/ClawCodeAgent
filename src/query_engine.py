@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .agent_runtime import LocalCodingAgent
 from .agent_types import AgentRunResult, BudgetConfig, ModelConfig
@@ -16,6 +16,7 @@ class QueryEngineConfig:
     model: Optional[ModelConfig] = None
     budget: Optional[BudgetConfig] = None
     permissions: Optional[Dict[str, Any]] = None
+    permission_callback: Optional[Callable] = None
     max_turns: int = 100
     stream: bool = False
 
@@ -57,13 +58,17 @@ class QueryEngine:
                 model_config=self.config.model,
                 budget=self.config.budget,
             )
+            self._agent.permissions = self.config.permissions
+            self._agent.permission_callback = self.config.permission_callback
             result = self._agent.resume(prompt, stream=self.config.stream)
         else:
             self._agent = LocalCodingAgent(
                 cwd=self.cwd,
                 model_config=self.config.model,
                 budget=self.config.budget,
+                permissions=self.config.permissions,
             )
+            self._agent.permission_callback = self.config.permission_callback
             result = self._agent.run(prompt, max_turns=self.config.max_turns, stream=self.config.stream)
 
         # Persist session

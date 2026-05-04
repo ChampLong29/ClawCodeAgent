@@ -344,6 +344,17 @@ def cmd_worktree_status(args) -> int:
     return _runtime_status("worktree", args)
 
 
+def cmd_sessions(args) -> int:
+    """List all saved agent sessions."""
+    cwd = _resolve_cwd(args.cwd)
+    from .session_store import list_sessions
+
+    sessions = list_sessions(cwd)
+    sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
+    print(json.dumps(sessions, indent=2))
+    return 0
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
@@ -433,6 +444,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     worktree_status_parser = subparsers.add_parser("worktree-status", help="Worktree status")
     worktree_status_parser.add_argument("--cwd", default=None)
 
+    sessions_parser = subparsers.add_parser("sessions", help="List saved agent sessions")
+    sessions_parser.add_argument("--cwd", default=None)
+
     args = parser.parse_args(argv)
 
     if not args.command:
@@ -462,6 +476,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "trigger-list": cmd_trigger_list,
         "team-status": cmd_team_status,
         "worktree-status": cmd_worktree_status,
+        "sessions": cmd_sessions,
     }
 
     cmd_func = cmd_map.get(args.command)

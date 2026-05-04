@@ -46,6 +46,7 @@ from .worktree_runtime import WorktreeRuntime
 from .background_runtime import BackgroundRuntime
 from .tokenizer_runtime import TokenizerRuntime
 from .agent_manager import AgentManagerRuntime
+from .devflow_runtime import DevFlowRuntime
 
 # Auto-retry configuration
 MAX_RETRIES = 3
@@ -180,6 +181,7 @@ class LocalCodingAgent:
             ("background", BackgroundRuntime),
             ("tokenizer", TokenizerRuntime),
             ("agent_manager", AgentManagerRuntime),
+            ("devflow", DevFlowRuntime),
         ]
 
         for name, cls in _runtime_classes:
@@ -232,6 +234,10 @@ class LocalCodingAgent:
 
         if self.session is None:
             self.session = AgentSession(session_id=str(uuid.uuid4())[:8])
+
+        self.session.cwd = self.cwd
+        if self.client:
+            self.session.model = self.client.model
 
         self.session.add_user_message(prompt)
 

@@ -60,7 +60,11 @@ def list_sessions(base_path: str) -> list[Dict[str, Any]]:
                     sessions.append({
                         "session_id": data.get("session_id"),
                         "created_at": data.get("created_at"),
+                        "updated_at": data.get("updated_at"),
                         "message_count": len(data.get("messages", [])),
+                        "model": data.get("model"),
+                        "stop_reason": data.get("stop_reason"),
+                        "cwd": data.get("cwd"),
                     })
             except (json.JSONDecodeError, OSError):
                 continue
