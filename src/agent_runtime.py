@@ -247,7 +247,9 @@ class LocalCodingAgent:
 
         max_turns = max_turns or 100
 
-        return self._run_loop(max_turns=max_turns, stream=stream)
+        result = self._run_loop(max_turns=max_turns, stream=stream)
+        save_agent_session(self.session, self.cwd)
+        return result
 
     def resume(self, prompt: str, stream: bool = False) -> AgentRunResult:
         """Resume an existing session."""
@@ -255,7 +257,9 @@ class LocalCodingAgent:
             raise ValueError("No session to resume. Use run() for new sessions.")
 
         self.session.add_user_message(prompt)
-        return self._run_loop(max_turns=100, stream=stream)
+        result = self._run_loop(max_turns=100, stream=stream)
+        save_agent_session(self.session, self.cwd)
+        return result
 
     def _run_loop(self, max_turns: int, stream: bool) -> AgentRunResult:
         """Main agent loop."""
