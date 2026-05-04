@@ -25,6 +25,7 @@ from .agent_tools import execute_tool, ToolExecutionContext
 from .api_config import APIConfigRuntime
 from .agent_slash_commands import execute_slash_command, default_command_registry
 from .devflow_runtime import DevFlowRuntime, DevFlowSession, DevFlowStep
+from .lifecycle_runtime import LifecycleRuntime, LifecycleSession, LifecyclePhase
 from .session_store import list_sessions, load_agent_session
 
 # Terminal colors
@@ -111,6 +112,9 @@ class ClawRepl:
         # DevFlow runtime
         self._devflow_rt = DevFlowRuntime(cwd=cwd)
 
+        # Lifecycle runtime
+        self._lifecycle_rt = LifecycleRuntime(cwd=cwd)
+
         _setup_readline()
 
     def run(self):
@@ -194,6 +198,55 @@ class ClawRepl:
         except Exception:
             pass
 
+    def _print_full_help(self):
+        """Print comprehensive help with all command groups."""
+        _print_colored("")
+        _print_colored("Session & Permissions:", Colors.BOLD)
+        _print_colored("  /permissions   Show current permissions", Colors.DIM)
+        _print_colored("  /allow-shell   Enable shell execution", Colors.DIM)
+        _print_colored("  /deny-shell    Disable shell execution", Colors.DIM)
+        _print_colored("  /allow-write   Enable file write operations", Colors.DIM)
+        _print_colored("  /deny-write    Disable file write operations", Colors.DIM)
+        _print_colored("  /status        Show agent and runtime status", Colors.DIM)
+        _print_colored("  /sessions      List all saved agent sessions", Colors.DIM)
+        _print_colored("  /resume <id>   Resume a saved session", Colors.DIM)
+        _print_colored("  /name <name>   Set or show session name", Colors.DIM)
+
+        _print_colored("")
+        _print_colored("Context Management:", Colors.BOLD)
+        _print_colored("  /compact       Compact conversation history", Colors.DIM)
+        _print_colored("  /budget        Show token budget usage", Colors.DIM)
+        _print_colored("  /retry         Retry last assistant message", Colors.DIM)
+        _print_colored("  /clear         Clear screen", Colors.DIM)
+        _print_colored("  /help, /h      Show this help", Colors.DIM)
+
+        _print_colored("")
+        _print_colored("DevFlow Commands:", Colors.BOLD)
+        _print_colored("  /devflow start <goal>    Start structured development workflow", Colors.DIM)
+        _print_colored("  /devflow status          Show progress and dependency tree", Colors.DIM)
+        _print_colored("  /devflow step            Show current step and module details", Colors.DIM)
+        _print_colored("  /devflow accept          Approve architecture / steps / modules", Colors.DIM)
+        _print_colored("  /devflow reject [reason] Reject and request regeneration", Colors.DIM)
+        _print_colored("  /devflow skip            Skip current step or module", Colors.DIM)
+        _print_colored("  /devflow archive         Save session report to file", Colors.DIM)
+        _print_colored("  /devflow list            List saved DevFlow sessions", Colors.DIM)
+        _print_colored("  /devflow load <id>       Load a saved DevFlow session", Colors.DIM)
+
+        _print_colored("")
+        _print_colored("Lifecycle Commands:", Colors.BOLD)
+        _print_colored("  /lifecycle start <goal>  Start full software engineering lifecycle", Colors.DIM)
+        _print_colored("  /lifecycle status        Show lifecycle progress", Colors.DIM)
+        _print_colored("  /lifecycle accept        Approve current phase and advance", Colors.DIM)
+        _print_colored("  /lifecycle reject [msg]  Reject phase and request regeneration", Colors.DIM)
+        _print_colored("  /lifecycle skip-phase    Skip current phase", Colors.DIM)
+        _print_colored("  /lifecycle archive       Export full lifecycle report", Colors.DIM)
+        _print_colored("  /lifecycle list          List saved lifecycle sessions", Colors.DIM)
+        _print_colored("  /lifecycle load <id>     Load a saved lifecycle session", Colors.DIM)
+
+        _print_colored("")
+        _print_colored("Type any other text to query the agent.", Colors.DIM)
+        _print_colored("")
+
     def _read_input(self) -> Optional[str]:
         """Read a line of input with proper prompt."""
         try:
@@ -247,6 +300,24 @@ class ClawRepl:
             session_id = cmd[len("/resume "):].strip()
             self._cmd_resume(session_id)
             return True
+        elif cmd == "/name":
+            if self.agent and self.agent.session:
+                name = self.agent.session.name or "(unnamed)"
+                _print_colored(f"Session name: {name}", Colors.DIM)
+                _print_colored("Use /name <new_name> to set a session name", Colors.DIM)
+            else:
+                _print_colored("No active session.", Colors.YELLOW)
+            return True
+        elif cmd.startswith("/name "):
+            name = cmd[len("/name "):].strip()
+            if self.agent and self.agent.session:
+                self.agent.session.name = name
+                from .session_store import save_agent_session
+                save_agent_session(self.agent.session, self.cwd)
+                _print_colored(f"Session name set to: {name}", Colors.GREEN)
+            else:
+                _print_colored("No active session.", Colors.YELLOW)
+            return True
         elif cmd == "/clear":
             os.system("clear" if os.name != "nt" else "cls")
             return True
@@ -272,7 +343,19 @@ class ClawRepl:
             self._handle_devflow(cmd)
             return True
 
-        # Delegate to shared slash command registry for /help, /retry, /compact, /budget
+        # Lifecycle commands
+        if cmd.startswith("/lifecycle"):
+            self._handle_lifecycle(cmd)
+            return True
+
+        # /help — show full REPL help with all command groups
+        if cmd == "/help" or cmd == "/h":
+            self._print_banner()
+            _print_colored("")
+            self._print_full_help()
+            return True
+
+        # Delegate to shared slash command registry for /retry, /compact, /budget
         context = {
             "agent": self.agent,
             "cwd": self.cwd,
@@ -281,42 +364,9 @@ class ClawRepl:
         result = execute_slash_command(command, context)
 
         if result is None:
-            # Show REPL-specific help
-            _print_colored("""
-REPL Commands:
-  /help          Show this help
-  /permissions   Show current permissions
-  /allow-shell   Enable shell execution
-  /deny-shell    Disable shell execution
-  /allow-write   Enable file write operations
-  /deny-write    Disable file write operations
-  /status        Show agent and runtime status
-  /sessions      List all saved agent sessions
-  /resume <id>   Resume a saved session
-  /compact       Compact conversation history
-  /budget        Show token budget usage
-  /retry         Retry last assistant message
-  /clear         Clear screen
-  /exit, /quit   Exit the REPL
-
-DevFlow Commands:
-  /devflow start <goal>   Start structured development workflow
-  /devflow status         Show progress and dependency tree
-  /devflow step           Show current step details
-  /devflow accept         Approve architecture / steps / verified step
-  /devflow reject [reason] Reject and request regeneration
-  /devflow skip           Skip current step
-  /devflow archive        Save session report to file
-
-Type any other text to query the agent.
-""", Colors.DIM)
+            # Show REPL-specific help (fallback for unknown commands)
+            self._print_full_help()
             return True
-
-        if isinstance(result, dict) and "error" in result:
-            _print_colored(str(result["error"]), Colors.YELLOW)
-        elif isinstance(result, str):
-            _print_colored(result, Colors.DIM)
-        return True
 
     def _new_agent(self):
         """Create a new agent instance with current settings."""
@@ -483,45 +533,101 @@ Type any other text to query the agent.
                 self._print_devflow_tree()
                 _print_colored("")
                 _print_colored("Review the steps above.", Colors.BOLD)
-                _print_colored("  /devflow accept  — approve and start implementing", Colors.DIM)
+                _print_colored("  /devflow accept  — approve and analyze first step", Colors.DIM)
                 _print_colored("  /devflow reject [feedback] — request changes", Colors.DIM)
             except Exception as e:
                 _print_colored(f"Error generating steps: {e}", Colors.RED)
 
         elif session.phase == "STEP_DEFINITION":
-            _print_colored("Steps approved. Starting implementation...", Colors.DIM)
+            _print_colored("Steps approved. Analyzing first step...", Colors.DIM)
             try:
                 self._devflow_rt.approve_steps()
-                self._devflow_run_implement_verify_cycle(agent)
+                # STEP_ANALYSIS: generate module breakdown
+                self._devflow_run_analyze_phase(agent)
             except Exception as e:
                 _print_colored(f"Error: {e}", Colors.RED)
 
-        elif session.phase in ("IMPLEMENTATION", "VERIFY"):
-            # After verify, accept moves to next step
+        elif session.phase == "STEP_ANALYSIS":
+            # Approve modules and start implementing
             step = session.get_current_step()
-            if step and step.status == "verified":
-                _print_colored(f"Step '{step.title}' verified. Moving to next step...", Colors.GREEN)
-                has_next = self._devflow_rt.next_step()
-                if has_next:
-                    self._devflow_run_implement_verify_cycle(agent)
-                else:
-                    self._print_devflow_tree()
-                    _print_colored("")
-                    _print_colored("All steps complete! Session archived.", Colors.GREEN)
-                    try:
-                        archive_path = self._devflow_rt.archive()
-                        _print_colored(f"Report saved to: {archive_path}", Colors.DIM)
-                    except Exception:
-                        pass
-            elif step and step.status == "implemented":
-                _print_colored("Running verification...", Colors.DIM)
-                self._devflow_run_verify_phase(agent)
+            if step and step.has_modules():
+                _print_colored("Modules approved. Starting module-by-module implementation...", Colors.DIM)
+                try:
+                    self._devflow_rt.approve_modules()
+                    self._devflow_run_module_cycle(agent)
+                except Exception as e:
+                    _print_colored(f"Error: {e}", Colors.RED)
             else:
-                _print_colored(
-                    f"Nothing to accept in phase '{session.phase}'. "
-                    f"Current step status: {step.status if step else 'N/A'}",
-                    Colors.YELLOW,
-                )
+                # No modules generated — skip to legacy mode
+                _print_colored("No modules generated. Using full-step mode...", Colors.YELLOW)
+                try:
+                    self._devflow_rt.approve_modules()  # will fail if no modules
+                except Exception:
+                    # Fallback: manually set phase to IMPLEMENTATION
+                    self._devflow_rt.session.phase = "IMPLEMENTATION"
+                    self._devflow_rt.save()
+                self._devflow_run_implement_verify_cycle(agent)
+
+        elif session.phase in ("IMPLEMENTATION", "VERIFY"):
+            step = session.get_current_step()
+            if step and step.has_modules():
+                # Module mode: accept current module → verify → advance
+                module = step.get_current_module()
+                if module and module.status == "implemented":
+                    _print_colored(f"Verifying module: {module.file_path}...", Colors.DIM)
+                    self._devflow_run_verify_phase(agent)
+                    # After verify, show result and prompt for next module
+                    if module.status == "verified":
+                        has_next = self._devflow_rt.next_module()
+                        if has_next:
+                            self._prompt_module_confirm()
+                        else:
+                            # All modules done, advance to next step
+                            _print_colored(f"All modules for step '{step.title}' complete!", Colors.GREEN)
+                            self._devflow_rt.next_step()
+                            self._devflow_run_analyze_phase(agent) if self._devflow_rt.session.phase != "DONE" else self._print_devflow_tree()
+                    else:
+                        _print_colored(f"Module verification failed. Use /devflow reject [reason] to retry.", Colors.YELLOW)
+                elif module and module.status == "verified":
+                    # Module already verified, advance to next
+                    has_next = self._devflow_rt.next_module()
+                    if has_next:
+                        self._prompt_module_confirm()
+                    else:
+                        _print_colored(f"All modules for step '{step.title}' complete!", Colors.GREEN)
+                        self._devflow_rt.next_step()
+                        if self._devflow_rt.session.phase != "DONE":
+                            self._devflow_run_analyze_phase(agent)
+                        else:
+                            self._print_devflow_tree()
+                            _print_colored("All steps complete!", Colors.GREEN)
+                else:
+                    _print_colored("Nothing to accept. Enter /devflow reject [reason] to retry.", Colors.YELLOW)
+            else:
+                # Legacy full-step mode
+                if step and step.status == "verified":
+                    _print_colored(f"Step '{step.title}' verified. Moving to next step...", Colors.GREEN)
+                    has_next = self._devflow_rt.next_step()
+                    if has_next:
+                        self._devflow_run_implement_verify_cycle(agent)
+                    else:
+                        self._print_devflow_tree()
+                        _print_colored("")
+                        _print_colored("All steps complete! Session archived.", Colors.GREEN)
+                        try:
+                            archive_path = self._devflow_rt.archive()
+                            _print_colored(f"Report saved to: {archive_path}", Colors.DIM)
+                        except Exception:
+                            pass
+                elif step and step.status == "implemented":
+                    _print_colored("Running verification...", Colors.DIM)
+                    self._devflow_run_verify_phase(agent)
+                else:
+                    _print_colored(
+                        f"Nothing to accept in phase '{session.phase}'. "
+                        f"Current step status: {step.status if step else 'N/A'}",
+                        Colors.YELLOW,
+                    )
 
         elif session.phase == "DONE":
             _print_colored("DevFlow session is already complete.", Colors.GREEN)
@@ -563,12 +669,35 @@ Type any other text to query the agent.
             except Exception as e:
                 _print_colored(f"Error: {e}", Colors.RED)
 
+        elif session.phase == "STEP_ANALYSIS":
+            _print_colored("Regenerating module breakdown...", Colors.DIM)
+            try:
+                modules = self._devflow_rt.analyze_step(agent)
+                if modules:
+                    self._devflow_rt.session.phase = "STEP_ANALYSIS"
+                    self._devflow_rt.save()
+                    _print_colored(f"Generated {len(modules)} modules.", Colors.GREEN)
+                    _print_colored("  /devflow accept — approve modules", Colors.DIM)
+                    _print_colored("  /devflow reject — regenerate", Colors.DIM)
+            except Exception as e:
+                _print_colored(f"Error: {e}", Colors.RED)
+
         elif session.phase in ("IMPLEMENTATION", "VERIFY"):
             step = session.get_current_step()
             if step:
-                _print_colored(f"Retrying step '{step.title}'...", Colors.DIM)
-                self._devflow_rt.retry_step()
-                self._devflow_run_implement_verify_cycle(agent)
+                if step.has_modules():
+                    module = step.get_current_module()
+                    if module:
+                        _print_colored(f"Retrying module '{module.file_path}'...", Colors.DIM)
+                        module.status = "pending"
+                        module.implementation_result = None
+                        module.verification_result = None
+                        self._devflow_rt.save()
+                        self._prompt_module_confirm()
+                else:
+                    _print_colored(f"Retrying step '{step.title}'...", Colors.DIM)
+                    self._devflow_rt.retry_step()
+                    self._devflow_run_implement_verify_cycle(agent)
 
         elif session.phase == "DONE":
             _print_colored("Session is already complete. Start a new one with /devflow start", Colors.YELLOW)
@@ -676,6 +805,140 @@ Type any other text to query the agent.
         _print_colored(f"Goal: {session.overall_goal}", Colors.BOLD)
         _print_colored(f"Phase: {session.phase}", Colors.DIM)
         self._print_devflow_tree()
+
+    # ------------------------------------------------------------------
+    # DevFlow STEP_ANALYSIS + Module execution
+    # ------------------------------------------------------------------
+
+    def _devflow_run_analyze_phase(self, agent: LocalCodingAgent) -> None:
+        """Run the STEP_ANALYSIS phase to generate module breakdown."""
+        session = self._devflow_rt.get_session()
+        if not session:
+            return
+
+        step = session.get_current_step()
+        if not step:
+            return
+
+        _print_colored("")
+        _print_colored(f"Analyzing step: {step.title}...", Colors.DIM)
+        _print_colored("Breaking down into implementation modules...", Colors.DIM)
+
+        try:
+            modules = self._devflow_rt.analyze_step(agent)
+            if not modules:
+                _print_colored("No modules generated. Will use full-step mode.", Colors.YELLOW)
+                return
+
+            _print_colored("")
+            _print_colored("╭─ Module Breakdown ────────────────────────────╮", Colors.CYAN)
+            for i, m in enumerate(modules):
+                idx = f"{i + 1}/{len(modules)}"
+                _print_colored(f"│                                               │", Colors.CYAN)
+                _print_colored(f"│ Module {idx}: {m.file_path}", Colors.BOLD)
+                _print_colored(f"│   Goal: {m.goal[:55]}", Colors.DIM)
+                if m.constraints:
+                    _print_colored(f"│   Constraints: {m.constraints[:52]}", Colors.DIM)
+                if m.acceptance_criteria:
+                    _print_colored(f"│   Criteria: {m.acceptance_criteria[:52]}", Colors.DIM)
+            _print_colored("╰───────────────────────────────────────────────╯", Colors.CYAN)
+            _print_colored("")
+            _print_colored("Review the module breakdown above.", Colors.BOLD)
+            _print_colored("  /devflow accept  — approve modules and start implementing", Colors.DIM)
+            _print_colored("  /devflow reject [feedback] — request changes", Colors.DIM)
+        except Exception as e:
+            _print_colored(f"Error analyzing step: {e}", Colors.RED)
+
+    def _prompt_module_confirm(self) -> None:
+        """Show the current module details and prompt user for confirmation."""
+        module = self._devflow_rt.get_current_module()
+        if not module:
+            return
+
+        step = self._devflow_rt.get_current_step()
+        total = len(step.modules) if step else 0
+        idx = (step.current_module_index if step else 0) + 1
+
+        _print_colored("")
+        width = 56
+        title = f"Module {idx}/{total}: {module.file_path}"
+        if len(title) > width - 4:
+            title = title[:width - 7] + "..."
+        _print_colored(f"╭─ {title} ─{'─' * max(1, width - len(title) - 4)}╮", Colors.CYAN)
+        _print_colored(f"│ {' ' * width} │", Colors.CYAN)
+        _print_colored(f"│ Goal:", Colors.BOLD)
+        for line in textwrap.wrap(module.goal, width=width - 4):
+            _print_colored(f"│   {line}", Colors.DIM)
+        if module.constraints:
+            _print_colored(f"│ {' ' * width} │", Colors.CYAN)
+            _print_colored(f"│ Constraints:", Colors.BOLD)
+            for line in textwrap.wrap(module.constraints, width=width - 4):
+                _print_colored(f"│   {line}", Colors.DIM)
+        if module.acceptance_criteria:
+            _print_colored(f"│ {' ' * width} │", Colors.CYAN)
+            _print_colored(f"│ Acceptance Criteria:", Colors.BOLD)
+            for line in module.acceptance_criteria.split("\n"):
+                for w in textwrap.wrap(line.strip(), width=width - 4):
+                    _print_colored(f"│   {w}", Colors.DIM)
+        _print_colored(f"╰{'─' * (width + 2)}╯", Colors.CYAN)
+        _print_colored("")
+        _print_colored("Proceed? [y]es / [m]odify / [s]kip module", Colors.YELLOW)
+
+        try:
+            choice = input(f"  {Colors.YELLOW}Choice: {Colors.RESET}").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            _print_colored("  Cancelled", Colors.RED)
+            return
+
+        agent = self._devflow_ensure_agent()
+
+        if choice == "y" or choice == "yes":
+            self._devflow_run_implement_phase(agent)
+            self._devflow_run_verify_phase(agent)
+            # After verify, check if we need to advance
+            module_after = self._devflow_rt.get_current_module()
+            if module_after and module_after.status == "verified":
+                has_next = self._devflow_rt.next_module()
+                if has_next:
+                    self._prompt_module_confirm()
+                else:
+                    _print_colored(f"All modules complete!", Colors.GREEN)
+        elif choice == "m" or choice == "modify":
+            _print_colored("Enter modified goal/constraints/criteria (or leave blank to keep):", Colors.DIM)
+            try:
+                new_goal = input(f"  Goal [{module.goal[:40]}...]: ").strip()
+                new_constraints = input(f"  Constraints [{module.constraints[:40]}...]: ").strip()
+                new_criteria = input(f"  Criteria [{module.acceptance_criteria[:40]}...]: ").strip()
+                if new_goal:
+                    module.goal = new_goal
+                if new_constraints:
+                    module.constraints = new_constraints
+                if new_criteria:
+                    module.acceptance_criteria = new_criteria
+                self._devflow_rt.save()
+                _print_colored("Module updated. Showing updated details...", Colors.GREEN)
+                self._prompt_module_confirm()
+            except (EOFError, KeyboardInterrupt):
+                pass
+        elif choice == "s" or choice == "skip":
+            module.status = "failed"
+            module.verification_result = "Skipped by user."
+            self._devflow_rt.save()
+            _print_colored(f"Skipped module: {module.file_path}", Colors.YELLOW)
+            has_next = self._devflow_rt.next_module()
+            if has_next:
+                self._prompt_module_confirm()
+        else:
+            _print_colored("Invalid choice. Use /devflow accept when ready.", Colors.YELLOW)
+
+    def _devflow_run_module_cycle(self, agent: LocalCodingAgent) -> None:
+        """Start module-by-module implementation for the current step."""
+        step = self._devflow_rt.get_current_step()
+        if not step or not step.has_modules():
+            _print_colored("No modules to implement.", Colors.YELLOW)
+            return
+
+        self._prompt_module_confirm()
 
     # ------------------------------------------------------------------
     # DevFlow execution cycle
@@ -963,19 +1226,17 @@ Type any other text to query the agent.
             sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
             _print_colored("")
             _print_colored("Saved Sessions:", Colors.BOLD)
-            _print_colored(f"  {'ID':<10} {'Msgs':>5}  {'Status':<14}  {'Model':<25}  {'CWD'}", Colors.CYAN)
+            _print_colored(f"  {'ID':<10} {'Name':<30} {'Msgs':>5}  {'Status':<14}  {'Model':<20}", Colors.CYAN)
             for s in sessions:
                 sid = (s.get("session_id") or "")[:8]
+                name = (s.get("name") or "")[:28] or "(unnamed)"
                 msgs = s.get("message_count", 0)
                 stop = s.get("stop_reason") or "active"
                 model = (s.get("model") or "").split("/")[-1] or "?"
-                cwd = s.get("cwd") or ""
-                if len(model) > 24:
-                    model = model[:21] + "..."
-                if len(cwd) > 40:
-                    cwd = "..." + cwd[-37:]
+                if len(model) > 18:
+                    model = model[:15] + "..."
                 _print_colored(
-                    f"  {sid:<10} {msgs:>5}  {stop:<14}  {model:<25}  {cwd}",
+                    f"  {sid:<10} {name:<30} {msgs:>5}  {stop:<14}  {model:<20}",
                     Colors.DIM,
                 )
         except Exception as e:
@@ -1061,3 +1322,263 @@ Type any other text to query the agent.
 
         # Allow by default for non-bash tools
         return True
+
+    # ------------------------------------------------------------------
+    # Lifecycle commands
+    # ------------------------------------------------------------------
+
+    def _handle_lifecycle(self, cmd: str) -> None:
+        """Dispatch /lifecycle sub-commands."""
+        parts = cmd.split(None, 2)
+        sub = parts[1] if len(parts) > 1 else ""
+        rest = parts[2] if len(parts) > 2 else ""
+
+        if sub == "start":
+            self._lifecycle_start(rest)
+        elif sub == "status":
+            self._lifecycle_status()
+        elif sub == "accept":
+            self._lifecycle_accept()
+        elif sub == "reject":
+            self._lifecycle_reject(rest)
+        elif sub == "skip-phase":
+            self._lifecycle_skip_phase()
+        elif sub == "archive":
+            self._lifecycle_archive()
+        elif sub == "list":
+            self._lifecycle_list()
+        elif sub == "load":
+            self._lifecycle_load(rest)
+        else:
+            _print_colored(
+                "Lifecycle commands:\n"
+                "  /lifecycle start <goal>    Start a full software engineering lifecycle\n"
+                "  /lifecycle status          Show lifecycle progress\n"
+                "  /lifecycle accept          Approve current phase output and advance\n"
+                "  /lifecycle reject [reason] Reject and request regeneration\n"
+                "  /lifecycle skip-phase      Skip current phase\n"
+                "  /lifecycle archive         Export full lifecycle report\n"
+                "  /lifecycle list            List saved sessions\n"
+                "  /lifecycle load <id>       Load a saved session",
+                Colors.DIM,
+            )
+
+    def _lifecycle_ensure_agent(self) -> LocalCodingAgent:
+        """Ensure an agent is ready for lifecycle operations."""
+        if self.agent is None:
+            self._new_agent()
+        return self.agent
+
+    def _lifecycle_start(self, goal: str) -> None:
+        """Start a new lifecycle session."""
+        if not goal:
+            _print_colored("Usage: /lifecycle start <development goal>", Colors.YELLOW)
+            return
+
+        session = self._lifecycle_rt.start_session(goal)
+
+        _print_colored("")
+        _print_colored("╔══════════════════════════════════════════════╗", Colors.CYAN)
+        _print_colored("║  Lifecycle: Full Software Engineering        ║", Colors.BOLD + Colors.CYAN)
+        _print_colored("╠══════════════════════════════════════════════╣", Colors.CYAN)
+        _print_colored(f"║  Session: {session.session_id}                          ║", Colors.CYAN)
+        _print_colored("╚══════════════════════════════════════════════╝", Colors.CYAN)
+        _print_colored("")
+        _print_colored(f"Goal: {goal}", Colors.BOLD)
+        _print_colored("")
+        self._print_lifecycle_status()
+        _print_colored("")
+        _print_colored("Run the current phase with the agent prompt.", Colors.BOLD)
+        _print_colored("  /lifecycle accept  — approve phase output and advance", Colors.DIM)
+        _print_colored("  /lifecycle reject [feedback] — request regeneration", Colors.DIM)
+
+    def _lifecycle_status(self) -> None:
+        """Show lifecycle progress."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session. Use /lifecycle start <goal>", Colors.YELLOW)
+            sessions = self._lifecycle_rt.list_sessions()
+            if sessions:
+                _print_colored("")
+                _print_colored("Saved sessions:", Colors.DIM)
+                for s in sessions:
+                    icon = "✅" if s.get("completed") else "●"
+                    _print_colored(
+                        f"  {icon} {s['session_id']}: {s['overall_goal'][:60]} "
+                        f"({s.get('current_phase', '?')})",
+                        Colors.DIM,
+                    )
+                _print_colored("")
+                _print_colored("Use /lifecycle load <id> to resume a session.", Colors.DIM)
+            return
+
+        self._print_lifecycle_status()
+
+    def _lifecycle_accept(self) -> None:
+        """Accept the current phase output and advance to the next phase."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session.", Colors.YELLOW)
+            return
+
+        phase = session.get_current_phase()
+        if not phase:
+            _print_colored("All phases complete!", Colors.GREEN)
+            return
+
+        if phase.status not in ("in_progress", "completed"):
+            _print_colored(
+                f"Current phase '{phase.name}' is '{phase.status}'. "
+                f"Run the agent first to execute this phase.",
+                Colors.YELLOW,
+            )
+            return
+
+        _print_colored(f"Phase '{phase.name}' accepted.", Colors.GREEN)
+        has_next = self._lifecycle_rt.advance_phase()
+
+        if has_next:
+            new_phase = session.get_current_phase()
+            if new_phase:
+                _print_colored(f"Next phase: {new_phase.name}", Colors.BOLD)
+            self._print_lifecycle_status()
+        else:
+            _print_colored("")
+            _print_colored("All lifecycle phases complete!", Colors.GREEN)
+            try:
+                archive_path = self._lifecycle_rt.archive()
+                _print_colored(f"Report saved to: {archive_path}", Colors.DIM)
+            except Exception:
+                pass
+
+    def _lifecycle_reject(self, reason: str) -> None:
+        """Reject the current phase output and request retry."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session.", Colors.YELLOW)
+            return
+
+        phase = session.get_current_phase()
+        if not phase:
+            _print_colored("No current phase to reject.", Colors.YELLOW)
+            return
+
+        _print_colored(f"Rejecting phase '{phase.name}'... (feedback: {reason or 'none'})", Colors.YELLOW)
+        self._lifecycle_rt.retry_phase()
+        _print_colored("Phase reset. Run the agent again to regenerate.", Colors.DIM)
+
+    def _lifecycle_skip_phase(self) -> None:
+        """Skip the current phase."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session.", Colors.YELLOW)
+            return
+
+        phase = session.get_current_phase()
+        if not phase:
+            _print_colored("No current phase to skip.", Colors.YELLOW)
+            return
+
+        _print_colored(f"Skipping phase: {phase.name}", Colors.YELLOW)
+        has_next = self._lifecycle_rt.skip_phase()
+
+        if has_next:
+            new_phase = session.get_current_phase()
+            if new_phase:
+                _print_colored(f"Next phase: {new_phase.name}", Colors.BOLD)
+        else:
+            _print_colored("All phases complete!", Colors.GREEN)
+
+    def _lifecycle_archive(self) -> None:
+        """Archive the current lifecycle session to a markdown report."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session.", Colors.YELLOW)
+            return
+
+        try:
+            path = self._lifecycle_rt.archive()
+            _print_colored(f"Lifecycle report saved to: {path}", Colors.GREEN)
+        except Exception as e:
+            _print_colored(f"Error archiving: {e}", Colors.RED)
+
+    def _lifecycle_list(self) -> None:
+        """List saved lifecycle sessions."""
+        sessions = self._lifecycle_rt.list_sessions()
+        if not sessions:
+            _print_colored("No saved lifecycle sessions.", Colors.DIM)
+            return
+
+        _print_colored("")
+        _print_colored("Saved Lifecycle Sessions:", Colors.BOLD)
+        for s in sessions:
+            icon = "✅" if s.get("completed") else "●"
+            _print_colored(
+                f"  {icon} {s['session_id']}: {s['overall_goal'][:60]} "
+                f"({s.get('current_phase', '?')}, {s.get('phase_count', 0)} phases)",
+                Colors.DIM,
+            )
+
+    def _lifecycle_load(self, session_id: str) -> None:
+        """Load a saved lifecycle session."""
+        if not session_id:
+            _print_colored("Usage: /lifecycle load <session_id>", Colors.YELLOW)
+            return
+
+        session = self._lifecycle_rt.load(session_id.strip())
+        if not session:
+            _print_colored(f"Session '{session_id}' not found.", Colors.YELLOW)
+            sessions = self._lifecycle_rt.list_sessions()
+            if sessions:
+                _print_colored("Available sessions:", Colors.DIM)
+                for s in sessions:
+                    _print_colored(f"  {s['session_id']}: {s['overall_goal'][:60]}", Colors.DIM)
+            return
+
+        _print_colored(f"Loaded lifecycle session: {session.session_id}", Colors.GREEN)
+        _print_colored(f"Goal: {session.overall_goal}", Colors.BOLD)
+        self._print_lifecycle_status()
+
+    def _build_phase_bar(self, progress: Dict[str, Any]) -> str:
+        """Build a progress bar string."""
+        if progress["total"] == 0:
+            return ""
+        bar_width = 20
+        filled = int((progress["percent"] / 100) * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        return f"{bar} {progress['percent']}% ({progress['completed']}/{progress['total']})"
+
+    def _print_lifecycle_status(self) -> None:
+        """Print the lifecycle progress overview."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            return
+
+        progress = session.progress()
+
+        _print_colored("")
+        _print_colored(
+            f"╭─ Lifecycle: {session.overall_goal[:50]} ─────────────────────╮",
+            Colors.CYAN,
+        )
+
+        status_icons = {
+            "pending": "◇",
+            "in_progress": "▶",
+            "completed": "✅",
+            "skipped": "⏭️",
+            "failed": "✖",
+        }
+
+        for phase in session.phases:
+            icon = status_icons.get(phase.status, "?")
+            marker = " ← current" if (session.get_current_phase() and phase.name == session.get_current_phase().name) else ""
+            artifact = f" → {phase.artifact_path}" if phase.artifact_path else ""
+            _print_colored(
+                f"│  {icon} {phase.name:<22} [{phase.status}]{marker}{artifact}",
+                Colors.DIM,
+            )
+
+        bar = self._build_phase_bar(progress)
+        _print_colored(f"│  Progress: {bar}", Colors.DIM)
+        _print_colored("╰──────────────────────────────────────────────────╯", Colors.CYAN)

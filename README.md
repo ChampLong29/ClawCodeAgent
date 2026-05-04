@@ -1,6 +1,6 @@
 # Claw Code Agent
 
-Python implementation of a Claude Code-style agent runtime with OpenAI-compatible model interfaces, multi-turn tool calling, and an extensible runtime module system.
+Python implementation of a Claude Code-style agent runtime with OpenAI-compatible model interfaces, multi-turn tool calling, DevFlow structured development workflow, full software engineering lifecycle (Lifecycle), external platform bridges, and an extensible runtime module system.
 
 ## Quick Start
 
@@ -35,7 +35,7 @@ User (CLI / REPL / GUI)
             ├── Model Client (openai_compat.py / anthropic_compat.py)
             ├── Tool Registry + Executor (agent_tools.py)
             ├── Session + Store (agent_session.py + session_store.py)
-            └── Runtime Modules (19 modules: mcp, search, remote, devflow, ...)
+            └── Runtime Modules (21 modules: mcp, search, remote, devflow, lifecycle, bridge, ...)
 ```
 
 ### Key Components
@@ -43,26 +43,32 @@ User (CLI / REPL / GUI)
 | Module | Role |
 |--------|------|
 | `agent_runtime.py` | Agent main loop, tool call execution, budget control, turn management |
-| `agent_tools.py` | 10 built-in tools + MCP tools + plugin virtual tools |
+| `agent_tools.py` | 11 built-in tools + MCP tools + plugin virtual tools |
 | `bash_security.py` | Command safety validation (ALLOW / ASK / DENY / PASSTHROUGH) |
 | `compact.py` | Context compression when tokens exceed threshold |
 | `token_budget.py` | Per-run token / model-call / tool-call budget enforcement |
 | `mcp_runtime.py` | MCP protocol: server process management + JSON-RPC tool bridging |
 | `plugin_runtime.py` | Plugin discovery, virtual tool registration, tool aliases / blocks |
-| `devflow_runtime.py` | Structured development workflow: lifecycle state machine, step execution, persistence |
-| `repl.py` | Interactive terminal with permission prompts, /devflow commands, session history + resume |
+| `devflow_runtime.py` | Structured development workflow: state machine, module-by-module execution, persistence |
+| `lifecycle_runtime.py` | Full software engineering lifecycle (10 phases), wraps DevFlow for dev phases |
+| `bridge_runtime.py` | External platform bridge (Feishu, WeCom), session routing via webhooks |
+| `repl.py` | Interactive terminal: /devflow, /lifecycle, /name, session history + resume |
 | `query_engine.py` | Facade API for embedding the agent in other applications |
+| `training/` | Agent training subsystem: RolloutRunner, TaskSuite, sandbox, determinism |
 | `gui/server.py` | ThreadingHTTPServer with chat UI, SSE streaming, and interactive permission confirmation |
 | `gui/permission_manager.py` | Thread-safe permission request manager for GUI agent workflows |
 | `gui/sse_routes.py` | Server-Sent Events endpoint for real-time agent streaming |
 | `gui/session_routes.py` | Session CRUD API: list, detail, resume, delete |
+| `gui/bridge_routes.py` | Bridge webhook ingress, routing table, session lookup |
 
 ### Built-in Tools
 
 `list_dir` `read_file` `write_file` `edit_file` `glob_search` `grep_search` `bash`
 `non_tool_call` `web_search` `web_fetch` `use_skill`
 
-Plus dynamically registered MCP tools (`mcp__{server}__{tool}`) and plugin virtual tools.
+Plus 15 bundled skills: 4 general (explain-code, review-code, generate-tests, document-code), 5 DevFlow (architect, step-planner, step-analyzer, implementer, verifier), 6 Lifecycle (requirements, design, code-review, unit-test, integration-test, acceptance).
+
+MCP tools dynamically registered as `mcp__{server}__{tool}`. Plugin virtual tools via plugin.json.
 
 ## Configuration
 
@@ -83,14 +89,38 @@ python3 -m src.main agent-chat --cwd . --max-turns 30
 | `/deny-write` | Disable file writes |
 | `/permissions` | Show current state |
 | `/status` | Agent + runtime status dump |
-| `/compact` | Trigger context compaction |
-| `/budget` | Show token usage |
 | `/sessions` | List all saved agent sessions |
 | `/resume <id>` | Resume a saved session |
+| `/name <name>` | Set or show session name |
+| `/compact` | Trigger context compaction |
+| `/budget` | Show token usage |
+
+### DevFlow Commands (REPL)
+
+| Command | Effect |
+|---------|--------|
 | `/devflow start <goal>` | Start structured development workflow |
-| `/devflow status` | Show DevFlow progress + dependency tree |
-| `/devflow accept` | Accept architecture / steps / verified result |
-| `/devflow reject` | Reject and request regeneration |
+| `/devflow status` | Show progress + dependency tree |
+| `/devflow step` | Show current step and module details |
+| `/devflow accept` | Accept architecture / steps / modules / verified result |
+| `/devflow reject [reason]` | Reject and request regeneration |
+| `/devflow skip` | Skip current step or module |
+| `/devflow archive` | Save session report to Markdown |
+| `/devflow list` | List saved DevFlow sessions |
+| `/devflow load <id>` | Load a saved DevFlow session |
+
+### Lifecycle Commands (REPL)
+
+| Command | Effect |
+|---------|--------|
+| `/lifecycle start <goal>` | Start full 10-phase software engineering lifecycle |
+| `/lifecycle status` | Show lifecycle progress |
+| `/lifecycle accept` | Approve current phase output and advance |
+| `/lifecycle reject [reason]` | Reject phase and request regeneration |
+| `/lifecycle skip-phase` | Skip current phase |
+| `/lifecycle archive` | Export full lifecycle report |
+| `/lifecycle list` | List saved lifecycle sessions |
+| `/lifecycle load <id>` | Load a saved lifecycle session |
 
 ### Plugin Configuration
 
@@ -131,6 +161,43 @@ Create `.claw-mcp.json` in the project root to bridge external MCP servers:
 ```
 
 Tools are auto-discovered and registered as `mcp__{server}__{tool}` at agent startup.
+
+### Lifecycle Config
+
+Create `.claw-lifecycle.json` to customize the lifecycle phases:
+
+```json
+{
+  "phases": ["REQUIREMENTS", "ARCHITECTURE", "IMPLEMENTATION", "UNIT_TEST", "ACCEPTANCE"],
+  "skip_phases": ["SYSTEM_DESIGN", "CODE_REVIEW", "INTEGRATION_TEST"]
+}
+```
+
+### Bridge Config
+
+Create `.claw-bridge.json` to set up external platform webhooks:
+
+```json
+{
+  "bridges": [
+    {"name": "feishu_main", "type": "feishu", "enabled": true,
+     "webhook_url": "/api/bridge/feishu_main/webhook"}
+  ]
+}
+```
+
+### Training
+
+```bash
+# Single task
+python3 -m src.main train --task '{"goal":"Write a function","description":"..."}' --max-turns 50
+
+# Task suite with parallel workers
+python3 -m src.main train --suite tasks.json --workers 4 --output trajectories.jsonl
+
+# View training stats
+python3 -m src.main train-stats --input trajectories.jsonl
+```
 
 ## Testing
 

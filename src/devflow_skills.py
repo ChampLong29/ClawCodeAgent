@@ -206,6 +206,59 @@ For EACH acceptance criterion above:
 If the verdict is FAIL, describe exactly what needs to be fixed. Be specific — reference file paths, line numbers, and expected behavior."""
 
 
+DEVFLOW_STEP_ANALYZER_PROMPT = """You are acting as a Step Analyzer. Your task is to break a development step into individual implementation modules.
+
+## Overall Goal
+{goal}
+
+## Architecture
+{architecture}
+
+## Current Step
+**Title**: {step_title}
+**Goal**: {step_goal}
+**Constraints**: {step_constraints}
+
+## Instructions
+
+Break this step into a sequence of modules. Each module should:
+1. Correspond to **one file** or **one independently implementable component**
+2. Be small enough to implement in a single operation
+3. Be ordered by dependency (foundational files first, integrations last)
+
+For each module, define:
+- **id**: unique identifier (e.g., "module-1", "module-2")
+- **file_path**: the file to create or modify (e.g., "src/models/user.py")
+- **goal**: what this specific module must achieve
+- **constraints**: technical constraints specific to this module (inheriting from step-level constraints)
+- **acceptance_criteria**: 1-3 specific, verifiable criteria to check if this module is correctly implemented
+
+## Output Format
+
+Output a JSON array ONLY (no surrounding text, no markdown code block):
+
+```json
+[
+  {{
+    "id": "module-1",
+    "file_path": "src/models/user.py",
+    "goal": "Define the User model with fields: id, username, email, password_hash, created_at",
+    "constraints": "Use SQLAlchemy 2.0 async, UUID primary key, bcrypt for password",
+    "acceptance_criteria": "1. Model imports without errors\\n2. Table name is 'users'\\n3. All fields have correct types and constraints"
+  }},
+  ...
+]
+```
+
+## Rules
+- Each module must be independently testable
+- Order modules so dependencies are resolved (e.g., models before services, services before APIs)
+- Module-level constraints must be more specific than step-level constraints
+- Acceptance criteria must be verifiable with tools (read_file, grep, bash test, etc.)
+- Maximum 2-4 modules per typical step (don't over-fragment)
+- If the step is already simple enough (single file), a single module is acceptable"""
+
+
 # ---------------------------------------------------------------------------
 # DevFlow skills definitions
 # ---------------------------------------------------------------------------
@@ -256,6 +309,24 @@ DEVFLOW_SKILLS: Dict[str, DevFlowSkill] = {
                 "step_constraints": {"type": "string", "description": "Constraints for the current step"},
                 "acceptance_criteria": {"type": "string", "description": "Acceptance criteria for the current step"},
                 "previous_steps_summary": {"type": "string", "description": "Summary of previously completed steps"},
+            },
+            "required": ["goal", "step_title", "step_goal"],
+        },
+    ),
+    "devflow-step-analyzer": DevFlowSkill(
+        name="devflow-step-analyzer",
+        description="Break a development step into individual implementation modules. "
+                    "Each module corresponds to one file or independently testable component. "
+                    "Outputs a JSON array of module objects.",
+        prompt=DEVFLOW_STEP_ANALYZER_PROMPT,
+        parameters={
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "The overall development goal"},
+                "architecture": {"type": "string", "description": "The approved architecture document"},
+                "step_title": {"type": "string", "description": "Title of the step to analyze"},
+                "step_goal": {"type": "string", "description": "Goal of the step"},
+                "step_constraints": {"type": "string", "description": "Constraints for the step"},
             },
             "required": ["goal", "step_title", "step_goal"],
         },

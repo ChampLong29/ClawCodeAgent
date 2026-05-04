@@ -66,9 +66,9 @@ User (CLI/GUI)
 ### Core Modules
 
 **Agent Core (27 files in src/):**
-- `main.py` - CLI entry point with commands for agent, session, runtime management, and `sessions` command for listing all saved sessions
+- `main.py` - CLI entry point with commands for agent, session, runtime management, `sessions`, `train`, `train-stats`, and lifecycle/bridge status commands
 - `agent_runtime.py` - Main agent loop, handles tool call loop, budget, compact, retry, permission callback, MCP tool registration, turn reset per query; populates `session.cwd` and `session.model`
-- `agent_tools.py` - Tool protocol and execution; 10 built-in tools: list_dir, read_file, write_file, edit_file, glob_search, grep_search, bash, non_tool_call, web_search, web_fetch; plus dynamic MCP tools registered as mcp__{server}__{tool}
+- `agent_tools.py` - Tool protocol and execution; 11 built-in tools: list_dir, read_file, write_file, edit_file, glob_search, grep_search, bash, non_tool_call, web_search, web_fetch, use_skill; plus dynamic MCP tools registered as mcp__{server}__{tool}
 - `openai_compat.py` - OpenAI-compatible model client with streaming support
 - `agent_context.py` - Context injection (git state, shell, platform, CLAUDE.md, runtime summaries)
 - `agent_prompting.py` - System prompt assembly by runtime capability
@@ -79,10 +79,14 @@ User (CLI/GUI)
 - `compact.py` - Context compression (~650 lines), controlled by AUTOCOMPACT_BUFFER_TOKENS
 - `microcompact.py` - Lightweight compaction: tool result truncation (2000 chars), message count capping
 - `query_engine.py` - Facade that drives LocalCodingAgent; supports `permission_callback` in config for GUI integration
-- `devflow_runtime.py` - DevFlow structured development workflow runtime (~460 lines), drives lifecycle state machine
-- `devflow_skills.py` - 4 DevFlow skill prompt templates (architect, step-planner, implementer, verifier)
+- `devflow_runtime.py` - DevFlow structured development workflow runtime (~1300 lines), drives state machine with module-by-module implementation
+- `devflow_skills.py` - 5 DevFlow skill prompt templates (architect, step-planner, step-analyzer, implementer, verifier)
+- `lifecycle_runtime.py` - Full software engineering lifecycle runtime (10 phases), wraps DevFlow for development phases
+- `lifecycle_skills.py` - 6 lifecycle skill templates (requirements, design, code-review, unit-test, integration-test, acceptance)
+- `bridge_runtime.py` - External platform bridge integration (Feishu, WeCom), session routing by user/chat
+- `training/` - Agent training subsystem: RolloutRunner, TaskSuite, sandbox, determinism utilities
 
-**Runtime Modules (19 files in src/, each provides get_state()):**
+**Runtime Modules (21 files in src/, each provides get_state()):**
 - `mcp_runtime.py` - MCP protocol integration with `MCPRuntime` (config discovery: `.claw-mcp.json`, `.mcp.json`, `.codex-mcp.json`, `mcp.json`) and `MCPClient` (stdio subprocess management, JSON-RPC 2.0: initialize → tools/list → tools/call). Tools auto-registered in agent on startup
 - `search_runtime.py` - Search providers, env var injection (SEARXNG_BASE_URL, BRAVE_SEARCH_API_KEY, TAVILY_API_KEY)
 - `remote_runtime.py` - SSH/Teleport connections, discovers `.claw-remote.json`, `.remote.json`, etc.
@@ -91,7 +95,9 @@ User (CLI/GUI)
 - `remote_trigger_runtime.py` - Remote triggers, **no walk-up** (only cwd + additional_working_directories)
 - `worktree_runtime.py` - Git worktree management, state path: `<git_common_dir>/claw_worktree_runtime.json`
 - `team_runtime.py` - Team config, discovers `.claw-teams.json`, `.claw-team.json`, `.claude/teams.json`
-- `devflow_runtime.py` - DevFlow structured development workflow: lifecycle state machine (INIT → ARCHITECTURE → STEP_DEFINITION → IMPLEMENTATION → VERIFY → DONE), session persistence to `.port_sessions/devflow/<id>.json`, terminal visualization via REPL `/devflow` commands
+- `devflow_runtime.py` - DevFlow structured development workflow: state machine (INIT → ARCHITECTURE → STEP_DEFINITION → STEP_ANALYSIS → IMPLEMENTATION → VERIFY → DONE) with module-by-module execution, session persistence to `.port_sessions/devflow/<id>.json`
+- `lifecycle_runtime.py` - Full software engineering lifecycle: 10-phase state machine (REQUIREMENTS → SYSTEM_DESIGN → ... → ACCEPTANCE → DONE), configurable via `.claw-lifecycle.json`, wraps DevFlow for development phases, persistence to `.port_sessions/lifecycle/<id>.json`
+- `bridge_runtime.py` - External platform bridge integration (Feishu, WeCom), session routing by (user_id, chat_id), config via `.claw-bridge.json`, webhook ingress at `/api/bridge/{name}/webhook`
 
 ### GUI Subsystem
 - 21 route modules under `src/gui/`, each maps to an HTTP API path prefix
@@ -120,20 +126,25 @@ User (CLI/GUI)
 
 ```
 .
-├── src/                        # Agent source code (34 modules)
+├── src/                        # Agent source code (39+ modules)
 │   ├── gui/
 │   │   ├── server.py           # GUI server (ThreadingHTTPServer, chat UI, SSE, permission)
 │   │   ├── permission_manager.py  # Thread-safe permission request manager
 │   │   ├── sse_routes.py       # SSE real-time streaming endpoint
-│   │   └── session_routes.py   # Session CRUD API
+│   │   ├── session_routes.py   # Session CRUD API
+│   │   ├── bridge_routes.py    # Bridge webhook ingress routes
+│   ├── training/               # Agent training subsystem
 │   ├── ...
 ├── tests/                      # Unit tests
 ├── benchmarks/                 # Reserved for future benchmark tests (currently empty)
 ├── .port_sessions/             # Agent session persistence
 │   ├── agent/
 │   │   └── <session_id>.json   # One JSON file per agent session
-│   └── devflow/
-│       └── <session_id>.json   # One JSON file per DevFlow session
+│   ├── devflow/
+│   │   └── <session_id>.json   # One JSON file per DevFlow session
+│   ├── lifecycle/
+│   │   └── <session_id>.json   # One JSON file per lifecycle session
+│   └── bridge_routing.json     # Bridge session routing table
 ├── .venv/                      # Python virtual environment
 ├── pyproject.toml              # Project metadata and dependencies
 └── CLAUDE.md                   # This file
@@ -392,18 +403,34 @@ _run_loop() 工具执行
 
 **文件**: `src/bundled_skills.py`
 
-**4 个内置技能**，通过 `use_skill` 工具调用：
+**15 个内置技能**，通过 `use_skill` 工具调用：
 
+**通用技能 (4)：**
 | 技能名 | 功能 | 参数 |
 |--------|------|------|
 | `explain-code` | 解释代码 | `code` (string) |
 | `review-code` | 代码审查 | `code` (string) |
 | `generate-tests` | 生成单元测试 | `code` (string), `language` (string) |
 | `document-code` | 生成文档 | `code` (string) |
-| `devflow-architect` | 分析需求并提议架构 | `goal` (string), `constraints` (string) |
-| `devflow-step-planner` | 将架构拆解为步骤 | `goal` (string), `architecture` (string) |
-| `devflow-implementer` | 实现单个步骤 | `goal`, `architecture`, `step_title`, `step_goal`, `step_constraints`, `acceptance_criteria`, `previous_steps_summary` |
-| `devflow-verifier` | 验证实现是否满足验收标准 | `step_title` (string), `acceptance_criteria` (string), `implementation_result` (string) |
+
+**DevFlow 技能 (5)：**
+| 技能名 | 功能 | 参数 |
+|--------|------|------|
+| `devflow-architect` | 分析需求并提议架构 | `goal`, `constraints` |
+| `devflow-step-planner` | 将架构拆解为步骤 | `goal`, `architecture` |
+| `devflow-step-analyzer` | 将步骤拆解为模块（逐文件） | `goal`, `architecture`, `step_title`, `step_goal`, `step_constraints` |
+| `devflow-implementer` | 实现单个步骤/模块 | `goal`, `architecture`, `step_title`, `step_goal`, `step_constraints`, `acceptance_criteria`, `previous_steps_summary` |
+| `devflow-verifier` | 验证实现是否满足验收标准 | `step_title`, `acceptance_criteria`, `implementation_result` |
+
+**Lifecycle 技能 (6)：**
+| 技能名 | 功能 | 参数 |
+|--------|------|------|
+| `lifecycle-requirements` | 需求分析（EARS格式、用户故事） | `goal`, `constraints` |
+| `lifecycle-design` | 系统设计（模块、数据模型、API） | `goal`, `requirements_summary`, `constraints` |
+| `lifecycle-code-review` | 代码审查（安全、性能、可维护性） | `goal`, `implementation_summary` |
+| `lifecycle-unit-test` | 单元测试（覆盖率>80%） | `goal`, `implementation_summary` |
+| `lifecycle-integration-test` | 集成测试（API、E2E） | `goal`, `requirements_summary`, `implementation_summary` |
+| `lifecycle-acceptance` | 验收测试（需求追溯矩阵） | `goal`, `requirements_summary`, `implementation_summary` |
 
 **调用流程**：
 ```
@@ -415,10 +442,11 @@ _run_loop() 工具执行
   → 模型根据返回的提示词生成回复
 ```
 
-**⚠️ 已知缺陷**：
+**⚠️ 已知局限**：
 1. **技能纯内置**：`BUNDLED_SKILLS` 是模块常量，无法运行时注册新技能
 2. **无配置文件发现**：与 Plugin 系统不同，技能没有 JSON 配置、没有目录扫描
 3. **无用户自定义技能入口**：没有 `user_skills.py`、没有 `.claw-skills.json`、没有 skills 目录
+4. **`use_skill` 参数硬编码**：工具定义中 skill 参数的 description 需手动同步
 
 ---
 
@@ -453,11 +481,14 @@ DevFlow 是一个结构化的开发流程管理系统，通过四层联动（Wor
 ### 生命周期状态机
 
 ```
-INIT → ARCHITECTURE → STEP_DEFINITION → IMPLEMENTATION → VERIFY → DONE
-  │         │               │                │            │         │
-  │    Agent分析需求    Agent生成步骤    Agent实现    Agent验证   所有步骤
-  │    生成架构提议     含依赖关系       当前步骤    验收标准     完成
+INIT → ARCHITECTURE → STEP_DEFINITION → STEP_ANALYSIS → IMPLEMENTATION → VERIFY → DONE
+  │         │               │                │               │            │         │
+  │    Agent分析需求    Agent生成步骤   Agent拆解模块   Agent逐个    Agent验证   所有步骤
+  │    生成架构提议     含依赖关系      逐文件分析      实现模块    验收标准     完成
 ```
+
+- **STEP_ANALYSIS** 是新增阶段：将每个步骤拆解为逐文件的实现模块（每个模块 = 1 个文件）
+- Module-by-module 模式：实现阶段逐个模块执行（implement → verify → next module），而非一次性实现整个步骤
 
 ### DevFlowSession 数据结构
 
@@ -479,17 +510,29 @@ DevFlowStep:
   acceptance_criteria: str     # 验收标准
   status: str                  # pending | in_progress | implemented | verified | failed
   depends_on: List[str]        # 依赖的步骤 ID
+  modules: List[DevFlowModule] # 实现模块列表（逐文件拆解）
+  implementation_result: Optional[str]
+  verification_result: Optional[str]
+
+DevFlowModule:
+  id: str                      # 模块 ID（如 module-1）
+  file_path: str               # 目标文件路径（如 src/models/user.py）
+  goal: str                    # 本模块目标
+  constraints: str             # 本模块约束
+  acceptance_criteria: str     # 本模块验收标准
+  status: str                  # pending | implemented | verified | failed
   implementation_result: Optional[str]
   verification_result: Optional[str]
 ```
 
-### 4 个 DevFlow Skills
+### 5 个 DevFlow Skills
 
 | Skill | 用途 | 注入时机 |
 |-------|------|----------|
 | `devflow-architect` | 分析需求并提议架构 | ARCHITECTURE 阶段 |
 | `devflow-step-planner` | 将架构拆解为步骤（含依赖） | STEP_DEFINITION 阶段 |
-| `devflow-implementer` | 实现单个步骤，严格按约束 | IMPLEMENTATION 阶段 |
+| `devflow-step-analyzer` | 将步骤拆解为逐文件模块 | STEP_ANALYSIS 阶段 |
+| `devflow-implementer` | 实现单个步骤/模块，严格按约束 | IMPLEMENTATION 阶段 |
 | `devflow-verifier` | 逐条验证验收标准 | VERIFY 阶段 |
 
 每个 Skill 通过 `use_skill` 工具调用，或由 `DevFlowRuntime.get_prompt_guidance()` 自动注入到 system prompt。
@@ -503,11 +546,18 @@ class DevFlowRuntime(RuntimeBase):
     approve_architecture(architecture=None) → None
     generate_steps(agent) → List[DevFlowStep]
     approve_steps(steps=None) → None
+    analyze_step(agent) → List[DevFlowModule]  # NEW: module breakdown
+    approve_modules(step=None) → None          # NEW
     execute_step(agent) → str
+    execute_module(agent) → str                # NEW: per-module execution
     verify_step(agent) → str
+    verify_module(agent) → str                 # NEW: per-module verification
     next_step() → bool
+    next_module() → bool                       # NEW
     skip_step() → bool
+    skip_module() → bool                       # NEW
     retry_step() → None
+    retry_module() → None                      # NEW
     save() / load(session_id)
     archive(output_path=None) → str  # Markdown report
 ```
@@ -525,17 +575,25 @@ class DevFlowRuntime(RuntimeBase):
 
 ### REPL 命令
 
+**DevFlow 命令族：**
 | 命令 | 功能 |
 |------|------|
 | `/devflow start <目标>` | 启动新开发流程 |
 | `/devflow status` | 查看整体进度和依赖树 |
-| `/devflow step` | 查看当前步骤详情 |
-| `/devflow accept` | 批准当前阶段输出（架构 / 步骤 / 验证结果） |
+| `/devflow step` | 查看当前步骤和模块详情 |
+| `/devflow accept` | 批准当前阶段输出（架构 / 步骤 / 模块 / 验证结果） |
 | `/devflow reject [原因]` | 拒绝并要求重新生成 |
-| `/devflow skip` | 跳过当前步骤 |
+| `/devflow skip` | 跳过当前步骤或模块 |
 | `/devflow archive` | 保存完整 session 到 Markdown 文件 |
 | `/devflow list` | 列出所有已保存的 session |
 | `/devflow load <id>` | 加载已保存的 session |
+
+**通用 REPL 命令：**
+| 命令 | 功能 |
+|------|------|
+| `/name <name>` | 设置或显示会话名称 |
+| `/sessions` | 列出所有已保存的 agent 会话 |
+| `/resume <id>` | 恢复已保存的会话 |
 
 ### 终端可视化
 
@@ -553,12 +611,173 @@ class DevFlowRuntime(RuntimeBase):
 图例: `✅` verified, `▶` in_progress, `●` implemented, `◇` pending, `✖` failed
 
 **步骤详情**（`/devflow step`）:
-显示当前步骤的目标、约束、验收标准、依赖关系和状态。
+显示当前步骤的目标、约束、验收标准、依赖关系、模块列表和状态。
 
 ### 持久化
 
 - Session 文件: `.port_sessions/devflow/<session_id>.json`
 - 归档文件: `devflow-<session_id>.md`（通过 `/devflow archive` 生成）
+
+---
+
+## Lifecycle: 完整软件工程生命周期
+
+**文件**: `src/lifecycle_runtime.py`, `src/lifecycle_skills.py`, `src/bundled_skills.py`, `src/repl.py`
+
+### 概述
+
+Lifecycle 是一个完整的软件工程生命周期管理系统，**包装 DevFlow** 用于开发阶段，同时增加需求分析、系统设计、代码审查、测试和验收阶段。两种模式并存：
+- **快速模式** (`/devflow`) — 直接进入开发
+- **完整模式** (`/lifecycle`) — 完整 10 阶段流程
+
+### 生命周期阶段（默认 10 阶段）
+
+```
+REQUIREMENTS → SYSTEM_DESIGN → ARCHITECTURE → STEP_DEFINITION
+  → MODULE_ANALYSIS → IMPLEMENTATION → CODE_REVIEW → UNIT_TEST
+  → INTEGRATION_TEST → ACCEPTANCE → DONE
+```
+
+- 前 5 个开发阶段（ARCHITECTURE → VERIFY）委托给 DevFlow
+- 其余由 LifecycleRuntime 直接管理
+
+### 各阶段职责
+
+| 阶段 | 技能 | 产出 | 工具权限 |
+|------|------|------|----------|
+| REQUIREMENTS | `lifecycle-requirements` | `docs/requirements_{id}.md` | read-only |
+| SYSTEM_DESIGN | `lifecycle-design` | `docs/design_{id}.md` | read-only |
+| ARCHITECTURE | `devflow-architect` | 架构文档 | read-only |
+| STEP_DEFINITION | `devflow-step-planner` | Step 列表 | read-only |
+| MODULE_ANALYSIS | `devflow-step-analyzer` | Module 拆分 | read-only |
+| IMPLEMENTATION | `devflow-implementer` | 代码 | write |
+| CODE_REVIEW | `lifecycle-code-review` | `docs/code-review_{id}.md` | read-only |
+| UNIT_TEST | `lifecycle-unit-test` | 单元测试 | write |
+| INTEGRATION_TEST | `lifecycle-integration-test` | 集成测试 | write |
+| ACCEPTANCE | `lifecycle-acceptance` | `docs/acceptance_{id}.md` | read-only |
+
+### 阶段配置
+
+通过 `.claw-lifecycle.json` 自定义启用的阶段：
+
+```json
+{
+  "phases": ["REQUIREMENTS", "ARCHITECTURE", "IMPLEMENTATION", "UNIT_TEST", "ACCEPTANCE"],
+  "skip_phases": ["SYSTEM_DESIGN", "CODE_REVIEW", "INTEGRATION_TEST"]
+}
+```
+
+### LifecycleRuntime 核心方法
+
+```python
+class LifecycleRuntime(RuntimeBase):
+    start_session(goal, constraints="", phase_list=None) → LifecycleSession
+    execute_phase(agent) → str          # Run current phase with agent
+    advance_phase() → bool              # Accept & move to next
+    skip_phase() → bool                 # Skip current phase
+    retry_phase() → None                # Reset for retry
+    save() / load(session_id)
+    list_sessions() → List[Dict]
+    archive(output_path=None) → str     # Full lifecycle Markdown report
+```
+
+### Lifecycle REPL 命令
+
+| 命令 | 功能 |
+|------|------|
+| `/lifecycle start <目标>` | 启动完整生命周期（可加 `--phases` 指定阶段） |
+| `/lifecycle status` | 显示生命周期进度、各阶段状态 |
+| `/lifecycle accept` | 批准当前阶段产物并进入下一阶段 |
+| `/lifecycle reject [原因]` | 拒绝并要求重做当前阶段 |
+| `/lifecycle skip-phase` | 跳过当前阶段 |
+| `/lifecycle archive` | 导出完整生命周期报告 Markdown |
+| `/lifecycle list` | 列出所有保存的会话 |
+| `/lifecycle load <id>` | 加载已保存的会话 |
+
+### 持久化
+
+```
+.port_sessions/lifecycle/{session_id}.json  — 生命周期会话
+.port_sessions/devflow/{devflow_id}.json     — DevFlow 子会话（不变）
+docs/requirements_{session_id}.md            — 需求文档
+docs/design_{session_id}.md                  — 设计文档
+docs/code-review_{session_id}.md             — 代码审查报告
+docs/acceptance_{session_id}.md              — 验收报告
+```
+
+---
+
+## Bridge: 外部平台桥接集成
+
+**文件**: `src/bridge_runtime.py`, `src/gui/bridge_routes.py`
+
+### 概述
+
+Bridge 支持通过 webhook 将外部平台（飞书、企业微信）连接到 agent 会话。每个 bridge 配置一个 webhook 入口端点，将 (user_id, chat_id) 映射到持久化的 session_id。
+
+### BridgeConfig
+
+```python
+@dataclass
+class BridgeConfig:
+    name: str            # 唯一名称（如 "feishu_main"）
+    type: str            # 平台类型（"feishu", "wecom"）
+    enabled: bool = True
+    webhook_url: str     # ingress 端点路径（如 "/api/bridge/feishu_main/webhook"）
+```
+
+### 配置发现
+
+`.claw-bridge.json`（仅 cwd，非向上遍历）：
+
+```json
+{
+  "bridges": [
+    {"name": "feishu_main", "type": "feishu", "enabled": true,
+     "webhook_url": "/api/bridge/feishu_main/webhook"}
+  ]
+}
+```
+
+### 会话路由
+
+- 路由键: `{user_id}:{chat_id}`
+- 会话命名: `{bridge_type}/{user_id}/{chat_id}`
+- 路由表持久化到 `.port_sessions/bridge_routing.json`
+- GUI 路由: `/api/bridge/{name}/webhook`（webhook ingress）、`/api/bridge/{name}/sessions`、`/api/bridge/status`、`/api/bridge/routing`
+
+---
+
+## Training: Agent 训练子系统
+
+**文件**: `src/training/`
+
+### 概述
+
+Training 子系统支持对 agent 进行 rollout 训练，包括任务定义、并行执行、determinism 控制和结果评估。
+
+### 组件
+
+| 模块 | 功能 |
+|------|------|
+| `tasks.py` | 编码任务定义（CodingTask dataclass） |
+| `runner.py` | RolloutRunner — 并行/串行执行训练 episode |
+| `sandbox.py` | 沙箱环境管理 |
+| `agent_env.py` | Agent 环境和配置 |
+| `determinism.py` | Determinism 工具（种子控制） |
+
+### CLI 命令
+
+```bash
+# 单个任务训练
+python3 -m src.main train --task '{"goal":"...",...}' --max-turns 50
+
+# 任务套件训练
+python3 -m src.main train --suite tasks.json --workers 4 --output trajectories.jsonl
+
+# 查看训练统计
+python3 -m src.main train-stats --input trajectories.jsonl
+```
 
 ---
 
@@ -573,3 +792,8 @@ class DevFlowRuntime(RuntimeBase):
 7. Bash ASK commands trigger interactive permission prompt when `permission_callback` is registered (REPL: y=execute once, n=deny, a=allow all shell)
 8. MCP servers start on agent init via `start_mcp_servers()`; startup failure is non-fatal; tool naming: `mcp__{server_name}__{tool_name}`
 9. `max_turns` is configurable via CLI (`--max-turns`), REPL (`ClawRepl(max_turns=N)`), and `QueryEngineConfig.max_turns`
+10. DevFlow supports module-by-module implementation: each step can be broken into file-level modules via STEP_ANALYSIS phase
+11. Lifecycle phases in DevFlow range (ARCHITECTURE → MODULE_ANALYSIS) delegate to DevFlow runtime automatically
+12. Bridge session routing persists to `.port_sessions/bridge_routing.json`; sessions named `{type}/{user_id}/{chat_id}`
+13. Lifecycle and Bridge runtimes are auto-discovered by agent via `_runtime_classes` registration
+14. `use_skill` tool now supports arbitrary kwargs forwarding for lifecycle/DevFlow skill templates

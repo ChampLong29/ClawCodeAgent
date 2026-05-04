@@ -188,6 +188,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         elif path.startswith("/api/worktree"):
             from .worktree_routes import handle_request
             handle_request(self, "GET", path, {}, db)
+        elif path.startswith("/api/bridge"):
+            from .bridge_routes import handle_request
+            handle_request(self, "GET", path, {}, db)
         elif path == "/" or path == "/index":
             self.send_html(self._get_index_html())
         else:
@@ -262,6 +265,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             handle_request(self, "POST", path, data, db)
         elif path.startswith("/api/worktree"):
             from .worktree_routes import handle_request
+            handle_request(self, "POST", path, data, db)
+        elif path.startswith("/api/bridge"):
+            from .bridge_routes import handle_request
             handle_request(self, "POST", path, data, db)
         else:
             self.send_json({"error": "Not found"}, 404)

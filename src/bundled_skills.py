@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from .lifecycle_skills import LIFECYCLE_SKILLS, LifecycleSkill
+
 
 @dataclass
 class BundledSkill:
@@ -192,6 +194,107 @@ Use the project's tools to make actual changes. Do NOT simulate or describe chan
             },
             "required": ["goal", "step_title", "step_goal"],
         },
+    ),
+    "devflow-step-analyzer": BundledSkill(
+        name="devflow-step-analyzer",
+        description="Break a development step into individual implementation modules (one file per module)",
+        prompt="""You are acting as a Step Analyzer. Your task is to break a development step into individual implementation modules.
+
+## Overall Goal
+{goal}
+
+## Architecture
+{architecture}
+
+## Current Step
+**Title**: {step_title}
+**Goal**: {step_goal}
+**Constraints**: {step_constraints}
+
+## Instructions
+
+Break this step into a sequence of modules. Each module should:
+1. Correspond to **one file** or **one independently implementable component**
+2. Be small enough to implement in a single operation
+3. Be ordered by dependency (foundational files first, integrations last)
+
+For each module, define:
+- **id**: unique identifier (e.g., "module-1", "module-2")
+- **file_path**: the file to create or modify (e.g., "src/models/user.py")
+- **goal**: what this specific module must achieve
+- **constraints**: technical constraints specific to this module
+- **acceptance_criteria**: 1-3 specific, verifiable criteria
+
+## Output Format
+
+Output a JSON array ONLY (no surrounding text):
+
+```json
+[
+  {{
+    "id": "module-1",
+    "file_path": "src/models/user.py",
+    "goal": "Define the User model with fields: id, username, email, password_hash, created_at",
+    "constraints": "Use SQLAlchemy 2.0 async, UUID primary key, bcrypt for password",
+    "acceptance_criteria": "1. Model imports without errors\\n2. Table name is 'users'\\n3. All fields have correct types"
+  }}
+]
+```
+
+## Rules
+- Each module must be independently testable
+- Order modules so dependencies are resolved
+- Module-level constraints must be more specific than step-level constraints
+- Acceptance criteria must be verifiable with tools
+- Maximum 2-4 modules per typical step""",
+        parameters={
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "The overall development goal"},
+                "architecture": {"type": "string", "description": "The approved architecture document"},
+                "step_title": {"type": "string", "description": "Title of the step to analyze"},
+                "step_goal": {"type": "string", "description": "Goal of the step"},
+                "step_constraints": {"type": "string", "description": "Constraints for the step"},
+            },
+            "required": ["goal", "step_title", "step_goal"],
+        },
+    ),
+    # --- Lifecycle skills (6) ---
+    "lifecycle-requirements": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-requirements"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-requirements"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-requirements"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-requirements"].parameters,
+    ),
+    "lifecycle-design": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-design"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-design"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-design"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-design"].parameters,
+    ),
+    "lifecycle-code-review": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-code-review"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-code-review"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-code-review"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-code-review"].parameters,
+    ),
+    "lifecycle-unit-test": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-unit-test"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-unit-test"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-unit-test"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-unit-test"].parameters,
+    ),
+    "lifecycle-integration-test": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-integration-test"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-integration-test"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-integration-test"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-integration-test"].parameters,
+    ),
+    "lifecycle-acceptance": BundledSkill(
+        name=LIFECYCLE_SKILLS["lifecycle-acceptance"].name,
+        description=LIFECYCLE_SKILLS["lifecycle-acceptance"].description,
+        prompt=LIFECYCLE_SKILLS["lifecycle-acceptance"].prompt,
+        parameters=LIFECYCLE_SKILLS["lifecycle-acceptance"].parameters,
     ),
     "devflow-verifier": BundledSkill(
         name="devflow-verifier",

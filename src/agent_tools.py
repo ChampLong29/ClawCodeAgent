@@ -234,15 +234,18 @@ def _build_default_registry() -> ToolRegistry:
     # use_skill tool
     registry.register(AgentTool(
         name="use_skill",
-        description="Invoke a bundled skill (explain-code, review-code, generate-tests, document-code)",
+        description="Invoke a bundled skill — explain-code, review-code, generate-tests, "
+                    "document-code, devflow-architect, devflow-step-planner, devflow-step-analyzer, "
+                    "devflow-implementer, devflow-verifier, lifecycle-requirements, lifecycle-design, "
+                    "lifecycle-code-review, lifecycle-unit-test, lifecycle-integration-test, lifecycle-acceptance",
         parameters={
             "type": "object",
             "properties": {
-                "skill": {"type": "string", "description": "Skill name: explain-code, review-code, generate-tests, document-code"},
-                "code": {"type": "string", "description": "Code to apply the skill to"},
+                "skill": {"type": "string", "description": "Skill name (see description for full list)"},
+                "code": {"type": "string", "description": "Code or goal to apply the skill to"},
                 "language": {"type": "string", "description": "Programming language (for generate-tests)"},
             },
-            "required": ["skill", "code"],
+            "required": ["skill"],
         },
         handler=_use_skill,
         tags=["skill"],
@@ -524,24 +527,22 @@ def _extract_text_from_html(html: str) -> str:
     return text.strip()
 
 
-def _use_skill(skill: str, code: str, language: str = "python", **kwargs) -> Dict[str, Any]:
-    """Invoke a bundled skill by name, returning its formatted prompt.
-
-    Args:
-        skill: Skill name (explain-code, review-code, generate-tests, document-code)
-        code: Code to apply the skill to
-        language: Programming language (for generate-tests)
-    """
+def _use_skill(skill: str, code: str = "", language: str = "python", **kwargs) -> Dict[str, Any]:
+    """Invoke a bundled skill by name, returning its formatted prompt."""
     try:
         from .bundled_skills import get_skill
 
         skill_def = get_skill(skill)
         if not skill_def:
-            available = ", ".join(["explain-code", "review-code", "generate-tests", "document-code"])
+            from .bundled_skills import list_skills
+            available = ", ".join(s.name for s in list_skills())
             return {"ok": False, "error": f"Unknown skill: {skill}. Available: {available}"}
 
-        # Format the prompt template with provided arguments
-        prompt = skill_def.prompt.format(code=code, language=language)
+        # Format the prompt template with all provided arguments
+        format_args = {k: v for k, v in kwargs.items() if v}
+        format_args.setdefault("code", code)
+        format_args.setdefault("language", language)
+        prompt = skill_def.prompt.format(**format_args)
 
         return {
             "ok": True,

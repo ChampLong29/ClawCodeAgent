@@ -344,12 +344,124 @@ def cmd_worktree_status(args) -> int:
     return _runtime_status("worktree", args)
 
 
+def cmd_bridge_status(args) -> int:
+    """Bridge runtime status."""
+    return _runtime_status("bridge", args)
+
+
+def cmd_lifecycle_status(args) -> int:
+    """Lifecycle runtime status."""
+    return _runtime_status("lifecycle", args)
+
+
+def cmd_lifecycle_sessions(args) -> int:
+    """List saved lifecycle sessions."""
+    cwd = _resolve_cwd(args.cwd)
+    from .lifecycle_runtime import LifecycleRuntime
+    rt = LifecycleRuntime(cwd=cwd)
+    sessions = rt.list_sessions()
+    print(json.dumps(sessions, indent=2, default=str))
+    return 0
+
+
+def cmd_lifecycle_start(args) -> int:
+    """Start a new lifecycle session."""
+    if not args.goal:
+        print(json.dumps({"error": "Goal is required"}))
+        return 1
+    cwd = _resolve_cwd(args.cwd)
+    from .lifecycle_runtime import LifecycleRuntime
+    rt = LifecycleRuntime(cwd=cwd)
+    session = rt.start_session(args.goal, args.constraints or "")
+    print(json.dumps(session.to_dict(), indent=2, default=str))
+    return 0
+
+
+def cmd_train(args) -> int:
+    """Run agent training episodes."""
+    cwd = _resolve_cwd(args.cwd)
+    from .training import RolloutRunner, RolloutConfig, TaskSuite
+
+    config = RolloutConfig(
+        temperature=args.temperature,
+        max_turns=args.max_turns,
+        num_workers=args.workers or 1,
+        seed=args.seed,
+        session_prefix=args.session_prefix or "train",
+        timeout_seconds=args.timeout,
+    )
+
+    runner = RolloutRunner(config=config, model_name=args.model)
+
+    if args.task:
+        # Single task
+        task_data = json.loads(args.task) if args.task.startswith("{") else None
+        if task_data:
+            from .training.tasks import CodingTask
+            task = CodingTask.from_dict(task_data)
+        else:
+            print(json.dumps({"error": "Task must be a JSON object"}))
+            return 1
+        result = runner.run_episode(task)
+        print(json.dumps({
+            "task_id": result.task_id,
+            "stop_reason": result.stop_reason,
+            "reward": result.reward,
+            "usage": result.usage,
+            "error": result.error,
+            "execution_time": result.execution_time,
+        }, indent=2))
+    elif args.suite:
+        # Task suite
+        suite = TaskSuite.load_from_json(args.suite)
+        results = runner.run_suite(suite)
+        summary = runner.summary(results)
+        print(json.dumps(summary, indent=2))
+
+        if args.output:
+            runner.export_to_jsonl(results, args.output)
+            print(f"Trajectories exported to: {args.output}")
+    else:
+        print(json.dumps({"error": "Specify --task or --suite"}))
+        return 1
+
+    return 0
+
+
+def cmd_train_stats(args) -> int:
+    """Show training statistics from a results file."""
+    input_path = args.input
+    if not input_path or not os.path.exists(input_path):
+        print(json.dumps({"error": "Input file not found"}))
+        return 1
+
+    results = []
+    with open(input_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                results.append(json.loads(line))
+
+    from .training.runner import RolloutRunner, RolloutConfig
+    runner = RolloutRunner()
+    # Convert dict results back to RolloutResult-like objects for summary
+    from .training.runner import RolloutResult
+    rollout_results = [RolloutResult(**r) for r in results]
+    summary = runner.summary(rollout_results)
+
+    print(json.dumps(summary, indent=2))
+    return 0
+
+
 def cmd_sessions(args) -> int:
     """List all saved agent sessions."""
     cwd = _resolve_cwd(args.cwd)
-    from .session_store import list_sessions
+    from .session_store import list_sessions, list_sessions_by_prefix
 
-    sessions = list_sessions(cwd)
+    if args.prefix:
+        sessions = list_sessions_by_prefix(args.prefix, cwd)
+    else:
+        sessions = list_sessions(cwd)
     sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
     print(json.dumps(sessions, indent=2))
     return 0
@@ -446,6 +558,37 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     sessions_parser = subparsers.add_parser("sessions", help="List saved agent sessions")
     sessions_parser.add_argument("--cwd", default=None)
+    sessions_parser.add_argument("--prefix", default=None, help="Filter sessions by name prefix")
+
+    bridge_status_parser = subparsers.add_parser("bridge-status", help="Show bridge runtime status")
+    bridge_status_parser.add_argument("--cwd", default=None)
+
+    lifecycle_status_parser = subparsers.add_parser("lifecycle-status", help="Show lifecycle runtime status")
+    lifecycle_status_parser.add_argument("--cwd", default=None)
+
+    lifecycle_sessions_parser = subparsers.add_parser("lifecycle-sessions", help="List saved lifecycle sessions")
+    lifecycle_sessions_parser.add_argument("--cwd", default=None)
+
+    lifecycle_start_parser = subparsers.add_parser("lifecycle-start", help="Start a new lifecycle session")
+    lifecycle_start_parser.add_argument("goal", help="Development goal")
+    lifecycle_start_parser.add_argument("--cwd", default=None)
+    lifecycle_start_parser.add_argument("--constraints", default=None, help="User constraints")
+
+    train_parser = subparsers.add_parser("train", help="Run agent training episodes")
+    train_parser.add_argument("--cwd", default=None)
+    train_parser.add_argument("--task", default=None, help="JSON task definition")
+    train_parser.add_argument("--suite", default=None, help="Path to task suite JSON file")
+    train_parser.add_argument("--model", default=None, help="Model name override")
+    train_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers")
+    train_parser.add_argument("--temperature", type=float, default=0.0, help="Model temperature")
+    train_parser.add_argument("--max-turns", type=int, default=50, help="Max turns per episode")
+    train_parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    train_parser.add_argument("--session-prefix", default="train", help="Session name prefix")
+    train_parser.add_argument("--timeout", type=float, default=600.0, help="Episode timeout in seconds")
+    train_parser.add_argument("--output", default=None, help="Output path for trajectory JSONL")
+
+    train_stats_parser = subparsers.add_parser("train-stats", help="Show training statistics")
+    train_stats_parser.add_argument("--input", required=True, help="Path to trajectory JSONL file")
 
     args = parser.parse_args(argv)
 
@@ -476,7 +619,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         "trigger-list": cmd_trigger_list,
         "team-status": cmd_team_status,
         "worktree-status": cmd_worktree_status,
+        "bridge-status": cmd_bridge_status,
+        "lifecycle-status": cmd_lifecycle_status,
+        "lifecycle-sessions": cmd_lifecycle_sessions,
+        "lifecycle-start": cmd_lifecycle_start,
         "sessions": cmd_sessions,
+        "train": cmd_train,
+        "train-stats": cmd_train_stats,
     }
 
     cmd_func = cmd_map.get(args.command)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .agent_session import AgentSession
 
@@ -59,6 +59,7 @@ def list_sessions(base_path: str) -> list[Dict[str, Any]]:
                     data = json.load(f)
                     sessions.append({
                         "session_id": data.get("session_id"),
+                        "name": data.get("name"),
                         "created_at": data.get("created_at"),
                         "updated_at": data.get("updated_at"),
                         "message_count": len(data.get("messages", [])),
@@ -79,3 +80,54 @@ def delete_agent_session(session_id: str, base_path: str) -> bool:
         os.remove(filepath)
         return True
     return False
+
+
+def load_session_by_name(name: str, base_path: str) -> Optional[AgentSession]:
+    """Load a session by its name field. Returns None if not found."""
+    sessions_dir = _get_sessions_dir(base_path)
+    if not os.path.exists(sessions_dir):
+        return None
+
+    for filename in os.listdir(sessions_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(sessions_dir, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("name") == name:
+                        return AgentSession.from_dict(data)
+            except (json.JSONDecodeError, OSError):
+                continue
+    return None
+
+
+def list_sessions_by_prefix(prefix: str, base_path: str) -> List[Dict[str, Any]]:
+    """List sessions whose name starts with the given prefix."""
+    sessions_dir = _get_sessions_dir(base_path)
+    if not os.path.exists(sessions_dir):
+        return []
+
+    sessions = []
+    for filename in os.listdir(sessions_dir):
+        if filename.endswith(".json"):
+            filepath = os.path.join(sessions_dir, filename)
+            try:
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    name = data.get("name", "")
+                    if name.startswith(prefix):
+                        sessions.append({
+                            "session_id": data.get("session_id"),
+                            "name": name,
+                            "created_at": data.get("created_at"),
+                            "updated_at": data.get("updated_at"),
+                            "message_count": len(data.get("messages", [])),
+                            "model": data.get("model"),
+                            "stop_reason": data.get("stop_reason"),
+                            "cwd": data.get("cwd"),
+                        })
+            except (json.JSONDecodeError, OSError):
+                continue
+
+    sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
+    return sessions

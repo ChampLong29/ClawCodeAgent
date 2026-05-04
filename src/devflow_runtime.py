@@ -36,6 +36,8 @@ class DevFlowStep:
     acceptance_criteria: str = ""
     status: str = "pending"  # pending | in_progress | implemented | verified | failed
     depends_on: List[str] = field(default_factory=list)
+    modules: List[DevFlowModule] = field(default_factory=list)
+    current_module_index: int = 0
     implementation_result: Optional[str] = None
     verification_result: Optional[str] = None
 
@@ -48,6 +50,8 @@ class DevFlowStep:
             "acceptance_criteria": self.acceptance_criteria,
             "status": self.status,
             "depends_on": self.depends_on,
+            "modules": [m.to_dict() for m in self.modules],
+            "current_module_index": self.current_module_index,
             "implementation_result": self.implementation_result,
             "verification_result": self.verification_result,
         }
@@ -62,9 +66,21 @@ class DevFlowStep:
             acceptance_criteria=data.get("acceptance_criteria", ""),
             status=data.get("status", "pending"),
             depends_on=data.get("depends_on", []),
+            modules=[DevFlowModule.from_dict(m) for m in data.get("modules", [])],
+            current_module_index=data.get("current_module_index", 0),
             implementation_result=data.get("implementation_result"),
             verification_result=data.get("verification_result"),
         )
+
+    def get_current_module(self) -> Optional[DevFlowModule]:
+        """Get the current module being worked on, if modules exist."""
+        if 0 <= self.current_module_index < len(self.modules):
+            return self.modules[self.current_module_index]
+        return None
+
+    def has_modules(self) -> bool:
+        """Check if this step has been broken down into modules."""
+        return len(self.modules) > 0
 
     def can_start(self, all_steps: Dict[str, DevFlowStep]) -> bool:
         """Check if all dependencies are verified."""
@@ -73,6 +89,48 @@ class DevFlowStep:
             if dep is None or dep.status != "verified":
                 return False
         return True
+
+
+@dataclass
+class DevFlowModule:
+    """A single module/file within a DevFlow step.
+
+    Each module is an independently implementable unit (typically one file).
+    The agent implements one module at a time, with user confirmation before each.
+    """
+    id: str
+    file_path: str
+    goal: str = ""
+    constraints: str = ""
+    acceptance_criteria: str = ""
+    status: str = "pending"  # pending | in_progress | implemented | verified | failed
+    implementation_result: Optional[str] = None
+    verification_result: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "file_path": self.file_path,
+            "goal": self.goal,
+            "constraints": self.constraints,
+            "acceptance_criteria": self.acceptance_criteria,
+            "status": self.status,
+            "implementation_result": self.implementation_result,
+            "verification_result": self.verification_result,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> DevFlowModule:
+        return cls(
+            id=data.get("id", ""),
+            file_path=data.get("file_path", ""),
+            goal=data.get("goal", ""),
+            constraints=data.get("constraints", ""),
+            acceptance_criteria=data.get("acceptance_criteria", ""),
+            status=data.get("status", "pending"),
+            implementation_result=data.get("implementation_result"),
+            verification_result=data.get("verification_result"),
+        )
 
 
 @dataclass
@@ -166,6 +224,7 @@ class DevFlowSession:
 PHASE_SKILL_MAP = {
     "ARCHITECTURE": "devflow-architect",
     "STEP_DEFINITION": "devflow-step-planner",
+    "STEP_ANALYSIS": "devflow-step-analyzer",
     "IMPLEMENTATION": "devflow-implementer",
     "VERIFY": "devflow-verifier",
 }
@@ -356,6 +415,72 @@ class DevFlowRuntime(RuntimeBase):
 
         # Find first pending step whose dependencies are met
         self._advance_to_next_ready_step()
+        self.session.phase = "STEP_ANALYSIS"
+        self.session.updated_at = time.time()
+        self.save()
+
+    # ------------------------------------------------------------------
+    # Phase: STEP_ANALYSIS (module breakdown)
+    # ------------------------------------------------------------------
+
+    def analyze_step(self, agent: LocalCodingAgent) -> List[DevFlowModule]:
+        """Run the agent to break a step into implementation modules.
+
+        Each module typically corresponds to one file or component.
+        Returns the list of modules parsed from the agent's output.
+        """
+        if not self.session:
+            raise RuntimeError("No active DevFlow session.")
+
+        step = self.session.get_current_step()
+        if not step:
+            raise RuntimeError("No current step to analyze.")
+
+        self.session.phase = "STEP_ANALYSIS"
+
+        from .bundled_skills import get_skill
+        skill = get_skill("devflow-step-analyzer")
+        if not skill:
+            raise RuntimeError("devflow-step-analyzer skill not found")
+
+        prompt = skill.prompt.format(
+            goal=self.session.overall_goal,
+            architecture=self.session.architecture or "See overall goal above.",
+            step_title=step.title,
+            step_goal=step.goal,
+            step_constraints=step.constraints or "No specific constraints.",
+        )
+
+        result = agent.run(prompt=prompt, stream=False)
+        raw = result.final_message or ""
+
+        # Parse JSON from agent output
+        modules_data = self._parse_steps_json(raw)  # reuse JSON parser
+        step.modules = [DevFlowModule.from_dict(m) for m in modules_data]
+        step.current_module_index = 0
+        self.session.updated_at = time.time()
+        self.save()
+        return step.modules
+
+    def approve_modules(self, modules: Optional[List[Dict[str, Any]]] = None) -> None:
+        """Approve (and optionally replace) the module breakdown.
+
+        Moves the phase from STEP_ANALYSIS to IMPLEMENTATION with module mode.
+        """
+        if not self.session:
+            raise RuntimeError("No active DevFlow session.")
+
+        step = self.session.get_current_step()
+        if not step:
+            raise RuntimeError("No current step.")
+
+        if modules is not None:
+            step.modules = [DevFlowModule.from_dict(m) for m in modules]
+            step.current_module_index = 0
+
+        if not step.modules:
+            raise RuntimeError("Cannot approve: no modules defined.")
+
         self.session.phase = "IMPLEMENTATION"
         self.session.updated_at = time.time()
         self.save()
@@ -370,8 +495,93 @@ class DevFlowRuntime(RuntimeBase):
             return None
         return self.session.get_current_step()
 
+    def get_current_module(self) -> Optional[DevFlowModule]:
+        """Get the module currently being worked on, if in module mode."""
+        if not self.session:
+            return None
+        step = self.session.get_current_step()
+        if step:
+            return step.get_current_module()
+        return None
+
     def execute_step(self, agent: LocalCodingAgent) -> str:
-        """Run the agent to implement the current step."""
+        """Run the agent to implement the current step.
+
+        If the step has modules, this delegates to execute_module() for
+        the current module. Otherwise it implements the entire step at once.
+        """
+        if not self.session:
+            raise RuntimeError("No active DevFlow session.")
+
+        step = self.session.get_current_step()
+        if not step:
+            raise RuntimeError("No current step to execute.")
+
+        # If step has modules, delegate to per-module execution
+        if step.has_modules():
+            return self.execute_module(agent)
+
+        # Legacy mode: implement entire step at once
+        return self._execute_step_full(agent)
+
+    def execute_module(self, agent: LocalCodingAgent) -> str:
+        """Run the agent to implement a single module of the current step."""
+        if not self.session:
+            raise RuntimeError("No active DevFlow session.")
+
+        step = self.session.get_current_step()
+        if not step:
+            raise RuntimeError("No current step to execute.")
+
+        module = step.get_current_module()
+        if not module:
+            raise RuntimeError("No current module to execute.")
+
+        self.session.phase = "IMPLEMENTATION"
+        module.status = "in_progress"
+        step.status = "in_progress"
+        self.save()
+
+        from .bundled_skills import get_skill
+        skill = get_skill("devflow-implementer")
+        if not skill:
+            raise RuntimeError("devflow-implementer skill not found")
+
+        prev_summary = self._build_previous_steps_summary()
+
+        # Build module-specific prompt
+        prompt = skill.prompt.format(
+            goal=self.session.overall_goal,
+            architecture=self.session.architecture or "See overall goal above.",
+            step_title=f"{step.title} — Module: {module.file_path}",
+            step_goal=f"Implement ONLY the file/component: {module.file_path}\n\nModule Goal: {module.goal}",
+            step_constraints=f"Step-level constraints: {step.constraints or 'None'}\n\nModule-specific constraints: {module.constraints or 'None'}",
+            acceptance_criteria=module.acceptance_criteria or step.acceptance_criteria or "No specific acceptance criteria.",
+            previous_steps_summary=prev_summary or "None — this is the first step.",
+        )
+
+        # Execute with write permissions enabled
+        if agent.permissions:
+            old_write = agent.permissions.get("allow_write", False)
+            agent.permissions["allow_write"] = True
+        else:
+            old_write = False
+
+        try:
+            result = agent.run(prompt=prompt, stream=False)
+            output = result.final_message or ""
+        finally:
+            if agent.permissions:
+                agent.permissions["allow_write"] = old_write
+
+        module.implementation_result = output
+        module.status = "implemented"
+        self.session.updated_at = time.time()
+        self.save()
+        return output
+
+    def _execute_step_full(self, agent: LocalCodingAgent) -> str:
+        """Legacy mode: implement the entire step in one call (no modules)."""
         if not self.session:
             raise RuntimeError("No active DevFlow session.")
 
@@ -388,7 +598,6 @@ class DevFlowRuntime(RuntimeBase):
         if not skill:
             raise RuntimeError("devflow-implementer skill not found")
 
-        # Build previous steps summary
         prev_summary = self._build_previous_steps_summary()
 
         prompt = skill.prompt.format(
@@ -401,7 +610,6 @@ class DevFlowRuntime(RuntimeBase):
             previous_steps_summary=prev_summary or "None — this is the first step.",
         )
 
-        # Execute with write permissions enabled
         if agent.permissions:
             old_write = agent.permissions.get("allow_write", False)
             agent.permissions["allow_write"] = True
@@ -446,13 +654,21 @@ class DevFlowRuntime(RuntimeBase):
     # ------------------------------------------------------------------
 
     def verify_step(self, agent: LocalCodingAgent) -> str:
-        """Run the agent to verify the current step's implementation."""
+        """Run the agent to verify the current step's implementation.
+
+        If in module mode, verifies the current module. Otherwise verifies
+        the entire step.
+        """
         if not self.session:
             raise RuntimeError("No active DevFlow session.")
 
         step = self.session.get_current_step()
         if not step:
             raise RuntimeError("No current step to verify.")
+
+        # If in module mode, verify the current module
+        if step.has_modules():
+            return self.verify_module(agent)
 
         if step.status not in ("implemented",):
             raise RuntimeError(f"Cannot verify step with status '{step.status}'. Must be 'implemented'.")
@@ -481,8 +697,57 @@ class DevFlowRuntime(RuntimeBase):
         elif "Overall Verdict: FAIL" in output or "Overall Verdict: **FAIL**" in output or "### Overall Verdict: FAIL" in output:
             step.status = "failed"
         else:
-            # If no clear verdict, check for all-PASS criteria
-            step.status = "verified"  # default optimistic
+            step.status = "verified"
+
+        self.session.updated_at = time.time()
+        self.save()
+        return output
+
+    def verify_module(self, agent: LocalCodingAgent) -> str:
+        """Run the agent to verify a single module's implementation."""
+        if not self.session:
+            raise RuntimeError("No active DevFlow session.")
+
+        step = self.session.get_current_step()
+        if not step:
+            raise RuntimeError("No current step.")
+
+        module = step.get_current_module()
+        if not module:
+            raise RuntimeError("No current module to verify.")
+
+        if module.status not in ("implemented",):
+            raise RuntimeError(f"Cannot verify module with status '{module.status}'. Must be 'implemented'.")
+
+        self.session.phase = "VERIFY"
+
+        from .bundled_skills import get_skill
+        skill = get_skill("devflow-verifier")
+        if not skill:
+            raise RuntimeError("devflow-verifier skill not found")
+
+        criteria = module.acceptance_criteria or step.acceptance_criteria or "No specific acceptance criteria."
+        prompt = skill.prompt.format(
+            step_title=f"{step.title} — Module: {module.file_path}",
+            acceptance_criteria=criteria,
+            implementation_result=module.implementation_result or "No implementation result available.",
+        )
+
+        result = agent.run(prompt=prompt, stream=False)
+        output = result.final_message or ""
+
+        module.verification_result = output
+
+        if "Overall Verdict: PASS" in output or "Overall Verdict: **PASS**" in output or "### Overall Verdict: PASS" in output:
+            module.status = "verified"
+        elif "Overall Verdict: FAIL" in output or "Overall Verdict: **FAIL**" in output or "### Overall Verdict: FAIL" in output:
+            module.status = "failed"
+        else:
+            module.status = "verified"
+
+        # If all modules are verified, mark step as verified
+        if all(m.status == "verified" for m in step.modules):
+            step.status = "verified"
 
         self.session.updated_at = time.time()
         self.save()
@@ -541,6 +806,24 @@ class DevFlowRuntime(RuntimeBase):
                 return
 
         self.session.current_step_index = len(self.session.steps)
+
+    def next_module(self) -> bool:
+        """Advance to the next module in the current step. Returns False if no more modules."""
+        if not self.session:
+            return False
+
+        step = self.session.get_current_step()
+        if not step or not step.has_modules():
+            return False
+
+        step.current_module_index += 1
+        if step.current_module_index >= len(step.modules):
+            # All modules done — step is complete
+            return False
+
+        self.session.updated_at = time.time()
+        self.save()
+        return True
 
     def skip_step(self) -> bool:
         """Skip the current step and advance. Returns False if no more steps."""
@@ -765,10 +1048,52 @@ Decompose the architecture into ordered, executable implementation steps.
 Output a JSON array where each step has: id, title, goal, constraints,
 acceptance_criteria, and depends_on."""
 
+        elif self.session.phase == "STEP_ANALYSIS":
+            if not step:
+                return ""
+            return f"""[DevFlow - STEP_ANALYSIS Phase]
+You are analyzing a step to break it into individual implementation modules.
+
+**Overall Goal**: {self.session.overall_goal}
+**Current Step**: {step.title}
+**Step Goal**: {step.goal}
+**Step Constraints**: {step.constraints or 'None'}
+
+Break this step into modules — each module should correspond to one file or
+one independently implementable component. For each module define:
+- file_path: the file to create/change
+- goal: what this specific module must achieve
+- constraints: technical constraints specific to this module
+- acceptance_criteria: how to verify this module independently
+
+Output a JSON array of module objects."""
+
         elif self.session.phase == "IMPLEMENTATION":
             if not step:
                 return ""
             prev_summary = self._build_previous_steps_summary()
+
+            module = step.get_current_module()
+            if module:
+                # Module-level implementation
+                return f"""[DevFlow - IMPLEMENTATION Phase (Module Mode)]
+You are implementing a single module of the current step.
+Focus ONLY on this one file/component — do NOT implement anything else.
+
+**Overall Goal**: {self.session.overall_goal}
+**Step**: {step.title}
+**Module File**: {module.file_path}
+**Module Goal**: {module.goal}
+**Module Constraints**: {module.constraints or step.constraints or 'None'}
+**Acceptance Criteria**: {module.acceptance_criteria or step.acceptance_criteria or 'None'}
+
+**Previous Steps**:
+{prev_summary}
+
+Implement ONLY the file {module.file_path}. Use write_file or edit_file to
+make changes. After implementation, self-check against each criterion."""
+
+            # Legacy full-step implementation
             return f"""[DevFlow - IMPLEMENTATION Phase]
 You are implementing a specific step of the development plan.
 Focus ONLY on this step — do not implement future steps.
@@ -788,6 +1113,20 @@ self-check against each acceptance criterion."""
         elif self.session.phase == "VERIFY":
             if not step:
                 return ""
+            module = step.get_current_module()
+            if module:
+                return f"""[DevFlow - VERIFY Phase (Module Mode)]
+You are verifying a single module's implementation.
+
+**Step**: {step.title}
+**Module**: {module.file_path}
+**Acceptance Criteria**: {module.acceptance_criteria or step.acceptance_criteria or 'None'}
+**Implementation Result**: {module.implementation_result or 'No result available'}
+
+For each criterion, check if it is met using available tools. Report
+[PASS], [PARTIAL], or [FAIL] with evidence. Provide an overall verdict
+and specific fix recommendations for any failures."""
+
             return f"""[DevFlow - VERIFY Phase]
 You are verifying that an implementation meets its acceptance criteria.
 
