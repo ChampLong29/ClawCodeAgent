@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -43,10 +44,17 @@ class DeterministicConfig:
 def apply_deterministic_config(agent, config: DeterministicConfig) -> None:
     """Apply deterministic configuration to a LocalCodingAgent instance.
 
-    Sets temperature on the model config and disables non-deterministic runtimes.
+    Sets temperature, seeds the RNG, fixes session ID, and disables
+    non-deterministic runtimes.
     """
+    # Seed Python's RNG for reproducibility
+    random.seed(config.seed)
+
     if agent.model_config:
         agent.model_config.temperature = config.temperature
+        # Also seed model-level randomness if the config supports it
+        if hasattr(agent.model_config, "seed"):
+            agent.model_config.seed = config.seed
 
     if config.session_id and agent.session:
         agent.session.session_id = config.session_id

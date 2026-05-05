@@ -38,9 +38,16 @@ class SandboxManager:
     After the episode, the sandbox is cleaned up.
     """
 
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(
+        self,
+        base_dir: Optional[str] = None,
+        default_timeout: float = 120.0,
+        default_max_memory_mb: int = 512,
+    ):
         self.base_dir = base_dir or tempfile.mkdtemp(prefix="agent_sandboxes_")
         self._active_sandboxes: Dict[str, str] = {}
+        self.default_timeout = default_timeout
+        self.default_max_memory_mb = default_max_memory_mb
 
     def create_sandbox(
         self,

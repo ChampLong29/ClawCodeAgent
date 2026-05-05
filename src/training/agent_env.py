@@ -49,6 +49,9 @@ class AgentEnv:
         self._task: Optional[CodingTask] = None
         self._sandbox_path: str = ""
         self._episode_complete: bool = False
+        # Cached results to avoid double-computation
+        self._cached_test_result: Optional[TestResult] = None
+        self._cached_diff_result: Optional[DiffResult] = None
 
     def reset(self, task: CodingTask) -> EnvObservation:
         """Reset the environment with a new task.
@@ -118,12 +121,27 @@ class AgentEnv:
         reward = self.compute_reward(result)
         self._episode_complete = True
 
-        info = {
+        info: Dict[str, Any] = {
             "stop_reason": result.stop_reason,
             "error": result.error,
             "usage": result.usage.to_dict() if result.usage else {},
             "task_id": self._task.id,
         }
+
+        # Include cached results so runner can reuse them
+        if self._cached_test_result is not None:
+            info["test_result"] = {
+                "passed": self._cached_test_result.passed,
+                "passed_tests": self._cached_test_result.passed_tests,
+                "total_tests": self._cached_test_result.total_tests,
+                "output": self._cached_test_result.output,
+            }
+        if self._cached_diff_result is not None:
+            info["diff_result"] = {
+                "match": self._cached_diff_result.match,
+                "matches": self._cached_diff_result.matches,
+                "total": self._cached_diff_result.total,
+            }
 
         return (observation, reward, True, info)
 
@@ -134,28 +152,39 @@ class AgentEnv:
         - Test pass: 0.0 to 1.0 based on test pass rate
         - Diff accuracy: 0.0 to 1.0 based on ground truth file match
         - Penalty for errors or budget exceeded
+
+        Results are cached so ``run_episode()`` can reuse them without
+        re-running tests.
         """
         if not self._task:
             return 0.0
 
         reward = 0.0
+        self._cached_test_result = None
+        self._cached_diff_result = None
 
-        # Test results
+        # Test results (cached)
         if self._task.test_commands:
-            test_result = self.sandbox_manager.execute_tests(
+            self._cached_test_result = self.sandbox_manager.execute_tests(
                 self._sandbox_path,
                 self._task.test_commands,
             )
-            test_score = test_result.passed_tests / max(test_result.total_tests, 1)
+            test_score = (
+                self._cached_test_result.passed_tests
+                / max(self._cached_test_result.total_tests, 1)
+            )
             reward += 0.5 * test_score
 
-        # Diff against ground truth
+        # Diff against ground truth (cached)
         if self._task.ground_truth_files:
-            diff_result = self.sandbox_manager.compute_diff(
+            self._cached_diff_result = self.sandbox_manager.compute_diff(
                 self._sandbox_path,
                 self._task.ground_truth_files,
             )
-            diff_score = diff_result.matches / max(diff_result.total, 1)
+            diff_score = (
+                self._cached_diff_result.matches
+                / max(self._cached_diff_result.total, 1)
+            )
             reward += 0.5 * diff_score
 
         # If no tests and no ground truth, reward based on completion

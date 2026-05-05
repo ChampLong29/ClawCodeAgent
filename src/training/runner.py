@@ -39,6 +39,38 @@ class RolloutResult:
     execution_time: float = 0.0
     test_result: Optional[Dict[str, Any]] = None
     diff_result: Optional[Dict[str, Any]] = None
+    review_report: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "task_id": self.task_id,
+            "session_id": self.session_id,
+            "stop_reason": self.stop_reason,
+            "reward": self.reward,
+            "messages": self.messages,
+            "usage": self.usage,
+            "error": self.error,
+            "execution_time": self.execution_time,
+            "test_result": self.test_result,
+            "diff_result": self.diff_result,
+            "review_report": self.review_report,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> RolloutResult:
+        return cls(
+            task_id=data.get("task_id", ""),
+            session_id=data.get("session_id", ""),
+            stop_reason=data.get("stop_reason", ""),
+            reward=float(data.get("reward", 0)),
+            messages=data.get("messages", []),
+            usage=data.get("usage", {}),
+            error=data.get("error"),
+            execution_time=float(data.get("execution_time", 0)),
+            test_result=data.get("test_result"),
+            diff_result=data.get("diff_result"),
+            review_report=data.get("review_report"),
+        )
 
 
 class RolloutRunner:
@@ -85,32 +117,9 @@ class RolloutRunner:
             env.reset(task)
             obs, reward, done, info = env.step()
 
-            # Run tests for result capture
-            test_result = None
-            diff_result = None
-
-            if task.test_commands and sandbox_mgr.get_sandbox(task.id):
-                tr = sandbox_mgr.execute_tests(
-                    sandbox_mgr.get_sandbox(task.id),
-                    task.test_commands,
-                )
-                test_result = {
-                    "passed": tr.passed,
-                    "passed_tests": tr.passed_tests,
-                    "total_tests": tr.total_tests,
-                    "output": tr.output,
-                }
-
-            if task.ground_truth_files and sandbox_mgr.get_sandbox(task.id):
-                dr = sandbox_mgr.compute_diff(
-                    sandbox_mgr.get_sandbox(task.id),
-                    task.ground_truth_files,
-                )
-                diff_result = {
-                    "match": dr.match,
-                    "matches": dr.matches,
-                    "total": dr.total,
-                }
+            # Reuse cached test/diff results from env (avoids double-computation)
+            test_result = info.get("test_result")
+            diff_result = info.get("diff_result")
 
             return RolloutResult(
                 task_id=task.id,
@@ -256,15 +265,4 @@ def _run_episode_worker(
 
     runner = RolloutRunner(config=config, model_name=model_name)
     result = runner.run_episode(task)
-    return {
-        "task_id": result.task_id,
-        "session_id": result.session_id,
-        "stop_reason": result.stop_reason,
-        "reward": result.reward,
-        "messages": result.messages,
-        "usage": result.usage,
-        "error": result.error,
-        "execution_time": result.execution_time,
-        "test_result": result.test_result,
-        "diff_result": result.diff_result,
-    }
+    return result.to_dict()
