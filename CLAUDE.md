@@ -21,19 +21,32 @@ pip install -e .
 ```
 
 ### Required Environment Variables
+
+**Anthropic native API:**
+```bash
+export ANTHROPIC_BASE_URL=https://api.anthropic.com
+export ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+export ANTHROPIC_MODEL=claude-sonnet-4-6
+```
+
+**OpenAI-compatible API (vLLM / Ollama / LiteLLM):**
 ```bash
 export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 export OPENAI_API_KEY=local-token
 export OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
 ```
 
+**Provider selection**: Any `ANTHROPIC_*` env var forces Anthropic mode. Setting only `OPENAI_*` vars uses OpenAI-compatible mode. See `.env.example` for all supported variables and proxy-specific examples.
+
 ### Running the Agent
 ```bash
+# After pip install -e ., use the `claw` CLI from any directory:
+claw agent "task" --cwd . --stream
+claw agent "task" --cwd . --max-turns 50 --stream
+claw agent-chat --cwd . --max-turns 30
+
+# Or via module (no install needed):
 python3 -m src.main agent "task" --cwd . --stream
-# With custom max turns (default: 100)
-python3 -m src.main agent "task" --cwd . --max-turns 50 --stream
-# Interactive REPL mode
-python3 -m src.main agent-chat --cwd . --max-turns 30
 ```
 
 ### Testing

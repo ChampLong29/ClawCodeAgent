@@ -28,7 +28,25 @@ python3 -m src.main agent-chat --cwd .
 
 After `pip install -e .`, the `claw` (or `claw-agent`) command is available globally within the venv. Run it from any directory — typically your project's working directory.
 
-See `.env.example` for the full list of supported environment variables.
+### API Configuration
+
+**Anthropic native API:**
+```bash
+export ANTHROPIC_BASE_URL=https://api.anthropic.com
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
+export ANTHROPIC_MODEL=claude-sonnet-4-6
+```
+
+**OpenAI-compatible API (vLLM / Ollama / LiteLLM):**
+```bash
+export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
+export OPENAI_API_KEY=local-token
+export OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
+```
+
+See `.env.example` for all supported variables and provider-specific examples.
+
+> 中文用户请参阅 [README.zh.md](README.zh.md) 了解详细功能说明、架构对比和案例演示。
 
 ## Architecture
 
@@ -40,7 +58,7 @@ User (CLI / REPL / GUI)
             ├── Model Client (openai_compat.py / anthropic_compat.py)
             ├── Tool Registry + Executor (agent_tools.py)
             ├── Session + Store (agent_session.py + session_store.py)
-            └── Runtime Modules (21 modules: mcp, search, remote, devflow, lifecycle, bridge, ...)
+            └── Runtime Modules (24 modules: mcp, search, remote, devflow, lifecycle, bridge, questionnaire, deep-dive, ...)
 ```
 
 ### Key Components
@@ -56,8 +74,12 @@ User (CLI / REPL / GUI)
 | `plugin_runtime.py` | Plugin discovery, virtual tool registration, tool aliases / blocks |
 | `devflow_runtime.py` | Structured development workflow: state machine, module-by-module execution, persistence |
 | `lifecycle_runtime.py` | Full software engineering lifecycle (10 phases), wraps DevFlow for dev phases |
+| `context_manager.py` | Phase-boundary context compaction — keeps structured outputs, discards chatter |
+| `questionnaire_runtime.py` | Sequential single-question Q&A with back/forward navigation |
+| `deep_dive_runtime.py` | Isolated agent sessions for technology research |
+| `session_naming.py` | Human-readable session IDs from project goals |
 | `bridge_runtime.py` | External platform bridge (Feishu, WeCom), session routing via webhooks |
-| `repl.py` | Interactive terminal: /devflow, /lifecycle, /name, session history + resume |
+| `repl.py` | Interactive terminal: /devflow, /lifecycle, /questionnaire, /deep-dive, /rollback, session history + resume |
 | `query_engine.py` | Facade API for embedding the agent in other applications |
 | `training/` | Agent training subsystem: RolloutRunner, TaskSuite, sandbox, determinism |
 | `gui/server.py` | ThreadingHTTPServer with chat UI, SSE streaming, and interactive permission confirmation |
