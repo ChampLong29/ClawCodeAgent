@@ -521,8 +521,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 运行测试
+# 运行全部测试（254 个用例）
 python3 -m unittest discover -s tests -v
+
+# 运行单个测试模块
+python3 -m unittest tests.test_context_manager -v
 
 # 构建分发包
 pip install build
@@ -544,11 +547,12 @@ python3 -m build
 │   ├── session_naming.py        # Session 命名
 │   ├── gui/                     # Web GUI (21 个路由模块)
 │   └── training/                # Agent 训练子系统
-├── tests/                       # 254 个测试用例
-├── .port_sessions/              # Session 持久化（gitignore）
-├── projects/                    # 生成的项目目录（gitignore）
+├── tests/                       # 254 个测试用例（22 个测试模块）
+├── CLAUDE.md                    # Claude Code 项目指令文件
 ├── pyproject.toml               # 包配置与 CLI 入口点
-└── .env.example                 # API 配置示例
+├── .env.example                 # API 配置示例
+├── .port_sessions/              # Session 持久化（gitignore）
+└── projects/                    # 生成的项目目录（gitignore）
 ```
 
 ### 环境变量
