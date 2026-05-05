@@ -217,7 +217,7 @@ class TestDevFlowRuntime(unittest.TestCase):
     def test_start_session_creates_session_id(self):
         session = self.rt.start_session("Test goal")
         self.assertIsNotNone(session.session_id)
-        self.assertEqual(len(session.session_id), 8)  # UUID[:8]
+        self.assertGreater(len(session.session_id), 4)  # formatted name + hash
 
     def test_has_active_session(self):
         self.assertFalse(self.rt.has_active_session())

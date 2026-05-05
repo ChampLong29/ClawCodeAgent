@@ -115,6 +115,14 @@ class ClawRepl:
         # Lifecycle runtime
         self._lifecycle_rt = LifecycleRuntime(cwd=cwd)
 
+        # Questionnaire runtime
+        from .questionnaire_runtime import QuestionnaireRuntime
+        self._questionnaire_rt = QuestionnaireRuntime(cwd=cwd)
+
+        # Deep-dive runtime
+        from .deep_dive_runtime import DeepDiveRuntime
+        self._deepdive_rt = DeepDiveRuntime(cwd=cwd)
+
         _setup_readline()
 
     def run(self):
@@ -138,6 +146,15 @@ class ClawRepl:
                         continue
                     else:
                         break  # /exit or /quit
+
+                # If questionnaire is active, treat input as answer
+                if self._is_questionnaire_active():
+                    self._questionnaire_rt.answer_current(prompt)
+                    if self._questionnaire_rt.has_more():
+                        self._show_current_question()
+                    else:
+                        self._questionnaire_done()
+                    continue
 
                 # Execute query
                 self._execute(prompt)
@@ -222,6 +239,16 @@ class ClawRepl:
 
         _print_colored("")
         _print_colored("DevFlow Commands:", Colors.BOLD)
+        _print_colored("  /deep-dive <technology>   Deep-dive analysis in isolated context", Colors.DIM)
+        _print_colored("  /deep-dive scan           Scan current output for technologies", Colors.DIM)
+        _print_colored("  /deep-dive list           List deep-dive queries", Colors.DIM)
+        _print_colored("  /deep-dive view <id>      View a deep-dive result", Colors.DIM)
+        _print_colored("  /deep-dive inject <id>    Inject summary into main context", Colors.DIM)
+        _print_colored("")
+        _print_colored("  /questionnaire start <goal> Start sequential Q&A requirements gathering", Colors.DIM)
+        _print_colored("  /questionnaire status       Show questionnaire progress", Colors.DIM)
+        _print_colored("  /q back / /q skip / /q goto <N> Navigate during questionnaire", Colors.DIM)
+        _print_colored("")
         _print_colored("  /devflow start <goal>    Start structured development workflow", Colors.DIM)
         _print_colored("  /devflow status          Show progress and dependency tree", Colors.DIM)
         _print_colored("  /devflow step            Show current step and module details", Colors.DIM)
@@ -338,6 +365,16 @@ class ClawRepl:
                 _print_colored("No active agent", Colors.YELLOW)
             return True
 
+        # Deep-dive commands
+        if cmd.startswith("/deep-dive") or cmd.startswith("/dd "):
+            self._handle_deepdive(cmd)
+            return True
+
+        # Questionnaire commands
+        if cmd.startswith("/questionnaire") or cmd.startswith("/q "):
+            self._handle_questionnaire(cmd)
+            return True
+
         # DevFlow commands
         if cmd.startswith("/devflow"):
             self._handle_devflow(cmd)
@@ -383,7 +420,21 @@ class ClawRepl:
         self.agent.session = None  # Will be set on first run()
 
     def _execute(self, prompt: str):
-        """Execute a user prompt with streaming and tool visibility."""
+        """Execute a user prompt with streaming and tool visibility.
+
+        When a lifecycle session is active with a pending phase, the prompt
+        is routed through ``lifecycle_rt.execute_phase()`` so that phase
+        output and status are properly tracked.
+        """
+        # If lifecycle is active with a pending phase, execute that phase
+        if self._lifecycle_rt.has_active_session():
+            phase = self._lifecycle_rt.session.get_current_phase() if self._lifecycle_rt.session else None
+            if phase and phase.status == "pending":
+                if self.agent is None:
+                    self._new_agent()
+                self._run_lifecycle_current_phase(self.agent)
+                return
+
         if self.agent is None:
             self._new_agent()
 
@@ -429,6 +480,351 @@ class ClawRepl:
     # DevFlow commands
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # Deep-dive handlers
+    # ------------------------------------------------------------------
+
+    def _handle_deepdive(self, cmd: str) -> None:
+        """Dispatch deep-dive sub-commands. Also handles /dd shorthand."""
+        if cmd.startswith("/dd "):
+            parts = ["/deep-dive"] + cmd[4:].split(None, 2)
+        else:
+            parts = cmd.split(None, 2)
+
+        sub = parts[1] if len(parts) > 1 else ""
+        rest = parts[2] if len(parts) > 2 else ""
+
+        if sub in ("start", "analyze"):
+            self._deepdive_analyze(rest)
+        elif sub == "list":
+            self._deepdive_list()
+        elif sub == "view":
+            self._deepdive_view(rest)
+        elif sub == "inject":
+            self._deepdive_inject(rest)
+        elif sub == "scan":
+            self._deepdive_scan()
+        else:
+            # Treat as technology name directly: /deep-dive PostgreSQL
+            self._deepdive_analyze(sub if not rest else f"{sub} {rest}")
+
+    def _deepdive_analyze(self, technology: str) -> None:
+        """Start a deep-dive analysis for a technology."""
+        if not technology:
+            _print_colored("Usage: /deep-dive <technology>", Colors.YELLOW)
+            _print_colored("Example: /deep-dive PostgreSQL", Colors.DIM)
+            return
+
+        technology = technology.strip()
+
+        # Ensure session
+        if not self._deepdive_rt.session:
+            parent_id = ""
+            parent_phase = ""
+            if self._lifecycle_rt.session:
+                parent_id = self._lifecycle_rt.session.session_id
+                phase = self._lifecycle_rt.session.get_current_phase()
+                parent_phase = phase.name if phase else ""
+            elif self._devflow_rt.session:
+                parent_id = self._devflow_rt.session.session_id
+                parent_phase = self._devflow_rt.session.phase
+            self._deepdive_rt.start_session(parent_phase, parent_id)
+
+        # Set up agent factory for isolated sessions
+        def _make_agent():
+            model_config = ModelConfig(name=self.model_name, temperature=self.temperature)
+            agent = LocalCodingAgent(
+                model_config=model_config,
+                cwd=self.cwd,
+                budget=self.budget,
+                tool_registry=self.tool_registry if hasattr(self, 'tool_registry') else None,
+            )
+            return agent
+
+        self._deepdive_rt.set_agent_factory(_make_agent)
+
+        query = self._deepdive_rt.add_query(technology)
+        _print_colored(f"Deep-diving into: {technology}...", Colors.BOLD)
+        _print_colored("(Creating isolated agent session — this won't affect your main context)", Colors.DIM)
+
+        try:
+            result = self._deepdive_rt.execute_query(query.id)
+            _print_colored(f"\n## {technology} — Deep Analysis\n", Colors.BOLD)
+            _print_colored(result)
+            _print_colored(f"\nDeep-dive saved: {query.id}", Colors.DIM)
+            _print_colored(f"Use /deep-dive inject {query.id} to add a summary to the main context", Colors.DIM)
+        except Exception as e:
+            _print_colored(f"Deep-dive error: {e}", Colors.RED)
+
+    def _deepdive_list(self) -> None:
+        """List all deep-dive queries."""
+        session = self._deepdive_rt.session
+        if not session or not session.queries:
+            _print_colored("No deep-dive queries yet.", Colors.DIM)
+            _print_colored("Use /deep-dive <technology> to start one.", Colors.DIM)
+            return
+
+        _print_colored(f"Deep-dive session: {session.session_id}", Colors.BOLD)
+        for q in session.queries:
+            icon = "✓" if q.status == "completed" else ("⏳" if q.status == "in_progress" else "✗")
+            size = f"({len(q.result)} chars)" if q.result else ""
+            _print_colored(f"  {icon} {q.id}: {q.technology} ({q.status}) {size}", Colors.DIM)
+
+    def _deepdive_view(self, query_id: str) -> None:
+        """View a completed deep-dive result."""
+        if not query_id:
+            _print_colored("Usage: /deep-dive view <query_id>", Colors.YELLOW)
+            return
+        result = self._deepdive_rt.get_result(query_id.strip())
+        if result:
+            _print_colored(result)
+        else:
+            _print_colored(f"Query '{query_id}' not found or not completed.", Colors.YELLOW)
+
+    def _deepdive_inject(self, query_id: str) -> None:
+        """Inject deep-dive summary into the main agent context."""
+        if not query_id:
+            _print_colored("Usage: /deep-dive inject <query_id>", Colors.YELLOW)
+            return
+        summary = self._deepdive_rt.format_for_parent(query_id.strip())
+        if not summary:
+            _print_colored(f"Query '{query_id}' not found or not completed.", Colors.YELLOW)
+            return
+
+        if self.agent and self.agent.session:
+            self.agent.session.add_system_message(summary)
+            _print_colored("Deep-dive summary injected into main agent context.", Colors.GREEN)
+        else:
+            _print_colored("No active agent session to inject into.", Colors.YELLOW)
+        _print_colored(summary, Colors.DIM)
+
+    def _deepdive_scan(self) -> None:
+        """Scan the current phase output for technology names."""
+        # Check lifecycle
+        if self._lifecycle_rt.session:
+            phase = self._lifecycle_rt.session.get_current_phase()
+            if phase and phase.output:
+                techs = self._deepdive_rt.extract_technologies(phase.output)
+                if techs:
+                    _print_colored(f"Technologies found in '{phase.name}' output:", Colors.BOLD)
+                    for t in techs:
+                        _print_colored(f"  - {t}", Colors.DIM)
+                    _print_colored(f"\nUse /deep-dive <technology> to explore.", Colors.DIM)
+                else:
+                    _print_colored("No recognized technologies found.", Colors.YELLOW)
+                return
+
+        # Check devflow
+        if self._devflow_rt.session and self._devflow_rt.session.architecture:
+            techs = self._deepdive_rt.extract_technologies(
+                self._devflow_rt.session.architecture
+            )
+            if techs:
+                _print_colored("Technologies found in architecture:", Colors.BOLD)
+                for t in techs:
+                    _print_colored(f"  - {t}", Colors.DIM)
+                _print_colored(f"\nUse /deep-dive <technology> to explore.", Colors.DIM)
+                return
+
+        _print_colored("No phase output to scan. Run a phase first.", Colors.YELLOW)
+
+    # ------------------------------------------------------------------
+    # Questionnaire handlers
+    # ------------------------------------------------------------------
+
+    def _handle_questionnaire(self, cmd: str) -> None:
+        """Dispatch questionnaire sub-commands. Also handles /q shorthand."""
+        # Normalize: /q xxx → /questionnaire xxx
+        if cmd.startswith("/q "):
+            parts = ["/questionnaire"] + cmd[3:].split(None, 2)
+        elif cmd.startswith("/q"):
+            # /q alone or /qback, etc.
+            rest = cmd[2:].strip()
+            if rest in ("back", "b"):
+                self._questionnaire_back()
+                return
+            elif rest in ("skip", "s"):
+                self._questionnaire_skip()
+                return
+            elif rest == "done":
+                self._questionnaire_done()
+                return
+            elif rest.startswith("goto "):
+                self._questionnaire_goto(rest[5:].strip())
+                return
+            elif rest.startswith("revise "):
+                args = rest[7:].strip().split(None, 1)
+                idx = int(args[0]) - 1 if args else -1  # 1-based → 0-based
+                answer = args[1] if len(args) > 1 else ""
+                self._questionnaire_revise(idx, answer)
+                return
+            else:
+                self._show_questionnaire_help()
+                return
+        else:
+            parts = cmd.split(None, 2)
+
+        sub = parts[1] if len(parts) > 1 else ""
+        rest = parts[2] if len(parts) > 2 else ""
+
+        if sub == "start" or sub == "generate":
+            self._questionnaire_start(rest)
+        elif sub == "status":
+            self._questionnaire_status()
+        elif sub == "back" or sub == "b":
+            self._questionnaire_back()
+        elif sub == "skip" or sub == "s":
+            self._questionnaire_skip()
+        elif sub == "goto":
+            self._questionnaire_goto(rest)
+        elif sub == "revise":
+            args = rest.split(None, 1)
+            idx = int(args[0]) - 1 if args else -1
+            answer = args[1] if len(args) > 1 else ""
+            self._questionnaire_revise(idx, answer)
+        elif sub == "done":
+            self._questionnaire_done()
+        else:
+            self._show_questionnaire_help()
+
+    def _show_questionnaire_help(self) -> None:
+        _print_colored(
+            "Questionnaire commands:\n"
+            "  /questionnaire start <goal>  Start Q&A session\n"
+            "  /questionnaire status        Show progress\n"
+            "  /questionnaire back          Previous question\n"
+            "  /questionnaire skip          Skip current question\n"
+            "  /questionnaire goto <N>      Jump to question N\n"
+            "  /questionnaire revise <N> <a> Revise answer to question N\n"
+            "  /questionnaire done          Finish and compile results\n"
+            "\nShorthand: /q back, /q skip, /q goto 3, /q done",
+            Colors.DIM,
+        )
+
+    def _questionnaire_start(self, goal: str) -> None:
+        if not goal:
+            _print_colored("Usage: /questionnaire start <project goal>", Colors.YELLOW)
+            return
+
+        agent = self._ensure_agent_for_questionnaire()
+        if not agent:
+            return
+
+        self._questionnaire_rt.start(goal)
+        _print_colored(f"Generating questions for: {goal}", Colors.DIM)
+
+        try:
+            questions = self._questionnaire_rt.generate_questions(agent)
+            _print_colored(f"Generated {len(questions)} questions.", Colors.GREEN)
+            self._show_current_question()
+        except Exception as e:
+            _print_colored(f"Error generating questions: {e}", Colors.RED)
+
+    def _questionnaire_status(self) -> None:
+        q = self._questionnaire_rt.questionnaire
+        if not q or q.status == "awaiting_generation":
+            _print_colored("No active questionnaire. Use /questionnaire start <goal>", Colors.YELLOW)
+            return
+        p = q.progress()
+        _print_colored(f"Questionnaire: {q.overall_goal}", Colors.BOLD)
+        _print_colored(f"Status: {q.status}  |  Progress: Q{p['current_index'] + 1}/{p['total']}", Colors.DIM)
+        _print_colored(f"  Answered: {p['answered']}  Skipped: {p['skipped']}  Pending: {p['pending']}", Colors.DIM)
+        for i, qq in enumerate(q.questions):
+            marker = "→" if i == q.current_question_index else " "
+            icon = "✓" if qq.status == "answered" else ("-" if qq.status == "skipped" else "?")
+            _print_colored(f"  {marker} [{i + 1}] {icon} {qq.text}", Colors.DIM)
+
+    def _questionnaire_back(self) -> None:
+        prev = self._questionnaire_rt.go_back()
+        if prev:
+            self._show_current_question()
+        else:
+            _print_colored("Already at the first question.", Colors.YELLOW)
+
+    def _questionnaire_skip(self) -> None:
+        self._questionnaire_rt.skip_current()
+        if self._questionnaire_rt.has_more():
+            self._show_current_question()
+        else:
+            self._questionnaire_done()
+
+    def _questionnaire_goto(self, num_str: str) -> None:
+        try:
+            idx = int(num_str.strip()) - 1  # 1-based → 0-based
+        except ValueError:
+            _print_colored("Usage: /questionnaire goto <number>", Colors.YELLOW)
+            return
+        q = self._questionnaire_rt.go_to(idx)
+        if q:
+            self._show_current_question()
+        else:
+            _print_colored(f"Question {idx + 1} out of range.", Colors.YELLOW)
+
+    def _questionnaire_revise(self, index: int, new_answer: str) -> None:
+        q = self._questionnaire_rt.questionnaire
+        if not q:
+            _print_colored("No active questionnaire.", Colors.YELLOW)
+            return
+        if index < 0 or index >= len(q.questions):
+            _print_colored(f"Question {index + 1} out of range.", Colors.YELLOW)
+            return
+        self._questionnaire_rt.revise_answer(index, new_answer)
+        qq = q.questions[index]
+        _print_colored(f"Revised Q{index + 1}: {qq.text}", Colors.GREEN)
+        _print_colored(f"  New answer: {qq.answer or '(cleared)'}", Colors.DIM)
+
+    def _questionnaire_done(self) -> None:
+        q = self._questionnaire_rt.questionnaire
+        if not q:
+            _print_colored("No active questionnaire.", Colors.YELLOW)
+            return
+
+        result = self._questionnaire_rt.finalize()
+        _print_colored(result, Colors.DIM)
+
+        p = q.progress()
+        remaining = p["total"] - p["answered"] - p["skipped"]
+        if remaining > 0:
+            _print_colored(
+                f"Note: {remaining} question(s) remaining. Use /questionnaire goto <N> to address them.",
+                Colors.YELLOW,
+            )
+        _print_colored("Questionnaire complete!", Colors.GREEN)
+
+        # If lifecycle is in REQUIREMENTS phase, store the output
+        lifecycle_session = self._lifecycle_rt.get_session()
+        if lifecycle_session:
+            lifecycle_phase = lifecycle_session.get_current_phase()
+            if lifecycle_phase and lifecycle_phase.name == "REQUIREMENTS":
+                lifecycle_phase.output = result
+                lifecycle_phase.status = "in_progress"
+                self._lifecycle_rt.save()
+                _print_colored("Output stored in REQUIREMENTS phase.", Colors.DIM)
+                _print_colored("Use /lifecycle accept to advance.", Colors.DIM)
+
+    def _show_current_question(self) -> None:
+        q = self._questionnaire_rt.get_current_question()
+        if not q:
+            return
+        p = self._questionnaire_rt.questionnaire.progress() if self._questionnaire_rt.questionnaire else {}
+        total = p.get("total", 0)
+        current = p.get("current_index", 0) + 1
+        _print_colored(f"[Q {current}/{total}] {q.text}", Colors.BOLD)
+
+    def _ensure_agent_for_questionnaire(self):
+        if self.agent is None:
+            self._new_agent()
+        return self.agent
+
+    def _is_questionnaire_active(self) -> bool:
+        """Check if the user is currently in a questionnaire session."""
+        q = self._questionnaire_rt.questionnaire
+        return q is not None and q.status == "active"
+
+    # ------------------------------------------------------------------
+    # DevFlow handlers
+    # ------------------------------------------------------------------
+
     def _handle_devflow(self, cmd: str) -> None:
         """Dispatch /devflow sub-commands."""
         parts = cmd.split(None, 2)
@@ -447,6 +843,12 @@ class ClawRepl:
             self._devflow_reject(rest)
         elif sub == "skip":
             self._devflow_skip()
+        elif sub == "rollback":
+            self._devflow_rollback_step(rest)
+        elif sub == "rollback-phase":
+            self._devflow_rollback_phase(rest)
+        elif sub == "rollback-targets":
+            self._devflow_rollback_targets()
         elif sub == "archive":
             self._devflow_archive()
         elif sub == "load":
@@ -456,15 +858,18 @@ class ClawRepl:
         else:
             _print_colored(
                 "DevFlow commands:\n"
-                "  /devflow start <goal>    Start a new DevFlow session\n"
-                "  /devflow status          Show progress and dependency tree\n"
-                "  /devflow step            Show current step details\n"
-                "  /devflow accept          Accept architecture / steps / verified result\n"
-                "  /devflow reject [reason] Reject and request regeneration\n"
-                "  /devflow skip            Skip current step\n"
-                "  /devflow archive         Save session report to file\n"
-                "  /devflow list            List saved sessions\n"
-                "  /devflow load <id>       Load a saved session",
+                "  /devflow start <goal>       Start a new DevFlow session\n"
+                "  /devflow status             Show progress and dependency tree\n"
+                "  /devflow step               Show current step details\n"
+                "  /devflow accept             Accept architecture / steps / verified result\n"
+                "  /devflow reject [reason]    Reject and request regeneration\n"
+                "  /devflow skip               Skip current step\n"
+                "  /devflow rollback <step-id> Roll back to a specific step\n"
+                "  /devflow rollback-phase <p> Roll back to a specific phase\n"
+                "  /devflow rollback-targets   List steps/phases for rollback\n"
+                "  /devflow archive            Save session report to file\n"
+                "  /devflow list               List saved sessions\n"
+                "  /devflow load <id>          Load a saved session",
                 Colors.DIM,
             )
 
@@ -489,15 +894,25 @@ class ClawRepl:
         agent = self._devflow_ensure_agent()
         session = self._devflow_rt.start_session(goal)
 
+        # Set agent's working directory to the dedicated project folder
+        project_dir = self._devflow_rt.get_project_dir()
+        if project_dir and agent:
+            agent.cwd = project_dir
+
         _print_colored("")
         _print_colored("╔══════════════════════════════════════════════╗", Colors.CYAN)
         _print_colored("║  DevFlow: Structured Development Workflow    ║", Colors.BOLD + Colors.CYAN)
         _print_colored("╠══════════════════════════════════════════════╣", Colors.CYAN)
-        _print_colored(f"║  Session: {session.session_id}                          ║", Colors.CYAN)
+        sid = session.session_id
+        if len(sid) > 34:
+            sid = sid[:31] + "..."
+        _print_colored(f"║  Session: {sid:<34}║", Colors.CYAN)
         _print_colored(f"║  Phase:   ARCHITECTURE                       ║", Colors.CYAN)
         _print_colored("╚══════════════════════════════════════════════╝", Colors.CYAN)
         _print_colored("")
         _print_colored(f"Goal: {goal}", Colors.BOLD)
+        if project_dir:
+            _print_colored(f"Project: {project_dir}", Colors.DIM)
         _print_colored("")
         _print_colored("Generating architecture proposal...", Colors.DIM)
 
@@ -528,7 +943,9 @@ class ClawRepl:
         if session.phase == "ARCHITECTURE":
             _print_colored("Architecture approved. Generating steps...", Colors.DIM)
             try:
-                self._devflow_rt.approve_architecture()
+                self._devflow_rt.approve_architecture(
+                    agent_session=agent.session if agent else None
+                )
                 steps = self._devflow_rt.generate_steps(agent)
                 self._print_devflow_tree()
                 _print_colored("")
@@ -541,7 +958,9 @@ class ClawRepl:
         elif session.phase == "STEP_DEFINITION":
             _print_colored("Steps approved. Analyzing first step...", Colors.DIM)
             try:
-                self._devflow_rt.approve_steps()
+                self._devflow_rt.approve_steps(
+                    agent_session=agent.session if agent else None
+                )
                 # STEP_ANALYSIS: generate module breakdown
                 self._devflow_run_analyze_phase(agent)
             except Exception as e:
@@ -553,7 +972,9 @@ class ClawRepl:
             if step and step.has_modules():
                 _print_colored("Modules approved. Starting module-by-module implementation...", Colors.DIM)
                 try:
-                    self._devflow_rt.approve_modules()
+                    self._devflow_rt.approve_modules(
+                        agent_session=agent.session if agent else None
+                    )
                     self._devflow_run_module_cycle(agent)
                 except Exception as e:
                     _print_colored(f"Error: {e}", Colors.RED)
@@ -561,7 +982,9 @@ class ClawRepl:
                 # No modules generated — skip to legacy mode
                 _print_colored("No modules generated. Using full-step mode...", Colors.YELLOW)
                 try:
-                    self._devflow_rt.approve_modules()  # will fail if no modules
+                    self._devflow_rt.approve_modules(
+                        agent_session=agent.session if agent else None
+                    )  # will fail if no modules
                 except Exception:
                     # Fallback: manually set phase to IMPLEMENTATION
                     self._devflow_rt.session.phase = "IMPLEMENTATION"
@@ -584,7 +1007,9 @@ class ClawRepl:
                         else:
                             # All modules done, advance to next step
                             _print_colored(f"All modules for step '{step.title}' complete!", Colors.GREEN)
-                            self._devflow_rt.next_step()
+                            self._devflow_rt.next_step(
+                                agent_session=agent.session if agent else None
+                            )
                             self._devflow_run_analyze_phase(agent) if self._devflow_rt.session.phase != "DONE" else self._print_devflow_tree()
                     else:
                         _print_colored(f"Module verification failed. Use /devflow reject [reason] to retry.", Colors.YELLOW)
@@ -595,7 +1020,9 @@ class ClawRepl:
                         self._prompt_module_confirm()
                     else:
                         _print_colored(f"All modules for step '{step.title}' complete!", Colors.GREEN)
-                        self._devflow_rt.next_step()
+                        self._devflow_rt.next_step(
+                            agent_session=agent.session if agent else None
+                        )
                         if self._devflow_rt.session.phase != "DONE":
                             self._devflow_run_analyze_phase(agent)
                         else:
@@ -607,7 +1034,9 @@ class ClawRepl:
                 # Legacy full-step mode
                 if step and step.status == "verified":
                     _print_colored(f"Step '{step.title}' verified. Moving to next step...", Colors.GREEN)
-                    has_next = self._devflow_rt.next_step()
+                    has_next = self._devflow_rt.next_step(
+                        agent_session=agent.session if agent else None
+                    )
                     if has_next:
                         self._devflow_run_implement_verify_cycle(agent)
                     else:
@@ -717,12 +1146,105 @@ class ClawRepl:
         agent = self._devflow_ensure_agent()
         _print_colored(f"Skipping step: {step.title}", Colors.YELLOW)
 
-        has_next = self._devflow_rt.skip_step()
+        has_next = self._devflow_rt.skip_step(
+            agent_session=agent.session if agent else None
+        )
         if has_next:
             self._devflow_run_implement_verify_cycle(agent)
         else:
             self._print_devflow_tree()
             _print_colored("No more steps. Session complete.", Colors.GREEN)
+
+    def _devflow_rollback_step(self, step_id: str) -> None:
+        """Roll back to a specific DevFlow step."""
+        if not step_id:
+            _print_colored("Usage: /devflow rollback <step-id>", Colors.YELLOW)
+            return
+
+        session = self._devflow_rt.get_session()
+        if not session:
+            _print_colored("No active DevFlow session.", Colors.YELLOW)
+            return
+
+        step_id = step_id.strip()
+        step = next((s for s in session.steps if s.id == step_id), None)
+        if not step:
+            _print_colored(f"Step '{step_id}' not found.", Colors.YELLOW)
+            return
+
+        current_step = session.get_current_step()
+        if current_step and current_step.id == step_id:
+            _print_colored(f"Already at step '{step_id}'.", Colors.YELLOW)
+            return
+
+        agent = self._devflow_ensure_agent()
+        agent_session = agent.session if agent else None
+        ok = self._devflow_rt.rollback_to_step(step_id, agent_session)
+        if ok:
+            _print_colored(f"Rolled back to step '{step.title}'.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored("Rollback failed.", Colors.RED)
+
+    def _devflow_rollback_phase(self, phase_name: str) -> None:
+        """Roll back to a DevFlow phase."""
+        if not phase_name:
+            _print_colored(
+                "Usage: /devflow rollback-phase <phase>\n"
+                "Valid phases: ARCHITECTURE, STEP_DEFINITION, STEP_ANALYSIS",
+                Colors.YELLOW,
+            )
+            return
+
+        session = self._devflow_rt.get_session()
+        if not session:
+            _print_colored("No active DevFlow session.", Colors.YELLOW)
+            return
+
+        agent = self._devflow_ensure_agent()
+        agent_session = agent.session if agent else None
+        ok = self._devflow_rt.rollback_to_phase(phase_name.strip(), agent_session)
+        if ok:
+            _print_colored(f"Rolled back to phase '{phase_name}'.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored(f"Cannot roll back to '{phase_name}'.", Colors.YELLOW)
+
+    def _devflow_rollback_targets(self) -> None:
+        """List available rollback targets for DevFlow."""
+        session = self._devflow_rt.get_session()
+        if not session:
+            _print_colored("No active DevFlow session.", Colors.YELLOW)
+            return
+
+        _print_colored("Rollback targets:", Colors.BOLD)
+
+        # Show phases
+        phase_order = [
+            "ARCHITECTURE", "STEP_DEFINITION", "STEP_ANALYSIS",
+            "IMPLEMENTATION",
+        ]
+        current_phase_idx = (
+            phase_order.index(session.phase)
+            if session.phase in phase_order
+            else len(phase_order)
+        )
+        _print_colored("  Phases:", Colors.DIM)
+        for i, p in enumerate(phase_order):
+            if i < current_phase_idx:
+                _print_colored(f"    - {p} (rollback available)", Colors.DIM)
+            elif i == current_phase_idx:
+                _print_colored(f"    - {p} (current)", Colors.BOLD)
+
+        # Show steps
+        current_step = session.get_current_step()
+        if session.steps:
+            _print_colored("  Steps:", Colors.DIM)
+            for s in session.steps:
+                if current_step and s.id == current_step.id:
+                    _print_colored(f"    - {s.id}: {s.title} (current, {s.status})", Colors.BOLD)
+                elif s.status in ("verified", "implemented", "failed"):
+                    _print_colored(f"    - {s.id}: {s.title} ({s.status})", Colors.DIM)
 
     def _devflow_status(self) -> None:
         """Show DevFlow progress and dependency tree."""
@@ -1343,6 +1865,10 @@ class ClawRepl:
             self._lifecycle_reject(rest)
         elif sub == "skip-phase":
             self._lifecycle_skip_phase()
+        elif sub == "rollback":
+            self._lifecycle_rollback(rest)
+        elif sub == "rollback-targets":
+            self._lifecycle_rollback_targets()
         elif sub == "archive":
             self._lifecycle_archive()
         elif sub == "list":
@@ -1352,11 +1878,13 @@ class ClawRepl:
         else:
             _print_colored(
                 "Lifecycle commands:\n"
-                "  /lifecycle start <goal>    Start a full software engineering lifecycle\n"
-                "  /lifecycle status          Show lifecycle progress\n"
-                "  /lifecycle accept          Approve current phase output and advance\n"
-                "  /lifecycle reject [reason] Reject and request regeneration\n"
-                "  /lifecycle skip-phase      Skip current phase\n"
+                "  /lifecycle start <goal>       Start a full software engineering lifecycle\n"
+                "  /lifecycle status             Show lifecycle progress\n"
+                "  /lifecycle accept             Approve current phase output and advance\n"
+                "  /lifecycle reject [reason]    Reject and request regeneration\n"
+                "  /lifecycle skip-phase         Skip current phase\n"
+                "  /lifecycle rollback <phase>   Roll back to a specific phase\n"
+                "  /lifecycle rollback-targets   List phases you can roll back to\n"
                 "  /lifecycle archive         Export full lifecycle report\n"
                 "  /lifecycle list            List saved sessions\n"
                 "  /lifecycle load <id>       Load a saved session",
@@ -1369,28 +1897,69 @@ class ClawRepl:
             self._new_agent()
         return self.agent
 
+    def _run_lifecycle_current_phase(self, agent: LocalCodingAgent) -> None:
+        """Execute the current lifecycle phase and display the output."""
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            return
+
+        phase = session.get_current_phase()
+        if not phase:
+            return
+
+        if phase.status not in ("pending",):
+            # Phase already executed or completed — nothing to do
+            return
+
+        _print_colored("")
+        _print_colored(f"Running {phase.name} phase...", Colors.DIM)
+
+        try:
+            output = self._lifecycle_rt.execute_phase(agent)
+            _print_colored("")
+            _print_colored(f"╭─ {phase.name} Output ─────────────────────────╮", Colors.GREEN)
+            for line in output.split("\n"):
+                _print_colored(f"│ {line}", Colors.DIM)
+            _print_colored("╰──────────────────────────────────────────────╯", Colors.GREEN)
+            _print_colored("")
+            _print_colored("Review the output above.", Colors.BOLD)
+            _print_colored("  /lifecycle accept  — approve and advance to next phase", Colors.DIM)
+            _print_colored("  /lifecycle reject [feedback] — request regeneration", Colors.DIM)
+        except Exception as e:
+            _print_colored(f"Error executing phase: {e}", Colors.RED)
+
     def _lifecycle_start(self, goal: str) -> None:
-        """Start a new lifecycle session."""
+        """Start a new lifecycle session and auto-execute the first phase."""
         if not goal:
             _print_colored("Usage: /lifecycle start <development goal>", Colors.YELLOW)
             return
 
+        agent = self._lifecycle_ensure_agent()
         session = self._lifecycle_rt.start_session(goal)
+
+        # Set agent's working directory to the dedicated project folder
+        project_dir = self._lifecycle_rt.get_project_dir()
+        if project_dir and agent:
+            agent.cwd = project_dir
 
         _print_colored("")
         _print_colored("╔══════════════════════════════════════════════╗", Colors.CYAN)
         _print_colored("║  Lifecycle: Full Software Engineering        ║", Colors.BOLD + Colors.CYAN)
         _print_colored("╠══════════════════════════════════════════════╣", Colors.CYAN)
-        _print_colored(f"║  Session: {session.session_id}                          ║", Colors.CYAN)
+        sid = session.session_id
+        if len(sid) > 34:
+            sid = sid[:31] + "..."
+        _print_colored(f"║  Session: {sid:<34}║", Colors.CYAN)
         _print_colored("╚══════════════════════════════════════════════╝", Colors.CYAN)
         _print_colored("")
         _print_colored(f"Goal: {goal}", Colors.BOLD)
+        if project_dir:
+            _print_colored(f"Project: {project_dir}", Colors.DIM)
         _print_colored("")
         self._print_lifecycle_status()
-        _print_colored("")
-        _print_colored("Run the current phase with the agent prompt.", Colors.BOLD)
-        _print_colored("  /lifecycle accept  — approve phase output and advance", Colors.DIM)
-        _print_colored("  /lifecycle reject [feedback] — request regeneration", Colors.DIM)
+
+        # Auto-execute the first phase (like DevFlow auto-runs architect)
+        self._run_lifecycle_current_phase(agent)
 
     def _lifecycle_status(self) -> None:
         """Show lifecycle progress."""
@@ -1435,13 +2004,18 @@ class ClawRepl:
             return
 
         _print_colored(f"Phase '{phase.name}' accepted.", Colors.GREEN)
-        has_next = self._lifecycle_rt.advance_phase()
+        has_next = self._lifecycle_rt.advance_phase(
+            agent_session=self.agent.session if self.agent else None
+        )
 
         if has_next:
             new_phase = session.get_current_phase()
             if new_phase:
                 _print_colored(f"Next phase: {new_phase.name}", Colors.BOLD)
             self._print_lifecycle_status()
+            # Auto-execute the next phase
+            agent = self._lifecycle_ensure_agent()
+            self._run_lifecycle_current_phase(agent)
         else:
             _print_colored("")
             _print_colored("All lifecycle phases complete!", Colors.GREEN)
@@ -1464,8 +2038,18 @@ class ClawRepl:
             return
 
         _print_colored(f"Rejecting phase '{phase.name}'... (feedback: {reason or 'none'})", Colors.YELLOW)
+
+        # Append feedback to constraints so the re-execution can use it
+        if reason:
+            current = session.user_constraints or ""
+            session.user_constraints = f"{current}\nRejection feedback: {reason}".strip()
+            self._lifecycle_rt.save()
+
         self._lifecycle_rt.retry_phase()
-        _print_colored("Phase reset. Run the agent again to regenerate.", Colors.DIM)
+
+        # Auto-retry the phase with feedback
+        agent = self._lifecycle_ensure_agent()
+        self._run_lifecycle_current_phase(agent)
 
     def _lifecycle_skip_phase(self) -> None:
         """Skip the current phase."""
@@ -1480,7 +2064,9 @@ class ClawRepl:
             return
 
         _print_colored(f"Skipping phase: {phase.name}", Colors.YELLOW)
-        has_next = self._lifecycle_rt.skip_phase()
+        has_next = self._lifecycle_rt.skip_phase(
+            agent_session=self.agent.session if self.agent else None
+        )
 
         if has_next:
             new_phase = session.get_current_phase()
@@ -1538,6 +2124,71 @@ class ClawRepl:
         _print_colored(f"Loaded lifecycle session: {session.session_id}", Colors.GREEN)
         _print_colored(f"Goal: {session.overall_goal}", Colors.BOLD)
         self._print_lifecycle_status()
+
+    def _lifecycle_rollback(self, phase_name: str) -> None:
+        """Roll back to a specific lifecycle phase."""
+        if not phase_name:
+            _print_colored("Usage: /lifecycle rollback <phase_name>", Colors.YELLOW)
+            _print_colored("Use /lifecycle rollback-targets to see available phases.", Colors.DIM)
+            return
+
+        session = self._lifecycle_rt.get_session()
+        if not session:
+            _print_colored("No active lifecycle session.", Colors.YELLOW)
+            return
+
+        phase_name = phase_name.strip()
+        targets = self._lifecycle_rt.list_rollback_targets()
+        target = next((t for t in targets if t["name"] == phase_name), None)
+
+        if not target:
+            _print_colored(f"Phase '{phase_name}' not found or not eligible for rollback.", Colors.YELLOW)
+            if targets:
+                names = ", ".join(t["name"] for t in targets)
+                _print_colored(f"Eligible phases: {names}", Colors.DIM)
+            return
+
+        # Show what will be discarded
+        current_phase = session.get_current_phase()
+        discarded = [
+            p.name for p in session.phases[target["index"]:session.current_phase_index + 1]
+        ]
+        _print_colored(f"Rolling back to '{phase_name}'.", Colors.YELLOW)
+        _print_colored(f"This will discard: {', '.join(discarded)}", Colors.YELLOW)
+        _print_colored("Continue? (y/N) ", Colors.BOLD, end="")
+
+        try:
+            confirm = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            _print_colored("Rollback cancelled.", Colors.DIM)
+            return
+
+        if confirm != "y":
+            _print_colored("Rollback cancelled.", Colors.DIM)
+            return
+
+        agent_session = self.agent.session if self.agent else None
+        ok = self._lifecycle_rt.rollback_to_phase(phase_name, agent_session)
+        if ok:
+            _print_colored(f"Rolled back to {phase_name}.", Colors.GREEN)
+            new_phase = session.get_current_phase()
+            if new_phase:
+                _print_colored(f"Current phase: {new_phase.name}", Colors.BOLD)
+            self._print_lifecycle_status()
+        else:
+            _print_colored("Rollback failed.", Colors.RED)
+
+    def _lifecycle_rollback_targets(self) -> None:
+        """List phases available for rollback."""
+        targets = self._lifecycle_rt.list_rollback_targets()
+        if not targets:
+            _print_colored("No phases available for rollback.", Colors.DIM)
+            return
+
+        _print_colored("Phases you can roll back to:", Colors.BOLD)
+        for t in targets:
+            snap = "snapshot" if t["snapshot_exists"] else "no snapshot"
+            _print_colored(f"  [{t['index']}] {t['name']} ({t['status']}, {snap})", Colors.DIM)
 
     def _build_phase_bar(self, progress: Dict[str, Any]) -> str:
         """Build a progress bar string."""

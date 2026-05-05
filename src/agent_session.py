@@ -22,6 +22,8 @@ class AgentSession:
     stop_reason: Optional[str] = None
     cwd: Optional[str] = None
     name: Optional[str] = None
+    phase_boundaries: Dict[str, int] = field(default_factory=dict)
+    # Maps phase_name -> message_index where the phase started
 
     def __post_init__(self):
         if self.created_at is None:
@@ -70,6 +72,34 @@ class AgentSession:
         self.messages.append({"role": "system", "content": content})
         self.updated_at = time.time()
 
+    def mark_phase_boundary(self, phase_name: str) -> None:
+        """Insert a phase boundary marker at the current end of messages."""
+        boundary_msg = {
+            "role": "system",
+            "content": f"[PHASE_BOUNDARY:{phase_name}]",
+            "metadata": {"phase_boundary": True, "phase_name": phase_name},
+        }
+        self.messages.append(boundary_msg)
+        self.phase_boundaries[phase_name] = len(self.messages) - 1
+        self.updated_at = time.time()
+
+    def get_phase_messages(self, phase_name: str) -> List[Dict[str, Any]]:
+        """Get messages belonging to a specific phase (between its boundary and
+        the next boundary or end of messages)."""
+        start_idx = self.phase_boundaries.get(phase_name)
+        if start_idx is None:
+            return []
+        boundary_indices = sorted(self.phase_boundaries.values())
+        try:
+            pos = boundary_indices.index(start_idx)
+            if pos + 1 < len(boundary_indices):
+                end_idx = boundary_indices[pos + 1]
+            else:
+                end_idx = len(self.messages)
+        except ValueError:
+            end_idx = len(self.messages)
+        return self.messages[start_idx:end_idx]
+
     def get_messages(self) -> List[Dict[str, Any]]:
         """Get all messages."""
         return self.messages.copy()
@@ -86,6 +116,7 @@ class AgentSession:
             "stop_reason": self.stop_reason,
             "cwd": self.cwd,
             "name": self.name,
+            "phase_boundaries": self.phase_boundaries,
         }
 
     @classmethod
@@ -101,4 +132,5 @@ class AgentSession:
             stop_reason=data.get("stop_reason"),
             cwd=data.get("cwd"),
             name=data.get("name"),
+            phase_boundaries=data.get("phase_boundaries", {}),
         )

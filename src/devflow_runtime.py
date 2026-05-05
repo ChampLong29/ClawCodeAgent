@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from .hook_policy import RuntimeBase
+from .session_naming import make_session_id, make_project_dir_name
 
 if TYPE_CHECKING:
     from .agent_runtime import LocalCodingAgent
@@ -247,16 +248,28 @@ class DevFlowRuntime(RuntimeBase):
         self.cwd = cwd
         self.session: Optional[DevFlowSession] = None
         self._sessions_dir = os.path.join(cwd, ".port_sessions", "devflow")
+        self._project_dir: Optional[str] = None
         os.makedirs(self._sessions_dir, exist_ok=True)
+
+        from .context_manager import ContextManager
+        self.context_manager = ContextManager()
+        self._completed_step_outputs: Dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
 
     def start_session(self, goal: str, constraints: str = "") -> DevFlowSession:
-        """Start a new DevFlow session."""
-        session_id = str(uuid.uuid4())[:8]
+        """Start a new DevFlow session with a dedicated project directory."""
+        session_id = make_session_id(goal, "devflow")
         now = time.time()
+
+        # Create project directory
+        if not self._project_dir:
+            proj_name = make_project_dir_name(goal)
+            self._project_dir = os.path.join(self.cwd, "projects", proj_name)
+            os.makedirs(self._project_dir, exist_ok=True)
+
         self.session = DevFlowSession(
             session_id=session_id,
             overall_goal=goal,
@@ -267,6 +280,10 @@ class DevFlowRuntime(RuntimeBase):
         )
         self.save()
         return self.session
+
+    def get_project_dir(self) -> Optional[str]:
+        """Return the dedicated project directory, if created."""
+        return self._project_dir
 
     def get_session(self) -> Optional[DevFlowSession]:
         """Get the current session."""
@@ -310,7 +327,8 @@ class DevFlowRuntime(RuntimeBase):
         self.save()
         return architecture
 
-    def approve_architecture(self, architecture: Optional[str] = None) -> None:
+    def approve_architecture(self, architecture: Optional[str] = None,
+                             agent_session=None) -> None:
         """Approve (and optionally replace) the architecture.
 
         Moves the phase from ARCHITECTURE to STEP_DEFINITION.
@@ -326,6 +344,10 @@ class DevFlowRuntime(RuntimeBase):
 
         self.session.phase = "STEP_DEFINITION"
         self.session.updated_at = time.time()
+
+        if agent_session is not None:
+            agent_session.mark_phase_boundary("ARCHITECTURE")
+
         self.save()
 
     # ------------------------------------------------------------------
@@ -398,10 +420,11 @@ class DevFlowRuntime(RuntimeBase):
 
         return []
 
-    def approve_steps(self, steps: Optional[List[Dict[str, Any]]] = None) -> None:
+    def approve_steps(self, steps: Optional[List[Dict[str, Any]]] = None,
+                      agent_session=None) -> None:
         """Approve (and optionally replace) the step list.
 
-        Moves the phase from STEP_DEFINITION to IMPLEMENTATION.
+        Moves the phase from STEP_DEFINITION to STEP_ANALYSIS.
         """
         if not self.session:
             raise RuntimeError("No active DevFlow session.")
@@ -413,10 +436,13 @@ class DevFlowRuntime(RuntimeBase):
         if not self.session.steps:
             raise RuntimeError("Cannot approve: no steps defined.")
 
-        # Find first pending step whose dependencies are met
         self._advance_to_next_ready_step()
         self.session.phase = "STEP_ANALYSIS"
         self.session.updated_at = time.time()
+
+        if agent_session is not None:
+            agent_session.mark_phase_boundary("STEP_DEFINITION")
+
         self.save()
 
     # ------------------------------------------------------------------
@@ -462,7 +488,8 @@ class DevFlowRuntime(RuntimeBase):
         self.save()
         return step.modules
 
-    def approve_modules(self, modules: Optional[List[Dict[str, Any]]] = None) -> None:
+    def approve_modules(self, modules: Optional[List[Dict[str, Any]]] = None,
+                        agent_session=None) -> None:
         """Approve (and optionally replace) the module breakdown.
 
         Moves the phase from STEP_ANALYSIS to IMPLEMENTATION with module mode.
@@ -483,6 +510,11 @@ class DevFlowRuntime(RuntimeBase):
 
         self.session.phase = "IMPLEMENTATION"
         self.session.updated_at = time.time()
+
+        if agent_session is not None:
+            agent_session.mark_phase_boundary("STEP_ANALYSIS")
+            agent_session.mark_phase_boundary(step.id)
+
         self.save()
 
     # ------------------------------------------------------------------
@@ -757,15 +789,32 @@ class DevFlowRuntime(RuntimeBase):
     # Step navigation
     # ------------------------------------------------------------------
 
-    def next_step(self) -> bool:
-        """Advance to the next ready step. Returns False if no more steps."""
+    def next_step(self, agent_session=None) -> bool:
+        """Advance to the next ready step. Returns False if no more steps.
+
+        Args:
+            agent_session: Optional AgentSession for phase-boundary compaction.
+        """
         if not self.session:
             return False
+
+        current_step = self.session.get_current_step()
+        if current_step and current_step.status == "verified":
+            # Store verified step output
+            output = current_step.verification_result or current_step.implementation_result or ""
+            self._completed_step_outputs[current_step.id] = output
+
+        # Compact agent session at step boundary
+        if agent_session is not None:
+            self.context_manager.compact_at_phase_transition(
+                agent_session,
+                current_phase=current_step.id if current_step else "",
+                completed_phase_outputs=self._completed_step_outputs,
+            )
 
         self._advance_to_next_ready_step()
 
         if self.session.current_step_index >= len(self.session.steps):
-            # Check if all steps are verified
             all_done = all(s.status == "verified" for s in self.session.steps)
             if all_done:
                 self.session.phase = "DONE"
@@ -774,12 +823,17 @@ class DevFlowRuntime(RuntimeBase):
                 self.save()
                 return False
 
-            # There may be failed steps — still done with the linear flow
             self.session.phase = "DONE"
             self.session.completed = True
             self.session.updated_at = time.time()
             self.save()
             return False
+
+        # Mark new step boundary in agent session
+        if agent_session is not None:
+            new_step = self.session.get_current_step()
+            if new_step:
+                agent_session.mark_phase_boundary(new_step.id)
 
         self.session.phase = "IMPLEMENTATION"
         self.session.updated_at = time.time()
@@ -825,7 +879,7 @@ class DevFlowRuntime(RuntimeBase):
         self.save()
         return True
 
-    def skip_step(self) -> bool:
+    def skip_step(self, agent_session=None) -> bool:
         """Skip the current step and advance. Returns False if no more steps."""
         if not self.session:
             return False
@@ -835,7 +889,7 @@ class DevFlowRuntime(RuntimeBase):
             step.status = "failed"
             step.verification_result = "Skipped by user."
 
-        return self.next_step()
+        return self.next_step(agent_session=agent_session)
 
     def mark_step_failed(self, reason: str = "") -> None:
         """Mark the current step as failed."""
@@ -865,6 +919,111 @@ class DevFlowRuntime(RuntimeBase):
         self.session.phase = "IMPLEMENTATION"
         self.session.updated_at = time.time()
         self.save()
+
+    # ------------------------------------------------------------------
+    # Rollback
+    # ------------------------------------------------------------------
+
+    def rollback_to_step(self, step_id: str, agent_session=None) -> bool:
+        """Roll back to a specific step by ID.
+
+        Resets the target step and all subsequent steps to *pending*.
+        Returns ``True`` on success.
+        """
+        if not self.session:
+            return False
+
+        target_idx = None
+        for i, step in enumerate(self.session.steps):
+            if step.id == step_id:
+                target_idx = i
+                break
+
+        if target_idx is None:
+            return False
+
+        # Reset target and all subsequent steps
+        for i in range(target_idx, len(self.session.steps)):
+            s = self.session.steps[i]
+            s.status = "pending"
+            s.implementation_result = None
+            s.verification_result = None
+            s.current_module_index = 0
+
+        self.session.current_step_index = target_idx
+        self.session.phase = "IMPLEMENTATION"
+        self.session.updated_at = time.time()
+
+        # Clean completed_step_outputs after rollback point
+        step_ids_to_keep = {s.id for s in self.session.steps[:target_idx]}
+        self._completed_step_outputs = {
+            k: v for k, v in self._completed_step_outputs.items()
+            if k in step_ids_to_keep
+        }
+
+        self.save()
+        return True
+
+    def rollback_to_phase(self, phase_name: str, agent_session=None) -> bool:
+        """Roll back to a DevFlow phase.
+
+        Valid phase names: ARCHITECTURE, STEP_DEFINITION, STEP_ANALYSIS,
+        IMPLEMENTATION, VERIFY.
+
+        Returns ``True`` on success.
+        """
+        if not self.session:
+            return False
+
+        phase_order = [
+            "ARCHITECTURE", "STEP_DEFINITION", "STEP_ANALYSIS",
+            "IMPLEMENTATION", "VERIFY", "DONE",
+        ]
+
+        if phase_name not in phase_order:
+            return False
+
+        target_idx = phase_order.index(phase_name)
+        current_idx = (phase_order.index(self.session.phase)
+                       if self.session.phase in phase_order
+                       else len(phase_order))
+
+        if target_idx >= current_idx:
+            return False  # cannot roll forward
+
+        # Reset state based on target phase
+        if target_idx <= phase_order.index("ARCHITECTURE"):
+            self.session.architecture = None
+            self.session.steps = []
+            self.session.current_step_index = 0
+
+        if target_idx <= phase_order.index("STEP_DEFINITION"):
+            self.session.steps = []
+            self.session.current_step_index = 0
+
+        if target_idx <= phase_order.index("STEP_ANALYSIS"):
+            for step in self.session.steps:
+                step.modules = []
+                step.current_module_index = 0
+                step.status = "pending"
+                step.implementation_result = None
+                step.verification_result = None
+
+        if target_idx <= phase_order.index("IMPLEMENTATION"):
+            self.session.current_step_index = 0
+            for step in self.session.steps:
+                step.status = "pending"
+                step.implementation_result = None
+                step.verification_result = None
+                step.current_module_index = 0
+
+        self.session.phase = phase_name
+        self.session.completed = False
+        self.session.updated_at = time.time()
+        self._completed_step_outputs = {}
+
+        self.save()
+        return True
 
     # ------------------------------------------------------------------
     # Persistence

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from .hook_policy import RuntimeBase
+from .session_naming import make_session_id, make_project_dir_name
 
 if TYPE_CHECKING:
     from .agent_runtime import LocalCodingAgent
@@ -201,6 +202,11 @@ class LifecycleRuntime(RuntimeBase):
         self._sessions_dir = os.path.join(cwd, ".port_sessions", "lifecycle")
         self._phase_config: Optional[List[str]] = None
         self._skip_phases: List[str] = []
+        self._project_dir: Optional[str] = None
+
+        from .context_manager import ContextManager
+        self.context_manager = ContextManager()
+        self._completed_phase_outputs: Dict[str, str] = {}
 
         os.makedirs(self._sessions_dir, exist_ok=True)
         self._discover_config()
@@ -248,13 +254,21 @@ class LifecycleRuntime(RuntimeBase):
     ) -> LifecycleSession:
         """Start a new lifecycle session.
 
+        Creates a dedicated project directory under
+        ``<cwd>/projects/<project-name>/`` for all generated artifacts.
+
         Args:
             goal: The overall development goal.
             constraints: User-specified constraints.
             phase_list: Optional custom phase list (overrides config).
         """
-        session_id = str(uuid.uuid4())[:8]
+        session_id = make_session_id(goal, "lifecycle")
         now = time.time()
+
+        # Create a dedicated project directory
+        proj_name = make_project_dir_name(goal)
+        self._project_dir = os.path.join(self.cwd, "projects", proj_name)
+        os.makedirs(self._project_dir, exist_ok=True)
 
         phases_to_use = phase_list or self.get_phase_list()
 
@@ -279,6 +293,10 @@ class LifecycleRuntime(RuntimeBase):
         self._advance_to_next_phase()
         self.save()
         return self.session
+
+    def get_project_dir(self) -> Optional[str]:
+        """Return the dedicated project directory, if created."""
+        return self._project_dir
 
     def get_session(self) -> Optional[LifecycleSession]:
         """Get the current session."""
@@ -315,21 +333,48 @@ class LifecycleRuntime(RuntimeBase):
         self.session.completed = True
         return False
 
-    def advance_phase(self) -> bool:
-        """Mark current phase complete and move to next. Returns False if done."""
+    def advance_phase(self, agent_session=None) -> bool:
+        """Mark current phase complete and move to next. Returns False if done.
+
+        Args:
+            agent_session: Optional AgentSession for phase-boundary compaction
+                           and snapshot save.
+        """
         if not self.session:
             raise RuntimeError("No active lifecycle session.")
 
         phase = self.session.get_current_phase()
         if phase and phase.status == "in_progress":
             phase.status = "completed"
+            # Store output for cross-phase context injection
+            if phase.output:
+                self._completed_phase_outputs[phase.name] = phase.output
+
+        # Save snapshot before advancing (so we can rollback to this point)
+        if phase and phase.status == "completed":
+            self._save_phase_snapshot(agent_session)
+
+        # Compact agent session at phase boundary
+        if agent_session is not None:
+            self.context_manager.compact_at_phase_transition(
+                agent_session,
+                current_phase=phase.name if phase else "",
+                completed_phase_outputs=self._completed_phase_outputs,
+            )
 
         has_next = self._advance_to_next_phase()
+
+        # Mark next phase boundary in agent session
+        if has_next and agent_session is not None:
+            next_phase = self.session.get_current_phase()
+            if next_phase:
+                agent_session.mark_phase_boundary(next_phase.name)
+
         self.session.updated_at = time.time()
         self.save()
         return has_next
 
-    def skip_phase(self) -> bool:
+    def skip_phase(self, agent_session=None) -> bool:
         """Skip the current phase and advance."""
         if not self.session:
             raise RuntimeError("No active lifecycle session.")
@@ -340,6 +385,12 @@ class LifecycleRuntime(RuntimeBase):
             phase.output = "Skipped by user."
 
         has_next = self._advance_to_next_phase()
+
+        if has_next and agent_session is not None:
+            next_phase = self.session.get_current_phase()
+            if next_phase:
+                agent_session.mark_phase_boundary(next_phase.name)
+
         self.session.updated_at = time.time()
         self.save()
         return has_next
@@ -356,6 +407,212 @@ class LifecycleRuntime(RuntimeBase):
 
         self.session.updated_at = time.time()
         self.save()
+
+    # ------------------------------------------------------------------
+    # Rollback
+    # ------------------------------------------------------------------
+
+    def list_rollback_targets(self) -> List[Dict[str, Any]]:
+        """List phases that can be rolled back to.
+
+        Returns a list of dicts with *name*, *index*, *status*, and
+        *snapshot_exists* keys.
+        """
+        if not self.session:
+            return []
+
+        targets = []
+        snapshot_dir = os.path.join(
+            self._sessions_dir, f"{self.session.session_id}_snapshots"
+        )
+
+        for i, phase in enumerate(self.session.phases):
+            if i >= self.session.current_phase_index:
+                break  # only show past phases
+            snapshot_path = os.path.join(
+                snapshot_dir, f"phase_{i}_{phase.name}.json"
+            )
+            targets.append({
+                "name": phase.name,
+                "index": i,
+                "status": phase.status,
+                "snapshot_exists": os.path.isfile(snapshot_path),
+            })
+
+        return targets
+
+    def rollback_to_phase(self, phase_name: str, agent_session=None) -> bool:
+        """Roll back to a specific phase by name.
+
+        Restores the lifecycle session (and optionally the agent session)
+        from the snapshot saved at that phase's completion.  All subsequent
+        phases are reset to *pending*.
+
+        Returns ``True`` on success, ``False`` if no snapshot exists.
+        """
+        if not self.session:
+            raise RuntimeError("No active lifecycle session.")
+
+        # Find phase index
+        target_idx = None
+        for i, phase in enumerate(self.session.phases):
+            if phase.name == phase_name:
+                target_idx = i
+                break
+
+        if target_idx is None:
+            return False
+
+        return self.rollback_to_phase_index(target_idx, agent_session)
+
+    def rollback_to_phase_index(
+        self, index: int, agent_session=None
+    ) -> bool:
+        """Roll back to a phase by index (0-based)."""
+        if not self.session:
+            raise RuntimeError("No active lifecycle session.")
+
+        if index < 0 or index >= len(self.session.phases):
+            return False
+
+        # Try to restore from snapshot
+        snapshot_dir = os.path.join(
+            self._sessions_dir, f"{self.session.session_id}_snapshots"
+        )
+        target_phase = self.session.phases[index]
+        snapshot_path = os.path.join(
+            snapshot_dir, f"phase_{index}_{target_phase.name}.json"
+        )
+
+        if os.path.isfile(snapshot_path):
+            self._restore_from_snapshot(snapshot_path, agent_session)
+        else:
+            self._manual_rollback_to(index)
+
+        # Reset the target phase so it can be re-executed
+        target_phase = self.session.phases[index]
+        target_phase.status = "pending"
+        target_phase.output = None
+        target_phase.artifact_path = None
+
+        # Reset all phases after target
+        for i in range(index + 1, len(self.session.phases)):
+            self.session.phases[i].status = "pending"
+            self.session.phases[i].output = None
+            self.session.phases[i].artifact_path = None
+
+        self.session.current_phase_index = index
+        self.session.completed = False
+        self.session.updated_at = time.time()
+
+        # Clear completed outputs after rollback point
+        phase_names_after = {
+            self.session.phases[i].name
+            for i in range(index + 1, len(self.session.phases))
+        }
+        self._completed_phase_outputs = {
+            k: v for k, v in self._completed_phase_outputs.items()
+            if k not in phase_names_after
+        }
+
+        self.save()
+        self._log_rollback(target_phase.name, index)
+        return True
+
+    def _manual_rollback_to(self, index: int) -> None:
+        """Reset state without a snapshot file (fallback)."""
+        if not self.session:
+            return
+        target_phase = self.session.phases[index]
+        target_phase.status = "pending"
+        target_phase.output = None
+        target_phase.artifact_path = None
+
+    def _save_phase_snapshot(
+        self, agent_session=None
+    ) -> Optional[str]:
+        """Save a snapshot of the current session state.
+
+        Called automatically by ``advance_phase()``.  The snapshot includes
+        the full LifecycleSession state and (if provided) the compacted
+        AgentSession messages.
+        """
+        if not self.session:
+            return None
+
+        phase = self.session.get_current_phase()
+        if not phase:
+            return None
+
+        snapshot_dir = os.path.join(
+            self._sessions_dir, f"{self.session.session_id}_snapshots"
+        )
+        os.makedirs(snapshot_dir, exist_ok=True)
+
+        snapshot: Dict[str, Any] = {
+            "phase_name": phase.name,
+            "phase_index": self.session.current_phase_index,
+            "lifecycle_session": self.session.to_dict(),
+            "completed_phase_outputs": dict(self._completed_phase_outputs),
+            "timestamp": time.time(),
+        }
+
+        if agent_session is not None:
+            snapshot["agent_messages"] = agent_session.messages
+            snapshot["agent_phase_boundaries"] = dict(
+                agent_session.phase_boundaries
+            )
+
+        path = os.path.join(
+            snapshot_dir,
+            f"phase_{self.session.current_phase_index}_{phase.name}.json",
+        )
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(snapshot, f, indent=2, ensure_ascii=False)
+
+        return path
+
+    def _restore_from_snapshot(
+        self, snapshot_path: str, agent_session=None
+    ) -> None:
+        """Restore lifecycle (and optionally agent) session from a snapshot."""
+        with open(snapshot_path, "r", encoding="utf-8") as f:
+            snapshot = json.load(f)
+
+        # Restore LifecycleSession
+        self.session = LifecycleSession.from_dict(
+            snapshot["lifecycle_session"]
+        )
+        self._completed_phase_outputs = snapshot.get(
+            "completed_phase_outputs", {}
+        )
+
+        # Restore AgentSession if provided
+        if agent_session is not None and "agent_messages" in snapshot:
+            agent_session.messages = snapshot["agent_messages"]
+            agent_session.phase_boundaries = snapshot.get(
+                "agent_phase_boundaries", {}
+            )
+
+    def _log_rollback(self, phase_name: str, index: int) -> None:
+        """Write a rollback event to the audit log."""
+        if not self.session:
+            return
+        log_path = os.path.join(
+            self._sessions_dir,
+            f"{self.session.session_id}_rollbacks.jsonl",
+        )
+        entry = {
+            "event": "rollback",
+            "phase_name": phase_name,
+            "phase_index": index,
+            "timestamp": time.time(),
+        }
+        try:
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except OSError:
+            pass  # best-effort logging
 
     # ------------------------------------------------------------------
     # Phase execution
@@ -411,6 +668,15 @@ class LifecycleRuntime(RuntimeBase):
         try:
             result = agent.run(prompt=prompt, stream=False)
             output = result.final_message or ""
+            # Detect truncated / incomplete output
+            if result.stop_reason in ("stopped", "budget_exceeded"):
+                warning = (
+                    f"\n\n⚠️ **WARNING: Output may be truncated** "
+                    f"(stop_reason: {result.stop_reason}). "
+                    f"Consider increasing --max-turns or budget, "
+                    f"then use /lifecycle reject to retry."
+                )
+                output += warning
         finally:
             if is_write_phase and old_write is not None and agent.permissions:
                 agent.permissions["allow_write"] = old_write
@@ -422,8 +688,9 @@ class LifecycleRuntime(RuntimeBase):
         # Save artifact if applicable
         artifact_template = PHASE_ARTIFACTS.get(phase.name)
         if artifact_template and output:
+            base_dir = self._project_dir or self.cwd
             artifact_path = os.path.join(
-                self.cwd,
+                base_dir,
                 artifact_template.format(session_id=self.session.session_id),
             )
             os.makedirs(os.path.dirname(artifact_path), exist_ok=True)
@@ -696,12 +963,10 @@ in the IMPLEMENTATION or test phases."""
         if not self.session:
             return ""
 
-        parts = []
-        for phase in self.session.phases:
-            if phase.status in ("completed", "in_progress") and phase.output:
-                summary = phase.output[:300]
-                if len(phase.output) > 300:
-                    summary += "..."
-                parts.append(f"- **{phase.name}**: {summary}")
-
-        return "\n".join(parts) if parts else "No prior phase output available."
+        phase = self.session.get_current_phase()
+        current_name = phase.name if phase else ""
+        return self.context_manager.build_phase_context_injection(
+            completed_phase_outputs=self._completed_phase_outputs,
+            current_phase=current_name,
+            overall_goal=self.session.overall_goal,
+        )

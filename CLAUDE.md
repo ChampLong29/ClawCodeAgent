@@ -65,7 +65,7 @@ User (CLI/GUI)
 
 ### Core Modules
 
-**Agent Core (27 files in src/):**
+**Agent Core (31 files in src/):**
 - `main.py` - CLI entry point with commands for agent, session, runtime management, `sessions`, `train`, `train-stats`, and lifecycle/bridge status commands
 - `agent_runtime.py` - Main agent loop, handles tool call loop, budget, compact, retry, permission callback, MCP tool registration, turn reset per query; populates `session.cwd` and `session.model`
 - `agent_tools.py` - Tool protocol and execution; 11 built-in tools: list_dir, read_file, write_file, edit_file, glob_search, grep_search, bash, non_tool_call, web_search, web_fetch, use_skill; plus dynamic MCP tools registered as mcp__{server}__{tool}
@@ -83,10 +83,14 @@ User (CLI/GUI)
 - `devflow_skills.py` - 5 DevFlow skill prompt templates (architect, step-planner, step-analyzer, implementer, verifier)
 - `lifecycle_runtime.py` - Full software engineering lifecycle runtime (10 phases), wraps DevFlow for development phases
 - `lifecycle_skills.py` - 6 lifecycle skill templates (requirements, design, code-review, unit-test, integration-test, acceptance)
+- `context_manager.py` - Phase-level context compaction (~200 lines), keeps structured outputs from completed phases while discarding intermediate tool-call chatter; triggered at phase transitions via ``advance_phase()`` / ``next_step()``
+- `questionnaire_runtime.py` - Sequential single-question interaction runtime (~350 lines), runtime-driven Q&A with back/forward navigation and answer revision; agent generates question list once, runtime controls pacing
+- `deep_dive_runtime.py` - Technology deep-dive runtime (~330 lines), creates isolated AgentSession per query so research context never pollutes the main development agent; includes tech-name extraction from architecture output
+- `session_naming.py` - Human-readable session ID generation from project goals (e.g., "Build a club app" → ``club-app-a1b2``)
 - `bridge_runtime.py` - External platform bridge integration (Feishu, WeCom), session routing by user/chat
 - `training/` - Agent training subsystem: RolloutRunner, TaskSuite, sandbox, determinism utilities
 
-**Runtime Modules (21 files in src/, each provides get_state()):**
+**Runtime Modules (24 files in src/, each provides get_state()):**
 - `mcp_runtime.py` - MCP protocol integration with `MCPRuntime` (config discovery: `.claw-mcp.json`, `.mcp.json`, `.codex-mcp.json`, `mcp.json`) and `MCPClient` (stdio subprocess management, JSON-RPC 2.0: initialize → tools/list → tools/call). Tools auto-registered in agent on startup
 - `search_runtime.py` - Search providers, env var injection (SEARXNG_BASE_URL, BRAVE_SEARCH_API_KEY, TAVILY_API_KEY)
 - `remote_runtime.py` - SSH/Teleport connections, discovers `.claw-remote.json`, `.remote.json`, etc.
@@ -95,6 +99,8 @@ User (CLI/GUI)
 - `remote_trigger_runtime.py` - Remote triggers, **no walk-up** (only cwd + additional_working_directories)
 - `worktree_runtime.py` - Git worktree management, state path: `<git_common_dir>/claw_worktree_runtime.json`
 - `team_runtime.py` - Team config, discovers `.claw-teams.json`, `.claw-team.json`, `.claude/teams.json`
+- `questionnaire_runtime.py` - Interactive sequential Q&A, state path: `.port_sessions/questionnaire/<id>.json`
+- `deep_dive_runtime.py` - Isolated technology research sessions, state path: `.port_sessions/deepdive/<id>.json`
 - `devflow_runtime.py` - DevFlow structured development workflow: state machine (INIT → ARCHITECTURE → STEP_DEFINITION → STEP_ANALYSIS → IMPLEMENTATION → VERIFY → DONE) with module-by-module execution, session persistence to `.port_sessions/devflow/<id>.json`
 - `lifecycle_runtime.py` - Full software engineering lifecycle: 10-phase state machine (REQUIREMENTS → SYSTEM_DESIGN → ... → ACCEPTANCE → DONE), configurable via `.claw-lifecycle.json`, wraps DevFlow for development phases, persistence to `.port_sessions/lifecycle/<id>.json`
 - `bridge_runtime.py` - External platform bridge integration (Feishu, WeCom), session routing by (user_id, chat_id), config via `.claw-bridge.json`, webhook ingress at `/api/bridge/{name}/webhook`
@@ -144,7 +150,13 @@ User (CLI/GUI)
 │   │   └── <session_id>.json   # One JSON file per DevFlow session
 │   ├── lifecycle/
 │   │   └── <session_id>.json   # One JSON file per lifecycle session
+│   ├── questionnaire/
+│   │   └── <session_id>.json   # One JSON file per questionnaire session
+│   ├── deepdive/
+│   │   └── <session_id>.json   # One JSON file per deep-dive session
 │   └── bridge_routing.json     # Bridge session routing table
+├── projects/                   # Generated project directories
+│   └── <project-name>/         # One per lifecycle / devflow session
 ├── .venv/                      # Python virtual environment
 ├── pyproject.toml              # Project metadata and dependencies
 └── CLAUDE.md                   # This file
@@ -587,6 +599,9 @@ class DevFlowRuntime(RuntimeBase):
 | `/devflow archive` | 保存完整 session 到 Markdown 文件 |
 | `/devflow list` | 列出所有已保存的 session |
 | `/devflow load <id>` | 加载已保存的 session |
+| `/devflow rollback <step-id>` | 回滚到指定步骤 |
+| `/devflow rollback-phase <phase>` | 回滚到指定 DevFlow 阶段 |
+| `/devflow rollback-targets` | 列出可回滚的步骤/阶段 |
 
 **通用 REPL 命令：**
 | 命令 | 功能 |
@@ -594,6 +609,11 @@ class DevFlowRuntime(RuntimeBase):
 | `/name <name>` | 设置或显示会话名称 |
 | `/sessions` | 列出所有已保存的 agent 会话 |
 | `/resume <id>` | 恢复已保存的会话 |
+| `/questionnaire start <goal>` | 启动顺序单题问卷（需求收集） |
+| `/q back / /q skip / /q goto N` | 问卷导航（回退/跳过/跳转） |
+| `/deep-dive <technology>` | 独立上下文技术深钻分析 |
+| `/deep-dive scan` | 扫描当前输出中的技术名词 |
+| `/deep-dive inject <id>` | 将深钻摘要注入主 agent 上下文 |
 
 ### 终端可视化
 
@@ -693,6 +713,8 @@ class LifecycleRuntime(RuntimeBase):
 | `/lifecycle archive` | 导出完整生命周期报告 Markdown |
 | `/lifecycle list` | 列出所有保存的会话 |
 | `/lifecycle load <id>` | 加载已保存的会话 |
+| `/lifecycle rollback <phase>` | 回滚到指定阶段 |
+| `/lifecycle rollback-targets` | 列出可回滚的阶段 |
 
 ### 持久化
 
