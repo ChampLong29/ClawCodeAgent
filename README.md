@@ -548,7 +548,6 @@ python3 -m build
 │   ├── gui/                     # Web GUI (21 个路由模块)
 │   └── training/                # Agent 训练子系统
 ├── tests/                       # 254 个测试用例（22 个测试模块）
-├── CLAUDE.md                    # Claude Code 项目指令文件
 ├── pyproject.toml               # 包配置与 CLI 入口点
 ├── .env.example                 # API 配置示例
 ├── .port_sessions/              # Session 持久化（gitignore）
