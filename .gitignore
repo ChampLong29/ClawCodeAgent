@@ -74,3 +74,4 @@ build/
 *.egg-info/
 *.egg
 CLAUDE.md
+TESTING_GUIDE.md
