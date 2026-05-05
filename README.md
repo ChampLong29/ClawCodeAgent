@@ -16,12 +16,17 @@ export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 export OPENAI_API_KEY=local-token
 export OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
 
-# Run
-python3 -m src.main agent "Explain the project structure" --cwd . --stream
+# Run — use the `claw` CLI from any directory
+claw agent "Explain the project structure" --cwd /path/to/your/project --stream
 
-# Interactive REPL
+# Interactive REPL (with lifecycle, DevFlow, deep-dive)
+claw agent-chat --cwd /path/to/your/project
+
+# Or via module
 python3 -m src.main agent-chat --cwd .
 ```
+
+After `pip install -e .`, the `claw` (or `claw-agent`) command is available globally within the venv. Run it from any directory — typically your project's working directory.
 
 See `.env.example` for the full list of supported environment variables.
 
