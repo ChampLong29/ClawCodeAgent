@@ -365,6 +365,11 @@ class ClawRepl:
                 _print_colored("No active agent", Colors.YELLOW)
             return True
 
+        # Reviewer commands
+        if cmd.startswith("/reviewer"):
+            self._handle_reviewer(cmd)
+            return True
+
         # Deep-dive commands
         if cmd.startswith("/deep-dive") or cmd.startswith("/dd "):
             self._handle_deepdive(cmd)
@@ -479,6 +484,49 @@ class ClawRepl:
     # ------------------------------------------------------------------
     # DevFlow commands
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Reviewer handlers
+    # ------------------------------------------------------------------
+
+    def _handle_reviewer(self, cmd: str) -> None:
+        parts = cmd.split(None, 1)
+        sub = parts[1] if len(parts) > 1 else ""
+
+        if sub == "on":
+            self._lifecycle_rt.set_reviewer_enabled(True)
+            _print_colored("Reviewer ENABLED", Colors.GREEN)
+        elif sub == "off":
+            self._lifecycle_rt.set_reviewer_enabled(False)
+            _print_colored("Reviewer DISABLED", Colors.YELLOW)
+        elif sub == "status":
+            cfg = self._lifecycle_rt.get_reviewer_config()
+            status = "enabled" if cfg["enabled"] else "disabled"
+            _print_colored(f"Reviewer: {status}", Colors.BOLD)
+            _print_colored(f"  Auto-review phases: {', '.join(cfg['auto_review_phases'])}", Colors.DIM)
+            _print_colored(f"  Strictness: {cfg['strictness']}", Colors.DIM)
+        elif sub.startswith("phase"):
+            # /reviewer phase <name> — manual review trigger
+            phase_name = sub[5:].strip()
+            if not phase_name:
+                session = self._lifecycle_rt.get_session()
+                if session:
+                    phase = session.get_current_phase()
+                    phase_name = phase.name if phase else ""
+            if phase_name:
+                _print_colored(f"Running Reviewer on phase: {phase_name}...", Colors.DIM)
+                # Placeholder for manual review execution
+                _print_colored("Manual review execution not yet wired.", Colors.YELLOW)
+            else:
+                _print_colored("Usage: /reviewer phase <phase-name>", Colors.YELLOW)
+        else:
+            _print_colored(
+                "/reviewer on          Enable reviewer\n"
+                "/reviewer off         Disable reviewer\n"
+                "/reviewer status      Show reviewer config\n"
+                "/reviewer phase <p>   Manually trigger review",
+                Colors.DIM,
+            )
 
     # ------------------------------------------------------------------
     # Deep-dive handlers
@@ -843,6 +891,14 @@ class ClawRepl:
             self._devflow_reject(rest)
         elif sub == "skip":
             self._devflow_skip()
+        elif sub == "edit-step":
+            self._devflow_edit_step(rest)
+        elif sub == "remove-step":
+            self._devflow_remove_step(rest)
+        elif sub == "add-step":
+            self._devflow_add_step(rest)
+        elif sub == "move-step":
+            self._devflow_move_step(rest)
         elif sub == "rollback":
             self._devflow_rollback_step(rest)
         elif sub == "rollback-phase":
@@ -864,6 +920,10 @@ class ClawRepl:
                 "  /devflow accept             Accept architecture / steps / verified result\n"
                 "  /devflow reject [reason]    Reject and request regeneration\n"
                 "  /devflow skip               Skip current step\n"
+                "  /devflow edit-step <id>     Edit step fields\n"
+                "  /devflow remove-step <id>   Remove a step\n"
+                "  /devflow add-step <title>   Add a new step\n"
+                "  /devflow move-step <id>     Reorder steps\n"
                 "  /devflow rollback <step-id> Roll back to a specific step\n"
                 "  /devflow rollback-phase <p> Roll back to a specific phase\n"
                 "  /devflow rollback-targets   List steps/phases for rollback\n"
@@ -1154,6 +1214,144 @@ class ClawRepl:
         else:
             self._print_devflow_tree()
             _print_colored("No more steps. Session complete.", Colors.GREEN)
+
+    def _devflow_edit_step(self, args: str) -> None:
+        """Edit a step's fields."""
+        session = self._devflow_rt.get_session()
+        if not session:
+            _print_colored("No active DevFlow session.", Colors.YELLOW)
+            return
+
+        parts = args.split(None, 1)
+        step_id = parts[0] if parts else ""
+
+        if not step_id:
+            _print_colored("Usage: /devflow edit-step <step-id> [--title ...] [--goal ...] [--constraints ...] [--acceptance ...]", Colors.YELLOW)
+            return
+
+        step = next((s for s in session.steps if s.id == step_id), None)
+        if not step:
+            _print_colored(f"Step '{step_id}' not found.", Colors.YELLOW)
+            return
+
+        # Parse keyword arguments
+        rest = parts[1] if len(parts) > 1 else ""
+        kw = self._parse_step_kwargs(rest)
+
+        ok = self._devflow_rt.edit_step(
+            step_id,
+            title=kw.get("title"),
+            goal=kw.get("goal"),
+            constraints=kw.get("constraints"),
+            acceptance_criteria=kw.get("acceptance"),
+        )
+        if ok:
+            _print_colored(f"Step '{step_id}' updated.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored("Edit failed.", Colors.RED)
+
+    def _devflow_remove_step(self, step_id: str) -> None:
+        """Remove a step from the plan."""
+        if not step_id:
+            _print_colored("Usage: /devflow remove-step <step-id>", Colors.YELLOW)
+            return
+
+        session = self._devflow_rt.get_session()
+        if not session:
+            _print_colored("No active DevFlow session.", Colors.YELLOW)
+            return
+
+        step = next((s for s in session.steps if s.id == step_id), None)
+        if not step:
+            _print_colored(f"Step '{step_id}' not found.", Colors.YELLOW)
+            return
+
+        _print_colored(f"Remove step '{step.title}'? (y/N) ", Colors.YELLOW, end="")
+        try:
+            confirm = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            _print_colored("Cancelled.", Colors.DIM)
+            return
+
+        if confirm != "y":
+            _print_colored("Cancelled.", Colors.DIM)
+            return
+
+        ok = self._devflow_rt.remove_step(step_id)
+        if ok:
+            _print_colored(f"Step '{step_id}' removed.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored("Remove failed.", Colors.RED)
+
+    def _devflow_add_step(self, args: str) -> None:
+        """Add a new step to the plan."""
+        parts = args.split(None, 1)
+        title = parts[0] if parts else ""
+
+        if not title:
+            _print_colored("Usage: /devflow add-step <title> [--after <id>] [--goal ...] [--constraints ...] [--acceptance ...]", Colors.YELLOW)
+            return
+
+        rest = parts[1] if len(parts) > 1 else ""
+        kw = self._parse_step_kwargs(rest)
+
+        ok = self._devflow_rt.add_step(
+            title=title,
+            after_step_id=kw.get("after"),
+            goal=kw.get("goal", ""),
+            constraints=kw.get("constraints", ""),
+            acceptance_criteria=kw.get("acceptance", ""),
+        )
+        if ok:
+            _print_colored(f"Step '{title}' added.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored("Add failed.", Colors.RED)
+
+    def _devflow_move_step(self, args: str) -> None:
+        """Move a step before another step."""
+        parts = args.split()
+        step_id = parts[0] if parts else ""
+        before_id = ""
+
+        # Try --before <id> or positional second arg
+        if len(parts) >= 3 and parts[1] == "--before":
+            before_id = parts[2]
+        elif len(parts) >= 2:
+            before_id = parts[1]
+
+        if not step_id or not before_id:
+            _print_colored("Usage: /devflow move-step <step-id> --before <target-id>", Colors.YELLOW)
+            return
+
+        ok = self._devflow_rt.move_step(step_id, before_id)
+        if ok:
+            _print_colored(f"Step '{step_id}' moved before '{before_id}'.", Colors.GREEN)
+            self._print_devflow_tree()
+        else:
+            _print_colored(f"Move failed. Check that both step IDs exist.", Colors.RED)
+
+    def _parse_step_kwargs(self, rest: str) -> Dict[str, str]:
+        """Parse --key value pairs from a rest argument string."""
+        kw: Dict[str, str] = {}
+        if not rest:
+            return kw
+        tokens = rest.split()
+        i = 0
+        while i < len(tokens):
+            if tokens[i].startswith("--"):
+                key = tokens[i][2:]
+                i += 1
+                if i < len(tokens) and not tokens[i].startswith("--"):
+                    kw[key] = tokens[i]
+                    i += 1
+                else:
+                    kw[key] = ""
+            else:
+                i += 1
+        return kw
 
     def _devflow_rollback_step(self, step_id: str) -> None:
         """Roll back to a specific DevFlow step."""

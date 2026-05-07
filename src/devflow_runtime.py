@@ -921,6 +921,162 @@ class DevFlowRuntime(RuntimeBase):
         self.save()
 
     # ------------------------------------------------------------------
+    # Plan editing — modify steps without regenerating from scratch
+    # ------------------------------------------------------------------
+
+    def edit_step(
+        self,
+        step_id: str,
+        title: Optional[str] = None,
+        goal: Optional[str] = None,
+        constraints: Optional[str] = None,
+        acceptance_criteria: Optional[str] = None,
+    ) -> bool:
+        """Edit fields of a step.  Only non-None values are updated.
+
+        Returns ``True`` if the step was found and updated.
+        """
+        if not self.session:
+            return False
+
+        step = self._find_step(step_id)
+        if not step:
+            return False
+
+        if title is not None:
+            step.title = title
+        if goal is not None:
+            step.goal = goal
+        if constraints is not None:
+            step.constraints = constraints
+        if acceptance_criteria is not None:
+            step.acceptance_criteria = acceptance_criteria
+
+        self.session.updated_at = time.time()
+        self.save()
+        return True
+
+    def remove_step(self, step_id: str) -> bool:
+        """Remove a step by ID.  Cleans up dependency references.
+
+        Returns ``True`` if the step was found and removed.
+        """
+        if not self.session:
+            return False
+
+        step = self._find_step(step_id)
+        if not step:
+            return False
+
+        self.session.steps.remove(step)
+
+        # Clean up depends_on references in remaining steps
+        for s in self.session.steps:
+            if step_id in s.depends_on:
+                s.depends_on.remove(step_id)
+
+        # Adjust current_step_index if needed
+        if self.session.current_step_index >= len(self.session.steps):
+            self.session.current_step_index = max(0, len(self.session.steps) - 1)
+
+        self.session.updated_at = time.time()
+        self.save()
+        return True
+
+    def add_step(
+        self,
+        title: str,
+        goal: str = "",
+        after_step_id: Optional[str] = None,
+        depends_on: Optional[List[str]] = None,
+        constraints: str = "",
+        acceptance_criteria: str = "",
+    ) -> bool:
+        """Insert a new step after *after_step_id* (or at the end).
+
+        Returns ``True`` on success.
+        """
+        if not self.session:
+            return False
+
+        step_id = f"step-{len(self.session.steps) + 1}"
+        # Ensure unique ID
+        existing_ids = {s.id for s in self.session.steps}
+        counter = len(self.session.steps) + 1
+        while step_id in existing_ids:
+            counter += 1
+            step_id = f"step-{counter}"
+
+        new_step = DevFlowStep(
+            id=step_id,
+            title=title,
+            goal=goal,
+            constraints=constraints,
+            acceptance_criteria=acceptance_criteria,
+            depends_on=depends_on or [],
+        )
+
+        if after_step_id:
+            idx = self._find_step_index(after_step_id)
+            if idx >= 0:
+                self.session.steps.insert(idx + 1, new_step)
+            else:
+                self.session.steps.append(new_step)
+        else:
+            self.session.steps.append(new_step)
+
+        self.session.updated_at = time.time()
+        self.save()
+        return True
+
+    def move_step(self, step_id: str, before_step_id: str) -> bool:
+        """Move *step_id* to just before *before_step_id*.
+
+        Returns ``True`` on success.
+        """
+        if not self.session:
+            return False
+
+        step = self._find_step(step_id)
+        if not step:
+            return False
+
+        target_idx = self._find_step_index(before_step_id)
+        if target_idx < 0:
+            return False
+
+        self.session.steps.remove(step)
+        # Recalculate target index after removal
+        target_idx = self._find_step_index(before_step_id)
+        if target_idx < 0:
+            target_idx = len(self.session.steps)
+        self.session.steps.insert(target_idx, step)
+
+        self.session.updated_at = time.time()
+        self.save()
+        return True
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _find_step(self, step_id: str) -> Optional[DevFlowStep]:
+        if not self.session:
+            return None
+        for s in self.session.steps:
+            if s.id == step_id:
+                return s
+        return None
+
+    def _find_step_index(self, step_id: str) -> int:
+        if not self.session:
+            return -1
+        for i, s in enumerate(self.session.steps):
+            if s.id == step_id:
+                return i
+        return -1
+
+    # ------------------------------------------------------------------
     # Rollback
     # ------------------------------------------------------------------
 

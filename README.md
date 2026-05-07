@@ -561,7 +561,7 @@ python3 -m build
 │       ├── reviewer.py          # 独立评测 Agent（评测分离）
 │       ├── domain_config.py     # 多领域可配置泛化
 │       └── slime_adapter.py     # SLIME 数据格式适配
-├── tests/                       # 310 个测试用例（28 个测试模块）
+├── tests/                       # 330 个测试用例（29 个测试模块）
 ├── slime_custom_rm.py           # SLIME 自定义 reward 函数
 ├── TRAINING_GUIDE.md            # 智能体能力训练完整指南
 ├── pyproject.toml               # 包配置与 CLI 入口点

@@ -202,6 +202,11 @@ class LifecycleRuntime(RuntimeBase):
         self._sessions_dir = os.path.join(cwd, ".port_sessions", "lifecycle")
         self._phase_config: Optional[List[str]] = None
         self._skip_phases: List[str] = []
+        self._reviewer_config: Dict[str, Any] = {
+            "enabled": True,
+            "auto_review_phases": ["IMPLEMENTATION", "CODE_REVIEW"],
+            "strictness": "normal",
+        }
         self._project_dir: Optional[str] = None
 
         from .context_manager import ContextManager
@@ -229,6 +234,13 @@ class LifecycleRuntime(RuntimeBase):
                 self._phase_config = data["phases"]
             if "skip_phases" in data and isinstance(data["skip_phases"], list):
                 self._skip_phases = data["skip_phases"]
+            if "reviewer" in data and isinstance(data["reviewer"], dict):
+                rv = data["reviewer"]
+                self._reviewer_config["enabled"] = rv.get("enabled", True)
+                if "auto_review_phases" in rv:
+                    self._reviewer_config["auto_review_phases"] = rv["auto_review_phases"]
+                if "strictness" in rv:
+                    self._reviewer_config["strictness"] = rv["strictness"]
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -237,6 +249,25 @@ class LifecycleRuntime(RuntimeBase):
         if self._phase_config:
             return self._phase_config
         return list(DEFAULT_LIFECYCLE_PHASES)
+
+    def is_reviewer_enabled(self) -> bool:
+        """Check if Reviewer is enabled globally."""
+        return bool(self._reviewer_config.get("enabled", True))
+
+    def set_reviewer_enabled(self, enabled: bool) -> None:
+        """Enable or disable the Reviewer."""
+        self._reviewer_config["enabled"] = enabled
+
+    def is_reviewer_enabled_for(self, phase_name: str) -> bool:
+        """Check if Reviewer should auto-run for a specific phase."""
+        if not self.is_reviewer_enabled():
+            return False
+        auto_phases = self._reviewer_config.get("auto_review_phases", [])
+        return phase_name in auto_phases
+
+    def get_reviewer_config(self) -> Dict[str, Any]:
+        """Get the full reviewer configuration."""
+        return dict(self._reviewer_config)
 
     def is_phase_skipped(self, phase_name: str) -> bool:
         """Check if a phase is configured to be skipped."""

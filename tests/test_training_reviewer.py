@@ -95,22 +95,24 @@ class TestCombinedReward(unittest.TestCase):
         reward = ReviewerAgent.combined_reward(
             test_pass_rate=1.0, diff_accuracy=0.9, review=review,
         )
-        # 1.0*0.4 + 0.9*0.3 + 0.8*0.3 = 0.4 + 0.27 + 0.24 = 0.91
-        self.assertAlmostEqual(reward, 0.91, places=2)
+        # Weights redistribute: test 0.462, diff 0.308, review 0.231
+        # 1.0*0.462 + 0.9*0.308 + 0.8*0.231 ≈ 0.924
+        self.assertAlmostEqual(reward, 0.924, places=2)
 
     def test_no_review(self):
         reward = ReviewerAgent.combined_reward(
             test_pass_rate=1.0, diff_accuracy=1.0, review=None,
         )
-        # 1.0*0.4 + 1.0*0.3 + 1.0*0.15 + 1.0*0.15 = 1.0
+        # Weights redistribute: test 0.60, diff 0.40 → 1.0
         self.assertAlmostEqual(reward, 1.0, places=2)
 
     def test_custom_weights(self):
         review = ReviewReport(overall_score=1.0, dimensions={})
         reward = ReviewerAgent.combined_reward(
             test_pass_rate=1.0, diff_accuracy=1.0, review=review,
-            weights={"test": 0.5, "diff": 0.3, "review": 0.2},
+            weights={"test": 0.5, "diff": 0.3, "review": 0.2, "process": 0.0, "format": 0.0},
         )
+        # Custom weights sum to 1.0, all signals available → 1.0
         self.assertAlmostEqual(reward, 1.0, places=2)
 
 

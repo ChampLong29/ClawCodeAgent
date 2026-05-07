@@ -158,6 +158,66 @@ def compute_diff(
     }
 
 
+def _compute_process_reward(
+    prompt: Any, response: Any
+) -> float:
+    """Compute process reward from prompt/response text.
+
+    Checks for phase boundary markers indicating the agent followed
+    the correct engineering flow.
+    """
+    prompt_text = _normalize_text(prompt)
+    response_text = _normalize_text(response)
+
+    score = 0.0
+    checks = 0
+
+    # Check for architecture/design before implementation
+    if "ARCHITECTURE" in prompt_text or "design" in prompt_text.lower():
+        score += 0.5; checks += 1
+    if "## Architecture" in response_text or "## System Design" in response_text:
+        score += 0.5; checks += 1
+
+    # Check for test execution evidence
+    if "pytest" in response_text.lower() or "test" in response_text.lower():
+        score += 1.0; checks += 1
+
+    return score / max(checks, 1) if checks > 0 else 0.5
+
+
+def _compute_format_reward(prompt: Any) -> float:
+    """Compute format reward from output structure."""
+    text = _normalize_text(prompt)
+    if not text:
+        return 0.5
+
+    dims = 0
+    score = 0.0
+
+    if re.search(r'^#{1,3}\s+\S', text, re.MULTILINE):
+        score += 1.0; dims += 1
+    if re.search(r'(^- |^\|.+\|)', text, re.MULTILINE):
+        score += 1.0; dims += 1
+    if 200 <= len(text) <= 10000:
+        score += 1.0; dims += 1
+    if "```" in text:
+        score += 1.0; dims += 1
+
+    return score / dims if dims > 0 else 0.5
+
+
+def _normalize_text(obj: Any) -> str:
+    """Convert prompt/response to a single string for analysis."""
+    if isinstance(obj, str):
+        return obj
+    if isinstance(obj, list):
+        return "\n".join(
+            m.get("content", "") for m in obj
+            if isinstance(m, dict) and m.get("content")
+        )
+    return str(obj)
+
+
 # ====================================================================
 # Main entry point — called by slime
 # ====================================================================
@@ -218,15 +278,18 @@ def compute_reward(
         diff_result = compute_diff(sandbox_dir, ground_truth)
         diff_reward = diff_result["match_rate"]
 
-        # Combined reward
+        # Combined reward (with process + format signals)
+        process_score = _compute_process_reward(prompt, response)
+        format_score = _compute_format_reward(prompt)
+
         if test_commands and ground_truth:
-            reward = test_reward * 0.55 + diff_reward * 0.45
+            reward = test_reward * 0.30 + diff_reward * 0.20 + process_score * 0.25 + format_score * 0.25
         elif test_commands:
-            reward = test_reward
+            reward = test_reward * 0.40 + process_score * 0.30 + format_score * 0.30
         elif ground_truth:
-            reward = diff_reward
+            reward = diff_reward * 0.40 + process_score * 0.30 + format_score * 0.30
         else:
-            reward = 0.5
+            reward = process_score * 0.50 + format_score * 0.50
 
         return max(0.0, min(1.0, reward))
 

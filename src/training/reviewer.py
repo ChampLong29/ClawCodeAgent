@@ -216,10 +216,29 @@ class ReviewerAgent:
         model_config: "ModelConfig",
         cwd: str = ".",
         criteria: Optional[List[str]] = None,
+        enabled: bool = True,
+        strictness: str = "normal",
     ):
         self.model_config = model_config
         self.cwd = cwd
-        self.criteria = criteria or DEFAULT_CRITERIA
+        self.enabled = enabled
+        self.strictness = strictness  # "relaxed" | "normal" | "strict"
+        self.criteria = self._build_criteria(criteria or DEFAULT_CRITERIA)
+
+    def _build_criteria(self, base: List[str]) -> List[str]:
+        """Adjust criteria based on strictness level."""
+        if self.strictness == "relaxed":
+            return [c for c in base
+                    if "security" in c.lower() or "correctness" in c.lower()]
+        if self.strictness == "strict":
+            extra = [
+                "**code_style**: PEP 8 / naming conventions, "
+                "consistent formatting, import ordering.",
+                "**documentation**: Public API docstrings, inline "
+                "comments for complex logic, README updates.",
+            ]
+            return base + extra
+        return base[:]  # normal — all criteria as-is
 
     def review(
         self,
@@ -310,7 +329,7 @@ class ReviewerAgent:
         return ReviewReport.empty()
 
     # ------------------------------------------------------------------
-    # Static helper — compute combined reward
+    # Static helpers — compute combined reward
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -318,18 +337,123 @@ class ReviewerAgent:
         test_pass_rate: float,
         diff_accuracy: float,
         review: Optional[ReviewReport] = None,
+        process_score: Optional[float] = None,
+        format_score: Optional[float] = None,
         weights: Optional[Dict[str, float]] = None,
     ) -> float:
-        """Compute combined reward from test, diff, and review signals.
+        """Compute combined reward from up to five signals.
 
-        Default weights: test 0.4, diff 0.3, review 0.3.
+        Default weights: test 0.30, diff 0.20, review 0.15, process 0.20, format 0.15.
+        Missing signals have their weight redistributed proportionally.
         """
-        w = weights or {"test": 0.4, "diff": 0.3, "review": 0.3}
+        defaults = {
+            "test": 0.30, "diff": 0.20, "review": 0.15,
+            "process": 0.20, "format": 0.15,
+        }
+        w = dict(weights or defaults)
+
+        # Redistribute weight of missing signals
+        available = {
+            "test": True,
+            "diff": True,
+            "review": review is not None,
+            "process": process_score is not None,
+            "format": format_score is not None,
+        }
+        available_weight = sum(w[k] for k, v in available.items() if v)
+        total_weight = sum(w.values())
+
+        if available_weight > 0:
+            for k in w:
+                if available.get(k):
+                    w[k] = w[k] * total_weight / available_weight
+                else:
+                    w[k] = 0.0
+
         reward = test_pass_rate * w["test"] + diff_accuracy * w["diff"]
+
         if review:
             reward += review.overall_score * w["review"]
-        else:
-            # If no review, redistribute review weight to test/diff
-            remaining = w["review"] / 2
-            reward += test_pass_rate * remaining + diff_accuracy * remaining
+
+        if process_score is not None:
+            reward += process_score * w["process"]
+        if format_score is not None:
+            reward += format_score * w["format"]
+
         return max(0.0, min(1.0, reward))
+
+    @staticmethod
+    def compute_process_reward(phase_trace: Dict[str, Any]) -> float:
+        """Compute process reward from lifecycle phase trace data.
+
+        Each check is worth 0.25 (4 total checks). Checks that are not
+        applicable (empty trace) return neutral 0.5.
+
+        Pure rule-based — no API call needed.
+        """
+        if not phase_trace:
+            return 0.5
+
+        score = 0.0
+        total_checks = 0
+
+        req = phase_trace.get("REQUIREMENTS", {})
+        if req.get("output_length", 0) >= 200:
+            score += 1.0
+        total_checks += 1
+
+        arch = phase_trace.get("ARCHITECTURE", {})
+        if arch.get("status") == "completed":
+            score += 1.0
+        total_checks += 1
+
+        test = phase_trace.get("UNIT_TEST", {})
+        if test.get("status", "pending") != "pending":
+            score += 1.0
+        total_checks += 1
+
+        review = phase_trace.get("CODE_REVIEW", {})
+        if review.get("issue_count", 0) > 0:
+            score += 1.0
+        total_checks += 1
+
+        return score / max(total_checks, 1) if total_checks > 0 else 0.5
+
+    @staticmethod
+    def compute_format_reward(phase_outputs: Dict[str, str]) -> float:
+        """Compute format reward from phase output texts.
+
+        Rewards structured, well-formatted output:
+        - Markdown headings (## Title)
+        - Lists or tables
+        - Appropriate length (200-10000 chars)
+        - Code blocks (```)
+
+        Pure rule-based — no API call needed.
+        """
+        if not phase_outputs:
+            return 0.0
+
+        dim_scores = []
+        for output in phase_outputs.values():
+            if not output:
+                continue
+            dims = 0
+            score = 0.0
+
+            if re.search(r'^#{1,3}\s+\S', output, re.MULTILINE):
+                score += 1.0; dims += 1
+
+            if re.search(r'(^- |^\|.+\|)', output, re.MULTILINE):
+                score += 1.0; dims += 1
+
+            if 200 <= len(output) <= 10000:
+                score += 1.0; dims += 1
+
+            if "```" in output:
+                score += 1.0; dims += 1
+
+            if dims > 0:
+                dim_scores.append(score / dims)
+
+        return sum(dim_scores) / len(dim_scores) if dim_scores else 0.0
