@@ -49,6 +49,7 @@ from .agent_manager import AgentManagerRuntime
 from .devflow_runtime import DevFlowRuntime
 from .lifecycle_runtime import LifecycleRuntime
 from .bridge_runtime import BridgeRuntime
+from .skill_runtime import SkillRuntime
 
 # Auto-retry configuration
 MAX_RETRIES = 3
@@ -186,6 +187,7 @@ class LocalCodingAgent:
             ("devflow", DevFlowRuntime),
             ("lifecycle", LifecycleRuntime),
             ("bridge", BridgeRuntime),
+            ("skill", SkillRuntime),
         ]
 
         for name, cls in _runtime_classes:

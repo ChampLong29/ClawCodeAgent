@@ -231,17 +231,14 @@ def _build_default_registry() -> ToolRegistry:
         tags=["web", "fetch"],
     ))
 
-    # use_skill tool
-    registry.register(AgentTool(
+    # use_skill tool — description dynamically updated when skills change
+    _use_skill_tool = AgentTool(
         name="use_skill",
-        description="Invoke a bundled skill — explain-code, review-code, generate-tests, "
-                    "document-code, devflow-architect, devflow-step-planner, devflow-step-analyzer, "
-                    "devflow-implementer, devflow-verifier, lifecycle-requirements, lifecycle-design, "
-                    "lifecycle-code-review, lifecycle-unit-test, lifecycle-integration-test, lifecycle-acceptance",
+        description=_build_use_skill_description(),
         parameters={
             "type": "object",
             "properties": {
-                "skill": {"type": "string", "description": "Skill name (see description for full list)"},
+                "skill": {"type": "string", "description": "Skill name to invoke"},
                 "code": {"type": "string", "description": "Code or goal to apply the skill to"},
                 "language": {"type": "string", "description": "Programming language (for generate-tests)"},
             },
@@ -249,7 +246,8 @@ def _build_default_registry() -> ToolRegistry:
         },
         handler=_use_skill,
         tags=["skill"],
-    ))
+    )
+    registry.register(_use_skill_tool)
 
     return registry
 
@@ -527,8 +525,27 @@ def _extract_text_from_html(html: str) -> str:
     return text.strip()
 
 
+def _build_use_skill_description() -> str:
+    """Build a dynamic description listing all available skills."""
+    try:
+        from .bundled_skills import list_skills
+        from .skill_registry import get_skill_registry
+        registry = get_skill_registry()
+        names = registry.list_names()
+        if names:
+            return f"Invoke a skill. Available: {', '.join(names)}"
+    except Exception:
+        pass
+    return "Invoke a skill. Use this to access specialized prompt templates."
+
+
 def _use_skill(skill: str, code: str = "", language: str = "python", **kwargs) -> Dict[str, Any]:
-    """Invoke a bundled skill by name, returning its formatted prompt."""
+    """Invoke a skill by name, returning its formatted prompt.
+
+    Supports both built-in skills (with {param} template substitution) and
+    external skills (verbatim markdown, or {param} substitution if they
+    declare parameters in YAML frontmatter).
+    """
     try:
         from .bundled_skills import get_skill
 
@@ -538,11 +555,19 @@ def _use_skill(skill: str, code: str = "", language: str = "python", **kwargs) -
             available = ", ".join(s.name for s in list_skills())
             return {"ok": False, "error": f"Unknown skill: {skill}. Available: {available}"}
 
-        # Format the prompt template with all provided arguments
-        format_args = {k: v for k, v in kwargs.items() if v}
-        format_args.setdefault("code", code)
-        format_args.setdefault("language", language)
-        prompt = skill_def.prompt.format(**format_args)
+        # Determine parameters support
+        has_params = getattr(skill_def, "parameters", None)
+
+        if has_params:
+            # Built-in skill or external skill with declared parameters:
+            # do {param} template substitution
+            format_args = {k: v for k, v in kwargs.items() if v}
+            format_args.setdefault("code", code)
+            format_args.setdefault("language", language)
+            prompt = skill_def.prompt.format(**format_args)
+        else:
+            # External skill with no parameters: verbatim
+            prompt = skill_def.prompt
 
         return {
             "ok": True,

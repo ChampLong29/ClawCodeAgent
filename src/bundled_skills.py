@@ -345,10 +345,26 @@ If the verdict is FAIL, describe exactly what needs to be fixed with specific fi
 
 
 def get_skill(skill_name: str) -> Optional[BundledSkill]:
-    """Get a bundled skill by name."""
-    return BUNDLED_SKILLS.get(skill_name)
+    """Get a skill by name — checks built-ins first, then externals."""
+    from .skill_registry import get_skill_registry
+    return get_skill_registry().get(skill_name)
 
 
 def list_skills() -> List[BundledSkill]:
-    """List all bundled skills."""
-    return list(BUNDLED_SKILLS.values())
+    """List all available skills (built-ins + externals)."""
+    # For backward compatibility, return BundledSkill objects for built-ins
+    # and synthesized BundledSkill wrappers for externals.
+    from .skill_registry import get_skill_registry
+    registry = get_skill_registry()
+    result = list(BUNDLED_SKILLS.values())
+    for name in registry.list_names():
+        if name not in BUNDLED_SKILLS:
+            ext = registry.get(name)
+            if ext:
+                result.append(BundledSkill(
+                    name=ext.name,
+                    description=ext.description,
+                    prompt=ext.prompt,
+                    parameters=ext.parameters,
+                ))
+    return result
