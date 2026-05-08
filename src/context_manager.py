@@ -1,13 +1,14 @@
 """Phase-level context and memory management.
 
-Provides phase-boundary compaction that keeps structured outputs from
-completed phases while discarding intermediate tool-call chatter.
+Builds a *read-only* context view for the LLM from the complete
+session record.  The session itself is never modified — it remains
+an append-only ledger of everything that happened.
 """
 
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PhaseContextPolicy:
-    """What to keep / discard during phase-boundary compaction."""
+    """What to keep / discard when building the LLM context view."""
 
     keep_phase_boundaries: bool = True
     keep_last_n_exchanges: int = 3
@@ -32,7 +33,6 @@ class PhaseContextPolicy:
 # ---------------------------------------------------------------------------
 
 def _truncate_to_tokens(text: str, max_tokens: int) -> str:
-    """Truncate text to roughly *max_tokens* tokens (4 chars ≈ 1 token)."""
     char_limit = max_tokens * 4
     if len(text) <= char_limit:
         return text
@@ -40,7 +40,6 @@ def _truncate_to_tokens(text: str, max_tokens: int) -> str:
 
 
 def _get_phase_name_from_boundary(msg: Dict[str, Any]) -> Optional[str]:
-    """Extract phase name from a phase-boundary system message."""
     meta = msg.get("metadata", {})
     if isinstance(meta, dict) and meta.get("phase_boundary"):
         return meta.get("phase_name")
@@ -52,34 +51,38 @@ def _get_phase_name_from_boundary(msg: Dict[str, Any]) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 class ContextManager:
-    """Manages phase-level context: compaction, structured-output extraction,
-    and cross-phase memory injection."""
+    """Builds a compact LLM context view from the full session record.
+
+    The session's ``messages`` list is **never modified**.  Instead,
+    ``build_context()`` returns a fresh list every call — safe to
+    truncate, safe to re-compute (e.g. after a rollback).
+    """
 
     def __init__(self, policy: Optional[PhaseContextPolicy] = None):
         self.policy = policy or PhaseContextPolicy()
 
     # ------------------------------------------------------------------
-    # compaction
+    # Context builder (read-only — session untouched)
     # ------------------------------------------------------------------
 
-    def compact_at_phase_transition(
+    def build_context(
         self,
         session: "AgentSession",
         current_phase: str,
         completed_phase_outputs: Dict[str, str],
-    ) -> None:
-        """Compact session messages at a phase transition.
+    ) -> List[Dict[str, Any]]:
+        """Build a compact context view for the LLM.
+
+        Returns a **new** list — the session's ``messages`` are not
+        touched.  Call this at the start of every ``_run_loop`` turn.
 
         Strategy
         --------
-        1. Keep everything before the first phase-boundary marker (system
-           prompt, initial user message, etc.).
+        1. Keep everything before the first phase-boundary marker.
         2. Keep every phase-boundary marker.
-        3. For *completed* phases: discard all intermediate messages,
-           replace with a single system summary (truncated).
-        4. For the *current* (just-finished) phase: keep the last few
-           exchanges for continuity.  Its full output will be summarised
-           when the *next* phase completes.
+        3. For *completed* phases: replace all messages with one
+           system summary (truncated output).
+        4. For the *current* phase: keep the last few exchanges.
         """
         policy = self.policy
         messages = session.messages
@@ -91,37 +94,32 @@ class ContextManager:
         }
 
         if not boundary_indices:
-            return  # nothing to compact yet
+            return list(messages)
 
-        sorted_phases = sorted(boundary_indices.keys(),
-                               key=lambda n: boundary_indices[n])
+        sorted_phases = sorted(
+            boundary_indices.keys(), key=lambda n: boundary_indices[n]
+        )
 
         kept: List[Dict[str, Any]] = []
-
-        # Everything before the first boundary (system prompt, initial user
-        # message, etc.)
         first_boundary_idx = min(boundary_indices.values())
         kept.extend(messages[:first_boundary_idx])
 
         for i, phase_name in enumerate(sorted_phases):
             start = boundary_indices[phase_name]
-            # End of this phase = next boundary (or end of messages)
-            if i + 1 < len(sorted_phases):
-                end = boundary_indices[sorted_phases[i + 1]]
-            else:
-                end = len(messages)
+            end = (
+                boundary_indices[sorted_phases[i + 1]]
+                if i + 1 < len(sorted_phases)
+                else len(messages)
+            )
 
-            # Keep the boundary marker
             if policy.keep_phase_boundaries:
                 kept.append(messages[start])
 
             if phase_name == current_phase:
-                # Just-finished phase — keep recent exchanges for continuity
                 phase_msgs = messages[start + 1:end]
                 keep_count = policy.keep_last_n_exchanges * 2
                 kept.extend(phase_msgs[-keep_count:])
             else:
-                # Older completed phase — replace with structured summary
                 output = completed_phase_outputs.get(phase_name)
                 if output:
                     summary = _truncate_to_tokens(
@@ -136,11 +134,10 @@ class ContextManager:
                         },
                     })
 
-        session.messages = kept
-        session.updated_at = time.time()
+        return kept
 
     # ------------------------------------------------------------------
-    # structured output extraction
+    # Structured output extraction (read-only)
     # ------------------------------------------------------------------
 
     def extract_structured_output(
@@ -148,7 +145,6 @@ class ContextManager:
         session: "AgentSession",
         phase_name: str,
     ) -> Optional[str]:
-        """Return the last assistant message from *phase_name*, or ``None``."""
         phase_msgs = session.get_phase_messages(phase_name)
         for msg in reversed(phase_msgs):
             if msg.get("role") == "assistant" and msg.get("content"):
@@ -156,7 +152,7 @@ class ContextManager:
         return None
 
     # ------------------------------------------------------------------
-    # context injection
+    # System prompt injection
     # ------------------------------------------------------------------
 
     def build_phase_context_injection(
@@ -165,7 +161,6 @@ class ContextManager:
         current_phase: str,
         overall_goal: str,
     ) -> str:
-        """Build a system-prompt section summarising completed phases."""
         if not completed_phase_outputs:
             return ""
 

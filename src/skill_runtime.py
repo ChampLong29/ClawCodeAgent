@@ -44,27 +44,21 @@ def _parse_skill_md(file_path: str) -> Optional[ExternalSkill]:
         return None
 
     # Extract YAML frontmatter between --- delimiters
-    m = re.match(r'^---\s*\n(.*?)\n---\s*\n?(.*)$', content, re.DOTALL)
+    m = re.match(r'^---\s*\n(.*?)\n---', content, re.DOTALL)
     if not m:
         return None
 
     frontmatter_str = m.group(1)
-    body = m.group(2).strip()
 
-    if not body:
-        return None
-
-    # Parse frontmatter (simple YAML subset: key: value)
+    # Parse frontmatter only — body is loaded lazily on first access
     fm = _parse_simple_yaml(frontmatter_str)
 
     name = fm.get("name", "")
     description = fm.get("description", "")
 
     if not name:
-        # Fall back to directory name
         name = os.path.basename(os.path.dirname(file_path))
 
-    # Parse parameters from frontmatter if present
     parameters = fm.get("parameters")
     if parameters is not None and not isinstance(parameters, dict):
         parameters = None
@@ -72,9 +66,8 @@ def _parse_skill_md(file_path: str) -> Optional[ExternalSkill]:
     return ExternalSkill(
         name=name,
         description=description,
-        prompt=body,
         parameters=parameters,
-        source=file_path,
+        source=file_path,           # body 懒加载
     )
 
 

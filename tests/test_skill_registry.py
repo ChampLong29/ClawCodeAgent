@@ -14,13 +14,13 @@ from src.skill_registry import (
 
 class TestExternalSkill(unittest.TestCase):
     def test_basic_creation(self):
-        s = ExternalSkill(name="test", description="desc", prompt="body")
+        s = ExternalSkill(name="test", description="desc", _prompt="body")
         self.assertEqual(s.name, "test")
         self.assertEqual(s.parameters, None)
         self.assertEqual(s.source, "")
 
     def test_to_dict(self):
-        s = ExternalSkill(name="t", description="d", prompt="p",
+        s = ExternalSkill(name="t", description="d", _prompt="p",
                           parameters={"x": {"type": "string"}}, source="/f.md")
         d = s.to_dict()
         self.assertEqual(d["name"], "t")
@@ -41,7 +41,7 @@ class TestSkillRegistry(unittest.TestCase):
         self.assertEqual(s.name, "explain-code")
 
     def test_external_lookup(self):
-        ext = ExternalSkill(name="my-skill", description="x", prompt="body")
+        ext = ExternalSkill(name="my-skill", description="x", _prompt="body")
         self.registry.register_external(ext)
         s = self.registry.get("my-skill")
         self.assertIsNotNone(s)
@@ -49,21 +49,21 @@ class TestSkillRegistry(unittest.TestCase):
 
     def test_builtin_takes_priority(self):
         # Register external with same name as builtin
-        ext = ExternalSkill(name="explain-code", description="override", prompt="x")
+        ext = ExternalSkill(name="explain-code", description="override", _prompt="x")
         self.registry.register_external(ext)
         s = self.registry.get("explain-code")
         # Should return builtin, not external
         self.assertNotEqual(s.description, "override")
 
     def test_list_names_includes_both(self):
-        ext = ExternalSkill(name="zzz-custom", description="x", prompt="body")
+        ext = ExternalSkill(name="zzz-custom", description="x", _prompt="body")
         self.registry.register_external(ext)
         names = self.registry.list_names()
         self.assertIn("explain-code", names)
         self.assertIn("zzz-custom", names)
 
     def test_unregister_external(self):
-        ext = ExternalSkill(name="tmp", description="x", prompt="body")
+        ext = ExternalSkill(name="tmp", description="x", _prompt="body")
         self.registry.register_external(ext)
         self.assertTrue(self.registry.unregister_external("tmp"))
         self.assertIsNone(self.registry.get("tmp"))
@@ -73,14 +73,14 @@ class TestSkillRegistry(unittest.TestCase):
 
     def test_register_externals_batch(self):
         skills = [
-            ExternalSkill(name="a", description="", prompt=""),
-            ExternalSkill(name="b", description="", prompt=""),
+            ExternalSkill(name="a", description="", _prompt=""),
+            ExternalSkill(name="b", description="", _prompt=""),
         ]
         self.registry.register_externals(skills)
         self.assertEqual(self.registry.external_count, 2)
 
     def test_list_all(self):
-        ext = ExternalSkill(name="ext1", description="external skill", prompt="x",
+        ext = ExternalSkill(name="ext1", description="external skill", _prompt="x",
                             source="/tmp/skill.md")
         self.registry.register_external(ext)
         all_skills = self.registry.list_all()
@@ -204,7 +204,7 @@ class TestSkillIntegration(unittest.TestCase):
 
     def test_get_skill_returns_external(self):
         r = get_skill_registry()
-        r.register_external(ExternalSkill(name="ext", description="d", prompt="p"))
+        r.register_external(ExternalSkill(name="ext", description="d", _prompt="p"))
         from src.bundled_skills import get_skill
         s = get_skill("ext")
         self.assertIsNotNone(s)
@@ -212,7 +212,7 @@ class TestSkillIntegration(unittest.TestCase):
 
     def test_list_skills_includes_externals(self):
         r = get_skill_registry()
-        r.register_external(ExternalSkill(name="ext", description="d", prompt="p"))
+        r.register_external(ExternalSkill(name="ext", description="d", _prompt="p"))
         from src.bundled_skills import list_skills
         names = [s.name for s in list_skills()]
         self.assertIn("ext", names)

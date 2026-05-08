@@ -92,7 +92,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         self.assertEqual(agent.session.messages[0]["content"], "hello")
 
     def test_run_saves_session_to_disk(self):
-        """run() should persist session to .port_sessions/agent/<id>.json."""
+        """run() should persist session to .port_sessions/agent/<id>.jsonl."""
         agent = LocalCodingAgent(cwd=self.tempdir)
         agent.session = None
 
@@ -113,7 +113,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         # Verify file exists on disk
         filepath = os.path.join(
             self.tempdir, ".port_sessions", "agent",
-            f"{agent.session.session_id}.json"
+            f"{agent.session.session_id}.jsonl"
         )
         self.assertTrue(os.path.exists(filepath))
 

@@ -289,9 +289,24 @@ class LocalCodingAgent:
         if hook_guidance:
             system_prompt = system_prompt + "\n\n[Hook/Plugin Guidance]\n" + hook_guidance
 
-        # Build messages - extract system prompt for Anthropic
+        # Build messages — use compacted context view if lifecycle is active
+        session_messages = self.session.get_messages()
+
+        lifecycle_rt = self._runtime_instances.get("lifecycle")
+        if lifecycle_rt and lifecycle_rt.has_active_session():
+            phase = lifecycle_rt.session.get_current_phase()
+            current_name = phase.name if phase else ""
+            ctx = lifecycle_rt.context_manager.build_context(
+                self.session,
+                current_phase=current_name,
+                completed_phase_outputs=lifecycle_rt._completed_phase_outputs,
+            )
+            # Only replace if we actually got a compacted view
+            if len(ctx) < len(session_messages):
+                session_messages = ctx
+
         messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(self.session.get_messages())
+        messages.extend(session_messages)
 
         # Check if using Anthropic client
         is_anthropic = isinstance(self.client, AnthropicClient)

@@ -420,14 +420,6 @@ class LifecycleRuntime(RuntimeBase):
             if self._sandbox and self._sandbox.config.git_tracking:
                 self._sandbox.save_phase_snapshot(phase.name)
 
-        # Compact agent session at phase boundary
-        if agent_session is not None:
-            self.context_manager.compact_at_phase_transition(
-                agent_session,
-                current_phase=phase.name if phase else "",
-                completed_phase_outputs=self._completed_phase_outputs,
-            )
-
         has_next = self._advance_to_next_phase()
 
         # Mark next phase boundary in agent session

@@ -6,34 +6,58 @@ need to know whether a skill came from Python code or a .md file.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
 
 # ---------------------------------------------------------------------------
-# ExternalSkill — loaded from .md files
+# ExternalSkill — loaded from .md files (lazy body)
 # ---------------------------------------------------------------------------
 
 @dataclass
 class ExternalSkill:
     """A skill loaded from a .md file on disk.
 
-    Compatible with the Claude Code skill format (YAML frontmatter +
-    Markdown body).  Supports optional ``parameters`` for {param}
-    template substitution.
+    Only frontmatter (name, description, parameters) is loaded at
+    discovery time.  The full Markdown *body* is loaded lazily on
+    first access to ``prompt``.
     """
 
     name: str
     description: str
-    prompt: str                        # full markdown body
+    source: str = ""                        # file path
     parameters: Optional[Dict[str, Any]] = None
-    source: str = ""                   # file path (for debugging)
+    _prompt: Optional[str] = field(default=None, repr=False)
+
+    @property
+    def prompt(self) -> str:
+        """The full Markdown body, loaded lazily from disk."""
+        if self._prompt is None:
+            self._prompt = self._load_body()
+        return self._prompt or ""
+
+    @prompt.setter
+    def prompt(self, value: str) -> None:
+        self._prompt = value
+
+    def _load_body(self) -> str:
+        """Read the Markdown body, skipping the YAML frontmatter."""
+        if not self.source:
+            return ""
+        try:
+            with open(self.source, "r", encoding="utf-8") as f:
+                content = f.read()
+        except (OSError, UnicodeDecodeError):
+            return ""
+        m = re.match(r'^---\s*\n.*?\n---\s*\n?(.*)$', content, re.DOTALL)
+        return m.group(1).strip() if m else content
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "description": self.description,
-            "prompt": self.prompt,
+            "prompt": self.prompt,           # triggers lazy load
             "parameters": self.parameters,
             "source": self.source,
         }

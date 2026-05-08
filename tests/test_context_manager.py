@@ -105,14 +105,15 @@ class TestContextManagerCompaction(unittest.TestCase):
         session.add_system_message("sys")
         session.add_user_message("hi")
         before = len(session.messages)
-        self.cm.compact_at_phase_transition(
-            session, "REQUIREMENTS", {}
-        )
-        self.assertEqual(len(session.messages), before)  # unchanged
+        ctx = self.cm.build_context(session, "REQUIREMENTS", {})
+        # Session is untouched
+        self.assertEqual(len(session.messages), before)
+        # Context is same as full messages (no compaction yet)
+        self.assertEqual(len(ctx), before)
 
     def test_compaction_keeps_boundaries(self):
         session = self._build_session_with_phases()
-        self.cm.compact_at_phase_transition(
+        ctx = self.cm.build_context(
             session,
             current_phase="SYSTEM_DESIGN",
             completed_phase_outputs={
@@ -120,44 +121,43 @@ class TestContextManagerCompaction(unittest.TestCase):
             },
         )
 
-        # Should have: system, user, boundary:REQ, summary:REQ, boundary:SD, ...recent SD msgs
-        contents = [m.get("content", "") for m in session.messages]
-        boundary_phases = [
-            _get_phase_name_from_boundary(m) for m in session.messages
-        ]
-
+        # Context (not session) should have boundaries
+        boundary_phases = [_get_phase_name_from_boundary(m) for m in ctx]
         self.assertIn("REQUIREMENTS", boundary_phases)
         self.assertIn("SYSTEM_DESIGN", boundary_phases)
+        # Session should be untouched (still has all original messages)
+        self.assertGreater(len(session.messages), len(ctx))
 
     def test_completed_phase_becomes_summary(self):
         session = self._build_session_with_phases()
         req_output = "Requirements: task CRUD, persistence"
-        self.cm.compact_at_phase_transition(
+        ctx = self.cm.build_context(
             session,
             current_phase="SYSTEM_DESIGN",
             completed_phase_outputs={"REQUIREMENTS": req_output},
         )
 
-        # Look for the summary message
+        # Context should have summary, session should still have full messages
         summaries = [
-            m for m in session.messages
+            m for m in ctx
             if m.get("metadata", {}).get("phase_summary")
         ]
         self.assertEqual(len(summaries), 1)
         self.assertIn(req_output, summaries[0]["content"])
+        # Session still has the original tool messages
+        tool_msgs = [m for m in session.messages if m.get("role") == "tool"]
+        self.assertGreater(len(tool_msgs), 0)
 
     def test_completed_phase_tool_results_discarded(self):
         session = self._build_session_with_phases()
-        self.cm.compact_at_phase_transition(
+        ctx = self.cm.build_context(
             session,
             current_phase="SYSTEM_DESIGN",
             completed_phase_outputs={"REQUIREMENTS": "summary"},
         )
-        # Tool messages from completed phases should be gone, but current
-        # phase tool messages may be preserved (part of recent exchanges).
-        # Verify that REQUIREMENTS phase content is only the summary.
+        # Context should NOT have tool messages from completed phases
         summaries = [
-            m for m in session.messages
+            m for m in ctx
             if m.get("metadata", {}).get("phase_summary")
             and m.get("metadata", {}).get("phase_name") == "REQUIREMENTS"
         ]
@@ -166,14 +166,14 @@ class TestContextManagerCompaction(unittest.TestCase):
 
     def test_current_phase_recent_exchanges_preserved(self):
         session = self._build_session_with_phases()
-        self.cm.compact_at_phase_transition(
+        ctx = self.cm.build_context(
             session,
             current_phase="SYSTEM_DESIGN",
             completed_phase_outputs={"REQUIREMENTS": "summary"},
         )
-        # The SD phase assistant messages should be preserved (last N)
+        # Context should have SD phase assistant messages (last N)
         assistant_msgs = [
-            m for m in session.messages
+            m for m in ctx
             if m.get("role") == "assistant" and "System Design" in m.get("content", "")
         ]
         self.assertGreaterEqual(len(assistant_msgs), 1)
@@ -187,15 +187,15 @@ class TestContextManagerCompaction(unittest.TestCase):
         session.add_assistant_message("Working on requirements...")
         session.add_assistant_message("Requirements: users can log in.")
 
-        self.cm.compact_at_phase_transition(
+        ctx = self.cm.build_context(
             session,
             current_phase="REQUIREMENTS",
             completed_phase_outputs={},
         )
 
-        # System prompt + user msg + boundary + recent exchanges preserved
-        self.assertGreaterEqual(len(session.messages), 3)
-        contents = " ".join(m.get("content", "") for m in session.messages)
+        # Context should have preserved messages, session untouched
+        self.assertGreaterEqual(len(ctx), 3)
+        contents = " ".join(m.get("content", "") for m in ctx)
         self.assertIn("users can log in", contents)
 
 
