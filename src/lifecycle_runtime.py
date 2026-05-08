@@ -207,6 +207,13 @@ class LifecycleRuntime(RuntimeBase):
             "auto_review_phases": ["IMPLEMENTATION", "CODE_REVIEW"],
             "strictness": "normal",
         }
+        self._sandbox_config: Dict[str, Any] = {
+            "enabled": True,
+            "seatbelt": True,
+            "git_tracking": True,
+            "timeout": 120,
+        }
+        self._sandbox: Any = None  # WorkspaceSandbox instance
         self._project_dir: Optional[str] = None
 
         from .context_manager import ContextManager
@@ -241,6 +248,13 @@ class LifecycleRuntime(RuntimeBase):
                     self._reviewer_config["auto_review_phases"] = rv["auto_review_phases"]
                 if "strictness" in rv:
                     self._reviewer_config["strictness"] = rv["strictness"]
+            if "sandbox" in data and isinstance(data["sandbox"], dict):
+                sb = data["sandbox"]
+                self._sandbox_config["enabled"] = sb.get("enabled", True)
+                self._sandbox_config["seatbelt"] = sb.get("seatbelt", True)
+                self._sandbox_config["git_tracking"] = sb.get("git_tracking", True)
+                if "timeout" in sb:
+                    self._sandbox_config["timeout"] = sb["timeout"]
         except (json.JSONDecodeError, OSError):
             pass
 
@@ -269,6 +283,14 @@ class LifecycleRuntime(RuntimeBase):
         """Get the full reviewer configuration."""
         return dict(self._reviewer_config)
 
+    def get_sandbox(self) -> Any:
+        """Return the WorkspaceSandbox instance (or None)."""
+        return self._sandbox
+
+    def get_sandbox_config(self) -> Dict[str, Any]:
+        """Get sandbox configuration."""
+        return dict(self._sandbox_config)
+
     def is_phase_skipped(self, phase_name: str) -> bool:
         """Check if a phase is configured to be skipped."""
         return phase_name in self._skip_phases
@@ -296,10 +318,20 @@ class LifecycleRuntime(RuntimeBase):
         session_id = make_session_id(goal, "lifecycle")
         now = time.time()
 
-        # Create a dedicated project directory
+        # Create a dedicated project directory with sandbox isolation
         proj_name = make_project_dir_name(goal)
-        self._project_dir = os.path.join(self.cwd, "projects", proj_name)
-        os.makedirs(self._project_dir, exist_ok=True)
+        proj_dir = os.path.join(self.cwd, "projects", proj_name)
+        os.makedirs(proj_dir, exist_ok=True)
+
+        from .sandbox import WorkspaceSandbox, SandboxConfig
+        sb_config = SandboxConfig(
+            enabled=self._sandbox_config.get("enabled", True),
+            seatbelt=self._sandbox_config.get("seatbelt", True),
+            git_tracking=self._sandbox_config.get("git_tracking", True),
+            timeout=self._sandbox_config.get("timeout", 120),
+        )
+        self._sandbox = WorkspaceSandbox(cwd=proj_dir, config=sb_config)
+        self._project_dir = self._sandbox.cwd
 
         phases_to_use = phase_list or self.get_phase_list()
 
@@ -384,6 +416,9 @@ class LifecycleRuntime(RuntimeBase):
         # Save snapshot before advancing (so we can rollback to this point)
         if phase and phase.status == "completed":
             self._save_phase_snapshot(agent_session)
+            # Also commit code changes in sandbox
+            if self._sandbox and self._sandbox.config.git_tracking:
+                self._sandbox.save_phase_snapshot(phase.name)
 
         # Compact agent session at phase boundary
         if agent_session is not None:
@@ -547,6 +582,19 @@ class LifecycleRuntime(RuntimeBase):
         }
 
         self.save()
+
+        # Also rollback code files in sandbox
+        if self._sandbox and self._sandbox.config.git_tracking:
+            # Try resetting to the target phase's git commit
+            reset_ok = self._sandbox.reset_to_phase(target_phase.name)
+            if reset_ok:
+                self._log_rollback(target_phase.name, index)
+                return True
+            # Fallback: if no git commit for this phase, reset to initial
+            self._sandbox.reset_to_phase("initial") if "initial" in getattr(
+                self._sandbox, "_commits", {}
+            ) else None
+
         self._log_rollback(target_phase.name, index)
         return True
 

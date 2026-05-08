@@ -549,6 +549,7 @@ python3 -m build
 │   ├── deep_dive_runtime.py     # 技术深钻
 │   ├── context_manager.py       # 阶段级上下文管理
 │   ├── session_naming.py        # Session 命名
+│   ├── sandbox.py               # 工作区沙箱（Git + macOS Seatbelt）
 │   ├── skill_registry.py        # 统一技能注册表
 │   ├── skill_runtime.py         # 外部技能文件发现
 │   ├── gui/                     # Web GUI (21 个路由模块)
