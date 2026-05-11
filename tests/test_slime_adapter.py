@@ -5,8 +5,8 @@ import os
 import tempfile
 import unittest
 
-from src.training.slime_adapter import SlimeDataAdapter, SlimeTrainingSample
-from src.training.reviewer import ReviewReport, ReviewScore
+from claw.training.slime_adapter import SlimeDataAdapter, SlimeTrainingSample
+from claw.training.reviewer import ReviewReport, ReviewScore
 
 
 class TestSlimeTrainingSample(unittest.TestCase):

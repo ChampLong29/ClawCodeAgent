@@ -4,7 +4,7 @@ import unittest
 import tempfile
 import os
 import json
-from src.mcp_runtime import MCPRuntime, MCPConfig
+from claw.mcp_runtime import MCPRuntime, MCPConfig
 
 
 class TestMCPRuntime(unittest.TestCase):

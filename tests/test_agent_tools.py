@@ -1,7 +1,7 @@
 """Tests for agent tools."""
 
 import unittest
-from src.agent_tools import (
+from claw.agent_tools import (
     default_tool_registry, execute_tool,
     AgentTool, ToolRegistry,
 )

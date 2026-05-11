@@ -87,7 +87,7 @@ claw train \
 对应的代码配置：
 
 ```python
-from src.training.determinism import DeterministicConfig
+from claw.training.determinism import DeterministicConfig
 
 det = DeterministicConfig(
     temperature=0.0,              # 贪婪解码
@@ -102,7 +102,7 @@ det = DeterministicConfig(
 ### Sandbox 配置
 
 ```python
-from src.training.sandbox import SandboxManager
+from claw.training.sandbox import SandboxManager
 
 sandbox = SandboxManager(
     default_timeout=120.0,        # 测试执行超时（秒）
@@ -179,7 +179,7 @@ task_templates/web_backend_easy_001/
 ### 使用 DomainConfig
 
 ```python
-from src.training.domain_config import default_registry
+from claw.training.domain_config import default_registry
 
 reg = default_registry()
 web_config = reg.get("web-backend")
@@ -241,13 +241,13 @@ Total Tokens:      1,245,000
 ### 代码调用
 
 ```python
-from src.training import (
+from claw.training import (
     RolloutRunner, RolloutConfig,
     TaskSuite, CodingTask,
     DomainConfig,
 )
-from src.training.reviewer import ReviewerAgent
-from src.training.slime_adapter import SlimeDataAdapter
+from claw.training.reviewer import ReviewerAgent
+from claw.training.slime_adapter import SlimeDataAdapter
 
 # 1. 配置
 config = RolloutConfig(
@@ -340,7 +340,7 @@ claw train \
 
 # 2. 筛选高质量 trajectory
 python3 -c "
-from src.training.slime_adapter import SlimeDataAdapter
+from claw.training.slime_adapter import SlimeDataAdapter
 import json
 with open('sft_cold_start.jsonl') as f:
     results = [json.loads(line) for line in f]
@@ -388,7 +388,7 @@ claw train \
 
 # 2. 筛选高质量数据回灌
 python3 -c "
-from src.training.slime_adapter import SlimeDataAdapter
+from claw.training.slime_adapter import SlimeDataAdapter
 import json
 with open('flywheel_round1.jsonl') as f:
     results = [json.loads(line) for line in f]
@@ -502,7 +502,7 @@ Combined Reward:
 ### 配置 Reviewer
 
 ```python
-from src.training.reviewer import ReviewerAgent
+from claw.training.reviewer import ReviewerAgent
 
 reviewer = ReviewerAgent(
     model_config=reviewer_model_config,  # 可用更强模型
@@ -644,7 +644,7 @@ claw train-stats --input sft_cold_start.jsonl
 
 # 筛选 reward ≥ 0.8 的高质量样本
 python3 -c "
-from src.training.slime_adapter import SlimeDataAdapter
+from claw.training.slime_adapter import SlimeDataAdapter
 import json
 
 with open('sft_cold_start.jsonl') as f:
@@ -700,7 +700,7 @@ claw train \
 
 # 质量筛选 + 回灌
 python3 -c "
-from src.training.slime_adapter import SlimeDataAdapter
+from claw.training.slime_adapter import SlimeDataAdapter
 import json
 
 with open('flywheel_r1.jsonl') as f:

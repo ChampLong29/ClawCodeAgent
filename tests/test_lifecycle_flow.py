@@ -5,9 +5,9 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.agent_session import AgentSession
-from src.agent_types import AgentRunResult, UsageStats
-from src.lifecycle_runtime import LifecycleRuntime
+from claw.agent_session import AgentSession
+from claw.agent_types import AgentRunResult, UsageStats
+from claw.lifecycle_runtime import LifecycleRuntime
 
 
 class FakeAgent:

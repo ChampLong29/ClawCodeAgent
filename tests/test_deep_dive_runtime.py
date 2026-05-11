@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from src.deep_dive_runtime import (
+from claw.deep_dive_runtime import (
     DeepDiveRuntime,
     DeepDiveSession,
     DeepDiveQuery,

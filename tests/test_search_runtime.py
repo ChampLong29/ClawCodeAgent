@@ -4,7 +4,7 @@ import unittest
 import tempfile
 import os
 import json
-from src.search_runtime import SearchRuntime, SearchProvider
+from claw.search_runtime import SearchRuntime, SearchProvider
 
 
 class TestSearchRuntime(unittest.TestCase):

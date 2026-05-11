@@ -1,7 +1,7 @@
 """Tests for compact module."""
 
 import unittest
-from src.compact import (
+from claw.compact import (
     compact_messages, should_compact, compact,
     CompactionStrategy, AUTOCOMPACT_BUFFER_TOKENS,
 )

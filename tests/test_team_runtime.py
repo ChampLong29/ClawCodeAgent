@@ -4,7 +4,7 @@ import unittest
 import tempfile
 import os
 import json
-from src.team_runtime import TeamRuntime
+from claw.team_runtime import TeamRuntime
 
 
 class TestTeamRuntime(unittest.TestCase):

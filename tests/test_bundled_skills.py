@@ -1,7 +1,7 @@
 """Tests for bundled skills."""
 
 import unittest
-from src.bundled_skills import BUNDLED_SKILLS, BundledSkill, get_skill, list_skills
+from claw.bundled_skills import BUNDLED_SKILLS, BundledSkill, get_skill, list_skills
 
 
 class TestBundledSkills(unittest.TestCase):

@@ -4,8 +4,8 @@ import os
 import tempfile
 import unittest
 
-from src.agent_session import AgentSession
-from src.lifecycle_runtime import LifecycleRuntime
+from claw.agent_session import AgentSession
+from claw.lifecycle_runtime import LifecycleRuntime
 
 
 class TestLifecycleRollback(unittest.TestCase):
@@ -119,7 +119,7 @@ class TestDevFlowRollback(unittest.TestCase):
     """DevFlowRuntime rollback."""
 
     def setUp(self):
-        from src.devflow_runtime import DevFlowRuntime, DevFlowStep
+        from claw.devflow_runtime import DevFlowRuntime, DevFlowStep
         self.tmpdir = tempfile.mkdtemp()
         self.rt = DevFlowRuntime(cwd=self.tmpdir)
         self.DevFlowStep = DevFlowStep

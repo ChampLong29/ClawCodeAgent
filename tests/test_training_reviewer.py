@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.training.reviewer import (
+from claw.training.reviewer import (
     ReviewerAgent,
     ReviewReport,
     ReviewScore,

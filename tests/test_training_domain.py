@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from src.training.domain_config import (
+from claw.training.domain_config import (
     DomainConfig,
     DomainRegistry,
     BUILTIN_DOMAINS,

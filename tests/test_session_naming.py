@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.session_naming import make_session_id, make_project_dir_name
+from claw.session_naming import make_session_id, make_project_dir_name
 
 
 class TestSessionNaming(unittest.TestCase):

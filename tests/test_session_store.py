@@ -3,8 +3,8 @@
 import unittest
 import tempfile
 import os
-from src.agent_session import AgentSession
-from src.session_store import (
+from claw.agent_session import AgentSession
+from claw.session_store import (
     save_agent_session,
     load_agent_session,
     list_sessions,

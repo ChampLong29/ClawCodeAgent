@@ -11,7 +11,7 @@ def main(argv=None):
     from .server import run_server
     parser = argparse.ArgumentParser(
         description="Claw Code Agent GUI",
-        prog="python3 -m src.gui",
+        prog="python3 -m claw.gui",
     )
     parser.add_argument("--cwd", default=".", help="Working directory")
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")

@@ -6,7 +6,7 @@ This module is the legacy Anthropic compatibility wrapper. It wraps an
 OpenAI-compatible client under the hood, which limits native Anthropic features.
 
 For new code, use the AnthropicClient in openai_compat.py directly:
-    from src.openai_compat import AnthropicClient
+    from claw.openai_compat import AnthropicClient
     client = AnthropicClient(base_url=..., api_key=..., model=...)
 
 The AnthropicClient provides:

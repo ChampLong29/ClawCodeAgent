@@ -471,7 +471,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="Claw Code Agent - Claude Code style agent runtime",
-        prog="python3 -m src.main",
+        prog="python3 -m claw.main",
     )
 
     parser.add_argument("--cwd", help="Working directory")

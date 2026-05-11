@@ -2,7 +2,7 @@
 
 import unittest
 import time
-from src.agent_session import AgentSession
+from claw.agent_session import AgentSession
 
 
 class TestAgentSession(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestAgentSession(unittest.TestCase):
         self.assertNotIn("tool_calls", s.messages[0])
 
     def test_add_assistant_message_with_tool_calls(self):
-        from src.agent_types import ToolCall
+        from claw.agent_types import ToolCall
         s = AgentSession(session_id="msg-test")
         tc = ToolCall(id="call_1", name="bash", arguments='{"command": "ls"}')
         s.add_assistant_message(tool_calls=[tc])
@@ -101,7 +101,7 @@ class TestAgentSession(unittest.TestCase):
 
     def test_conversation_flow(self):
         """Simulate a full conversation: user -> assistant(tool) -> tool result -> assistant."""
-        from src.agent_types import ToolCall
+        from claw.agent_types import ToolCall
         s = AgentSession(session_id="flow-1")
 
         s.add_user_message("list files")

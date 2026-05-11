@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import os
-from src.lifecycle_runtime import (
+from claw.lifecycle_runtime import (
     LifecycleRuntime,
     LifecycleSession,
     LifecyclePhase,

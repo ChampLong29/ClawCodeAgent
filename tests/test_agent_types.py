@@ -1,7 +1,7 @@
 """Tests for agent types."""
 
 import unittest
-from src.agent_types import (
+from claw.agent_types import (
     ModelConfig, ModelPricing, BudgetConfig, UsageStats,
     ToolCall, AssistantTurn, AgentRunResult,
 )

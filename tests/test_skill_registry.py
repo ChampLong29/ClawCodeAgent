@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from src.skill_registry import (
+from claw.skill_registry import (
     ExternalSkill,
     SkillRegistry,
     get_skill_registry,
@@ -98,7 +98,7 @@ class TestSkillRuntime(unittest.TestCase):
     def setUp(self):
         reset_skill_registry()
         self.tmpdir = tempfile.mkdtemp()
-        from src.skill_runtime import SkillRuntime
+        from claw.skill_runtime import SkillRuntime
         self.SkillRuntime = SkillRuntime
 
     def tearDown(self):
@@ -205,7 +205,7 @@ class TestSkillIntegration(unittest.TestCase):
     def test_get_skill_returns_external(self):
         r = get_skill_registry()
         r.register_external(ExternalSkill(name="ext", description="d", _prompt="p"))
-        from src.bundled_skills import get_skill
+        from claw.bundled_skills import get_skill
         s = get_skill("ext")
         self.assertIsNotNone(s)
         self.assertEqual(s.name, "ext")
@@ -213,7 +213,7 @@ class TestSkillIntegration(unittest.TestCase):
     def test_list_skills_includes_externals(self):
         r = get_skill_registry()
         r.register_external(ExternalSkill(name="ext", description="d", _prompt="p"))
-        from src.bundled_skills import list_skills
+        from claw.bundled_skills import list_skills
         names = [s.name for s in list_skills()]
         self.assertIn("ext", names)
         self.assertIn("explain-code", names)

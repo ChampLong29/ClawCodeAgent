@@ -4,10 +4,10 @@ import unittest
 import tempfile
 import os
 from unittest.mock import patch, MagicMock
-from src.agent_runtime import LocalCodingAgent
-from src.agent_session import AgentSession
-from src.agent_types import ModelConfig, BudgetConfig
-from src.session_store import save_agent_session, load_agent_session, list_sessions
+from claw.agent_runtime import LocalCodingAgent
+from claw.agent_session import AgentSession
+from claw.agent_types import ModelConfig, BudgetConfig
+from claw.session_store import save_agent_session, load_agent_session, list_sessions
 
 
 class TestAgentRuntimeFromSession(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestAgentSessionManagement(unittest.TestCase):
 
         # Patch _run_loop to avoid API call
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(
                 stop_reason="completed",
                 final_message="mock result",
@@ -97,7 +97,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         agent.session = None
 
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(
                 stop_reason="completed",
                 final_message="done",
@@ -129,7 +129,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         )
 
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(
                 stop_reason="completed",
                 final_message="result",
@@ -141,7 +141,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         self.assertEqual(agent.session.name, "my work")
 
         with patch.object(agent, '_run_loop') as mock_loop2:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop2.return_value = AgentRunResult(
                 stop_reason="completed",
                 final_message="result",
@@ -159,7 +159,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         agent.session = None
 
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(
                 stop_reason="completed",
             )
@@ -174,7 +174,7 @@ class TestAgentSessionManagement(unittest.TestCase):
 
         def mock_run_loop(max_turns, stream):
             agent.session.stop_reason = "budget_exceeded"
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             return AgentRunResult(
                 stop_reason="budget_exceeded",
                 error="Token budget exhausted",
@@ -193,7 +193,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         save_agent_session(agent.session, self.tempdir)
 
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(
                 stop_reason="completed",
             )
@@ -215,7 +215,7 @@ class TestAgentSessionManagement(unittest.TestCase):
         agent.turns = 999  # Should be reset by run()
 
         with patch.object(agent, '_run_loop') as mock_loop:
-            from src.agent_types import AgentRunResult
+            from claw.agent_types import AgentRunResult
             mock_loop.return_value = AgentRunResult(stop_reason="completed")
             agent.run(prompt="test", max_turns=1)
 

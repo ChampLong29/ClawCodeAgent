@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import os
-from src.worktree_runtime import WorktreeRuntime
+from claw.worktree_runtime import WorktreeRuntime
 
 
 class TestWorktreeRuntime(unittest.TestCase):

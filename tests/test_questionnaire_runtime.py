@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 
-from src.questionnaire_runtime import (
+from claw.questionnaire_runtime import (
     QuestionnaireRuntime,
     Questionnaire,
     Question,

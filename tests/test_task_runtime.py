@@ -1,7 +1,7 @@
 """Tests for task runtime."""
 
 import unittest
-from src.task_runtime import TaskRuntime
+from claw.task_runtime import TaskRuntime
 
 
 class TestTaskRuntime(unittest.TestCase):

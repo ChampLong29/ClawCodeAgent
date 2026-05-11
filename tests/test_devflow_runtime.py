@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import os
-from src.devflow_runtime import (
+from claw.devflow_runtime import (
     DevFlowRuntime,
     DevFlowSession,
     DevFlowStep,

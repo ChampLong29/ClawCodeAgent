@@ -16,12 +16,11 @@ dev = [
 ]
 
 [project.scripts]
-claw = "src.main:main"
-claw-agent = "src.main:main"
+claw = "claw.main:main"
+claw-agent = "claw.main:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src", "src.*"]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

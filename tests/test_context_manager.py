@@ -2,8 +2,8 @@
 
 import unittest
 
-from src.agent_session import AgentSession
-from src.context_manager import (
+from claw.agent_session import AgentSession
+from claw.context_manager import (
     ContextManager,
     PhaseContextPolicy,
     _truncate_to_tokens,

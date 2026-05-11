@@ -1,7 +1,7 @@
 """Tests for bash security."""
 
 import unittest
-from src.bash_security import (
+from claw.bash_security import (
     SecurityResult, validate_bash_command, SecurityValidator,
     SecurityLevel,
 )

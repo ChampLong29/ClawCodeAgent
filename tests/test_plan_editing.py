@@ -4,14 +4,14 @@ import os
 import tempfile
 import unittest
 
-from src.training.reviewer import ReviewerAgent
+from claw.training.reviewer import ReviewerAgent
 
 
 class TestPlanEditing(unittest.TestCase):
     """DevFlow step editing methods."""
 
     def setUp(self):
-        from src.devflow_runtime import DevFlowRuntime, DevFlowStep
+        from claw.devflow_runtime import DevFlowRuntime, DevFlowStep
         self.tmpdir = tempfile.mkdtemp()
         self.rt = DevFlowRuntime(cwd=self.tmpdir)
         self.DevFlowStep = DevFlowStep
@@ -96,7 +96,7 @@ class TestReviewerConfig(unittest.TestCase):
     """Reviewer configuration via LifecycleRuntime."""
 
     def setUp(self):
-        from src.lifecycle_runtime import LifecycleRuntime
+        from claw.lifecycle_runtime import LifecycleRuntime
         self.tmpdir = tempfile.mkdtemp()
         self.rt = LifecycleRuntime(cwd=self.tmpdir)
 
