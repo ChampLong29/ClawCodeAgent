@@ -75,3 +75,18 @@ build/
 *.egg
 CLAUDE.md
 TESTING_GUIDE.md
+
+# ============================================================
+# Generated analysis / evaluation docs (session-specific)
+# ============================================================
+CHANGELOG.md
+PROJECT_EVALUATION.md
+CALL_CHAIN_ANALYSIS.md
+CONSTRAINT_ANALYSIS.md
+REMEDIATION_GUIDE.md
+chatrecord.md
+
+# ============================================================
+# SLIME submodule (cloned separately)
+# ============================================================
+slime/

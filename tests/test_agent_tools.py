@@ -12,9 +12,12 @@ class TestToolRegistry(unittest.TestCase):
         registry = default_tool_registry()
         tools = [t.name for t in registry.list_tools()]
         expected = ["list_dir", "read_file", "write_file", "edit_file",
-                   "glob_search", "grep_search", "bash", "non_tool_call"]
+                   "glob_search", "grep_search", "bash", "web_search",
+                   "web_fetch", "use_skill"]
         for name in expected:
             self.assertIn(name, tools)
+        # non_tool_call was removed to avoid confusing non-Claude models
+        self.assertNotIn("non_tool_call", tools)
 
     def test_get_tool(self):
         registry = default_tool_registry()

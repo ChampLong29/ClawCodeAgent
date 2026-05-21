@@ -376,10 +376,26 @@ class LocalCodingAgent:
 
                 # Add assistant message
                 if tool_calls:
-                    self.session.add_assistant_message(content=content, tool_calls=[
-                        ToolCall(id=tc["id"], name=tc["function"]["name"], arguments=json.loads(tc["function"]["arguments"]) if isinstance(tc["function"]["arguments"], str) else tc["function"]["arguments"])
-                        for tc in tool_calls
-                    ])
+                    parsed_tool_calls = []
+                    for tc in tool_calls:
+                        raw_args = tc["function"]["arguments"]
+                        if isinstance(raw_args, str):
+                            try:
+                                parsed_args = json.loads(raw_args)
+                            except (json.JSONDecodeError, TypeError):
+                                # Try to salvage malformed JSON (strip thinking tags, etc.)
+                                import re
+                                cleaned = re.sub(r'<think>.*?</think>', '', raw_args, flags=re.DOTALL).strip()
+                                try:
+                                    parsed_args = json.loads(cleaned)
+                                except (json.JSONDecodeError, TypeError):
+                                    parsed_args = {"_raw_arguments": raw_args}
+                        else:
+                            parsed_args = raw_args
+                        parsed_tool_calls.append(
+                            ToolCall(id=tc["id"], name=tc["function"]["name"], arguments=parsed_args)
+                        )
+                    self.session.add_assistant_message(content=content, tool_calls=parsed_tool_calls)
                 elif content:
                     self.session.add_assistant_message(content=content)
 
@@ -391,7 +407,27 @@ class LocalCodingAgent:
                         tool_name = tc["function"]["name"]
                         args = tc["function"]["arguments"]
                         if isinstance(args, str):
-                            args = json.loads(args)
+                            try:
+                                args = json.loads(args)
+                            except (json.JSONDecodeError, TypeError):
+                                import re
+                                cleaned = re.sub(r'<think>.*?</think>', '', args, flags=re.DOTALL).strip()
+                                try:
+                                    args = json.loads(cleaned)
+                                except (json.JSONDecodeError, TypeError):
+                                    # Cannot parse — report error to model
+                                    error_msg = f"Error: Failed to parse tool arguments as JSON: {args[:200]}"
+                                    self.session.add_tool_message(
+                                        tool_call_id=tc.get("id", ""),
+                                        content=error_msg,
+                                        tool_name=tool_name,
+                                    )
+                                    messages.append({
+                                        "role": "tool",
+                                        "tool_call_id": tc.get("id", ""),
+                                        "content": error_msg,
+                                    })
+                                    continue
 
                         # Show tool call for visibility
                         self._print_tool_call(tool_name, args)
@@ -519,6 +555,8 @@ class LocalCodingAgent:
 
         Retries on: HTTP 429 (rate limit), 503 (service unavailable), 5xx errors.
         """
+        import sys
+
         last_error = None
         for attempt in range(MAX_RETRIES):
             try:
@@ -528,10 +566,14 @@ class LocalCodingAgent:
                 if e.status_code and (e.status_code == 429 or e.status_code == 503 or e.status_code >= 500):
                     if attempt < MAX_RETRIES - 1:
                         delay = RETRY_BACKOFF_BASE ** (attempt + 1)
+                        print(f"  \033[33m⚠ API error (HTTP {e.status_code}), retrying in {delay:.1f}s... (attempt {attempt + 1}/{MAX_RETRIES})\033[0m", file=sys.stderr)
                         time.sleep(delay)
                         continue
+                # Non-retryable error — print for visibility
+                print(f"  \033[31m✖ API error: {e}\033[0m", file=sys.stderr)
                 raise
-            except Exception:
+            except Exception as e:
+                print(f"  \033[31m✖ Unexpected error in API call: {e}\033[0m", file=sys.stderr)
                 raise
         raise last_error  # type: ignore[misc]
 
@@ -717,7 +759,39 @@ class LocalCodingAgent:
             "turns": self.turns,
             "usage": self.usage.to_dict() if self.usage else {},
             "runtimes": [type(r).__name__ for r in self.runtimes],
+            "blocked_tools": list(self._blocked_tools),
         }
+
+    # ------------------------------------------------------------------
+    # Dynamic tool constraint API (for lifecycle phase-based action masking)
+    # ------------------------------------------------------------------
+
+    def set_blocked_tools(self, tool_names: List[str]) -> None:
+        """Dynamically set which tools are blocked.
+
+        This is the primary mechanism for phase-based action masking:
+        the lifecycle runtime calls this before each phase to restrict
+        which tools the agent can see and invoke.
+
+        Blocked tools are:
+        - Removed from the tool spec sent to the model (invisible)
+        - Rejected at execution time if called anyway (defense in depth)
+        """
+        self._blocked_tools = list(tool_names)
+
+    def add_blocked_tools(self, tool_names: List[str]) -> None:
+        """Add tools to the blocked list without removing existing ones."""
+        for name in tool_names:
+            if name not in self._blocked_tools:
+                self._blocked_tools.append(name)
+
+    def remove_blocked_tools(self, tool_names: List[str]) -> None:
+        """Remove tools from the blocked list (re-enable them)."""
+        self._blocked_tools = [t for t in self._blocked_tools if t not in tool_names]
+
+    def clear_blocked_tools(self) -> None:
+        """Clear all dynamically blocked tools (restore full tool access)."""
+        self._blocked_tools = []
 
 
 import json  # For tool call parsing

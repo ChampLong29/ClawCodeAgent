@@ -183,20 +183,6 @@ def _build_default_registry() -> ToolRegistry:
         handler=_bash,
     ))
 
-    # non_tool_call tool
-    registry.register(AgentTool(
-        name="non_tool_call",
-        description="Respond without calling a tool",
-        parameters={
-            "type": "object",
-            "properties": {
-                "content": {"type": "string", "description": "Content to respond with"},
-            },
-            "required": ["content"],
-        },
-        handler=_non_tool_call,
-    ))
-
     # web_search tool
     registry.register(AgentTool(
         name="web_search",
@@ -293,7 +279,14 @@ def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = N
 
 
 def _write_file(path: str, content: str, **kwargs) -> Dict[str, Any]:
-    """Write content to a file."""
+    """Write content to a file.
+
+    Respects permissions.allow_write — if False, the write is blocked.
+    """
+    permissions = kwargs.get("permissions", {})
+    if not permissions.get("allow_write", False):
+        return {"ok": False, "error": "Write permission denied. Current phase does not allow file writes."}
+
     try:
         # Ensure directory exists
         dir_path = os.path.dirname(path)
@@ -309,12 +302,18 @@ def _write_file(path: str, content: str, **kwargs) -> Dict[str, Any]:
 def _edit_file(path: str, old_string: str, new_string: str, count: int = 1, **kwargs) -> Dict[str, Any]:
     """Edit a file by replacing text.
 
+    Respects permissions.allow_write — if False, the edit is blocked.
+
     Args:
         path: File path to edit
         old_string: String to replace
         new_string: Replacement string
         count: Number of occurrences to replace (-1 = replace all, default 1)
     """
+    permissions = kwargs.get("permissions", {})
+    if not permissions.get("allow_write", False):
+        return {"ok": False, "error": "Write permission denied. Current phase does not allow file edits."}
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()

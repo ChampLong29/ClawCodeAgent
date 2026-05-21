@@ -144,6 +144,22 @@ def cmd_agent_chat(args) -> int:
     return 0
 
 
+def cmd_tui(args) -> int:
+    """Run agent in TUI mode (Textual-based interface)."""
+    cwd = _resolve_cwd(args.cwd)
+
+    try:
+        from .tui import ClawTUIApp
+    except ImportError:
+        print("Error: TUI requires 'textual' package.", file=sys.stderr)
+        print("Install with: pip install -e '.[tui]'", file=sys.stderr)
+        return 1
+
+    app = ClawTUIApp(cwd=cwd, model=args.model)
+    app.run()
+    return 0
+
+
 def cmd_resume(args) -> int:
     """Resume an agent session."""
     cwd = _resolve_cwd(args.cwd)
@@ -507,6 +523,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     chat_parser.add_argument("--max-turns", type=int, default=None)
     chat_parser.add_argument("--stream", action="store_true")
 
+    tui_parser = subparsers.add_parser("tui", help="Run agent in TUI mode (Textual)")
+    tui_parser.add_argument("--cwd", default=None)
+    tui_parser.add_argument("--model", default=None)
+
     resume_parser = subparsers.add_parser("resume", help="Resume agent session")
     resume_parser.add_argument("prompt", help="The prompt for the agent")
     resume_parser.add_argument("--session-id", required=True)
@@ -604,6 +624,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "parity-audit": cmd_parity_audit,
         "agent": cmd_agent,
         "agent-chat": cmd_agent_chat,
+        "tui": cmd_tui,
         "resume": cmd_resume,
         "agent-context": cmd_agent_context,
         "agent-prompt": cmd_agent_prompt,

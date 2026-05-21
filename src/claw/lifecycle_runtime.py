@@ -48,6 +48,54 @@ DEVFLOW_PHASES = {
 # Phases that require write permissions
 WRITE_PHASES = {"IMPLEMENTATION", "UNIT_TEST", "INTEGRATION_TEST"}
 
+# ---------------------------------------------------------------------------
+# Phase-level tool access control (action masking)
+# ---------------------------------------------------------------------------
+# Each phase defines which tools are ALLOWED. Tools not in the allowed set
+# are blocked (invisible to the model + rejected at execution time).
+#
+# This implements "hard constraints" as described in the project design:
+# the agent literally cannot call write_file during requirements analysis,
+# not because a prompt says "don't", but because the tool doesn't exist
+# in its action space.
+#
+# For RL training: this is equivalent to action masking — illegal actions
+# have probability 0 because they're not in the model's tool spec.
+# ---------------------------------------------------------------------------
+
+# All read-only tools (always available)
+_READ_TOOLS = {"list_dir", "read_file", "glob_search", "grep_search", "web_search", "web_fetch", "use_skill"}
+
+# Write tools (only available in write phases)
+_WRITE_TOOLS = {"write_file", "edit_file"}
+
+# Shell tool (only available in implementation/test phases)
+_SHELL_TOOLS = {"bash"}
+
+# Phase → set of allowed tool names
+# Tools NOT in this set will be blocked (action masked)
+PHASE_ALLOWED_TOOLS: Dict[str, set] = {
+    # Analysis/design phases: read-only, no code writing, no shell
+    "REQUIREMENTS":      _READ_TOOLS,
+    "SYSTEM_DESIGN":     _READ_TOOLS,
+    "ARCHITECTURE":      _READ_TOOLS,
+    "STEP_DEFINITION":   _READ_TOOLS,
+    "MODULE_ANALYSIS":   _READ_TOOLS,
+
+    # Implementation phase: full access
+    "IMPLEMENTATION":    _READ_TOOLS | _WRITE_TOOLS | _SHELL_TOOLS,
+
+    # Review: read + shell (for running tests) but no writing
+    "CODE_REVIEW":       _READ_TOOLS | _SHELL_TOOLS,
+
+    # Test phases: full access (need to write test files + run them)
+    "UNIT_TEST":         _READ_TOOLS | _WRITE_TOOLS | _SHELL_TOOLS,
+    "INTEGRATION_TEST":  _READ_TOOLS | _WRITE_TOOLS | _SHELL_TOOLS,
+
+    # Acceptance: read + shell (run final checks)
+    "ACCEPTANCE":        _READ_TOOLS | _SHELL_TOOLS,
+}
+
 # Phase → skill mapping
 PHASE_SKILL_MAP = {
     "REQUIREMENTS": "lifecycle-requirements",
@@ -263,6 +311,71 @@ class LifecycleRuntime(RuntimeBase):
         if self._phase_config:
             return self._phase_config
         return list(DEFAULT_LIFECYCLE_PHASES)
+
+    # ------------------------------------------------------------------
+    # Action masking — hard tool constraints per phase
+    # ------------------------------------------------------------------
+
+    def get_blocked_tools_for_phase(self, phase_name: str) -> List[str]:
+        """Compute which tools should be BLOCKED for a given phase.
+
+        This implements action masking: tools not in PHASE_ALLOWED_TOOLS
+        for the current phase are returned here and should be passed to
+        agent.set_blocked_tools() before execution.
+
+        Returns:
+            List of tool names to block. Empty list means no restrictions.
+        """
+        allowed = PHASE_ALLOWED_TOOLS.get(phase_name)
+        if allowed is None:
+            # Unknown phase — no restrictions (fail-open for custom phases)
+            return []
+
+        # Get all registered tool names
+        from .agent_tools import default_tool_registry
+        registry = default_tool_registry()
+        all_tools = set(registry.list_tool_names())
+
+        # Block = all tools minus allowed tools
+        blocked = all_tools - allowed
+        return sorted(blocked)
+
+    def apply_phase_constraints(self, agent: 'LocalCodingAgent', phase_name: str) -> None:
+        """Apply hard tool constraints for a phase to an agent instance.
+
+        This is the primary enforcement point: before executing any phase,
+        call this method to configure the agent's action space.
+
+        Effects:
+        1. Sets agent.blocked_tools (tools invisible to model + rejected at runtime)
+        2. Sets agent.permissions.allow_write based on WRITE_PHASES
+        3. Sets agent.permissions.allow_shell based on phase
+        """
+        # 1. Block tools not allowed in this phase
+        blocked = self.get_blocked_tools_for_phase(phase_name)
+        agent.set_blocked_tools(blocked)
+
+        # 2. Set write permission
+        is_write_phase = phase_name in WRITE_PHASES
+        if agent.permissions:
+            agent.permissions["allow_write"] = is_write_phase
+
+        # 3. Set shell permission (phases with bash in allowed set)
+        allowed = PHASE_ALLOWED_TOOLS.get(phase_name, set())
+        has_shell = "bash" in allowed
+        if agent.permissions:
+            agent.permissions["allow_shell"] = has_shell
+
+    def release_phase_constraints(self, agent: 'LocalCodingAgent') -> None:
+        """Release all phase constraints (restore full tool access).
+
+        Call after phase execution if the agent will be reused outside
+        lifecycle control (e.g., for interactive chat).
+        """
+        agent.clear_blocked_tools()
+        if agent.permissions:
+            agent.permissions["allow_write"] = False
+            agent.permissions["allow_shell"] = False
 
     def is_reviewer_enabled(self) -> bool:
         """Check if Reviewer is enabled globally."""
@@ -728,13 +841,8 @@ class LifecycleRuntime(RuntimeBase):
             implementation_summary=implementation_summary,
         )
 
-        # Execute with appropriate permissions
-        is_write_phase = phase.name in WRITE_PHASES
-        if is_write_phase and agent.permissions:
-            old_write = agent.permissions.get("allow_write", False)
-            agent.permissions["allow_write"] = True
-        else:
-            old_write = None
+        # Apply hard tool constraints for this phase (action masking)
+        self.apply_phase_constraints(agent, phase.name)
 
         try:
             result = agent.run(prompt=prompt, stream=False)
@@ -749,8 +857,8 @@ class LifecycleRuntime(RuntimeBase):
                 )
                 output += warning
         finally:
-            if is_write_phase and old_write is not None and agent.permissions:
-                agent.permissions["allow_write"] = old_write
+            # Release constraints after phase execution
+            self.release_phase_constraints(agent)
 
         # Store output
         phase.output = output

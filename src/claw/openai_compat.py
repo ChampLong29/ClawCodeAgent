@@ -36,6 +36,9 @@ def _parse_tool_calls(response_content: Optional[str]) -> Optional[List[Dict[str
 class OpenAICompatClient:
     """OpenAI-compatible model client with streaming support."""
 
+    # Configurable timeout (seconds) via CLAW_API_TIMEOUT env var
+    DEFAULT_TIMEOUT = 300
+
     def __init__(
         self,
         base_url: Optional[str] = None,
@@ -45,6 +48,7 @@ class OpenAICompatClient:
         self.base_url = base_url or os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "local-token")
         self.model = model or os.environ.get("OPENAI_MODEL", "Qwen/Qwen3-Coder-30B-A3B-Instruct")
+        self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
 
     def complete(
         self,
@@ -82,7 +86,7 @@ class OpenAICompatClient:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
                 # Parse response
@@ -159,7 +163,7 @@ class OpenAICompatClient:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 # SSE streaming
                 for line in resp:
                     line = line.decode("utf-8").strip()
@@ -195,7 +199,16 @@ class OpenAICompatClient:
 
 
 class AnthropicClient:
-    """Anthropic-native API client."""
+    """Anthropic-native API client.
+
+    Handles proper Anthropic Messages API format including:
+    - tool_use content blocks in assistant messages
+    - tool_result content blocks in user messages
+    - Correct user/assistant message alternation
+    """
+
+    # Configurable timeout (seconds) via CLAW_API_TIMEOUT env var
+    DEFAULT_TIMEOUT = 300
 
     def __init__(
         self,
@@ -206,6 +219,103 @@ class AnthropicClient:
         self.base_url = base_url or os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
         self.model = model or os.environ.get("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+        self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
+
+    def _convert_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str] = None,
+    ) -> tuple:
+        """Convert internal message format to Anthropic Messages API format.
+
+        Internal format uses OpenAI-style messages:
+        - {"role": "assistant", "content": "...", "tool_calls": [...]}
+        - {"role": "tool", "tool_call_id": "...", "content": "..."}
+
+        Anthropic format requires:
+        - Assistant: {"role": "assistant", "content": [{"type": "text", ...}, {"type": "tool_use", ...}]}
+        - Tool results: {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "...", ...}]}
+
+        Returns:
+            (anthropic_messages, system_content)
+        """
+        anthropic_messages = []
+        system_content = system_prompt or ""
+
+        for msg in messages:
+            role = msg.get("role", "user")
+
+            if role == "system":
+                system_content = msg.get("content", "")
+                continue
+
+            if role == "assistant":
+                # Build proper content blocks for assistant messages
+                content_blocks = []
+                text = msg.get("content", "")
+                if text:
+                    content_blocks.append({"type": "text", "text": text})
+
+                # Convert tool_calls to tool_use blocks
+                tool_calls = msg.get("tool_calls", [])
+                for tc in tool_calls:
+                    func = tc.get("function", {})
+                    args_raw = func.get("arguments", "{}")
+                    if isinstance(args_raw, str):
+                        try:
+                            args = json.loads(args_raw)
+                        except (json.JSONDecodeError, TypeError):
+                            args = {"_raw": args_raw}
+                    else:
+                        args = args_raw
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc.get("id", ""),
+                        "name": func.get("name", ""),
+                        "input": args,
+                    })
+
+                # Anthropic requires non-empty content
+                if not content_blocks:
+                    content_blocks = [{"type": "text", "text": ""}]
+
+                anthropic_messages.append({
+                    "role": "assistant",
+                    "content": content_blocks,
+                })
+
+            elif role == "tool":
+                # Tool results must be wrapped as tool_result blocks inside a user message
+                tool_result_block = {
+                    "type": "tool_result",
+                    "tool_use_id": msg.get("tool_call_id", ""),
+                    "content": msg.get("content", ""),
+                }
+
+                # Merge consecutive tool results into a single user message
+                if (anthropic_messages
+                        and anthropic_messages[-1]["role"] == "user"
+                        and isinstance(anthropic_messages[-1]["content"], list)):
+                    # Check if the last user message contains only tool_result blocks
+                    last_content = anthropic_messages[-1]["content"]
+                    if last_content and last_content[0].get("type") == "tool_result":
+                        last_content.append(tool_result_block)
+                        continue
+
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [tool_result_block],
+                })
+
+            else:
+                # Regular user message
+                content = msg.get("content", "")
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": content,
+                })
+
+        return anthropic_messages, system_content
 
     def complete(
         self,
@@ -220,25 +330,7 @@ class AnthropicClient:
         """Make a non-streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/v1/messages"
 
-        # Convert messages to Anthropic format
-        anthropic_messages = []
-        system_content = system_prompt or ""
-
-        for msg in messages:
-            if msg.get("role") == "system":
-                system_content = msg.get("content", "")
-                continue
-            role = msg.get("role", "user")
-            if role == "assistant":
-                role = "assistant"
-            elif role == "tool":
-                role = "user"  # Anthropic uses role=user for tool results
-            else:
-                role = "user"
-            anthropic_messages.append({
-                "role": role,
-                "content": msg.get("content", ""),
-            })
+        anthropic_messages, system_content = self._convert_messages(messages, system_prompt)
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
@@ -270,7 +362,7 @@ class AnthropicClient:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
 
                 # Parse Anthropic response
@@ -289,6 +381,13 @@ class AnthropicClient:
                                 "arguments": json.dumps(block.get("input", {})),
                             }
                         })
+                    elif block.get("type") == "thinking":
+                        # DeepSeek/Claude thinking mode — capture but don't expose as main content
+                        thinking_text = block.get("thinking", "") or block.get("text", "")
+                        if thinking_text and not content_text:
+                            # Show thinking indicator (will be overwritten by actual content)
+                            import sys
+                            print(f"  \033[90m💭 thinking ({len(thinking_text)} chars)...\033[0m", file=sys.stderr)
 
                 result = {
                     "role": "assistant",
@@ -327,21 +426,7 @@ class AnthropicClient:
         """Make a streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/v1/messages"
 
-        # Convert messages to Anthropic format
-        anthropic_messages = []
-        system_content = system_prompt or ""
-
-        for msg in messages:
-            if msg.get("role") == "system":
-                system_content = msg.get("content", "")
-                continue
-            role = msg.get("role", "user")
-            if role == "tool":
-                role = "user"
-            anthropic_messages.append({
-                "role": role,
-                "content": msg.get("content", ""),
-            })
+        anthropic_messages, system_content = self._convert_messages(messages, system_prompt)
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
@@ -373,10 +458,13 @@ class AnthropicClient:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 for line in resp:
                     line = line.decode("utf-8").strip()
                     if not line:
+                        continue
+                    if line.startswith("event: "):
+                        # SSE event type line — skip, we parse data lines
                         continue
                     if line.startswith("data: "):
                         line = line[6:]
@@ -397,12 +485,26 @@ class AnthropicClient:
                                     "id": block.get("id", ""),
                                     "name": block.get("name", ""),
                                 }}
+                            elif block.get("type") == "thinking":
+                                # Thinking block started — show indicator
+                                import sys
+                                print(f"  \033[90m💭 thinking...\033[0m", file=sys.stderr, flush=True)
                         elif event_type == "content_block_delta":
                             delta = chunk.get("delta", {})
                             if delta.get("type") == "text_delta":
                                 yield {"role": "assistant", "content": delta.get("text", "")}
                             elif delta.get("type") == "input_json_delta":
                                 yield {"role": "assistant", "partial_args": delta.get("partial_json", "")}
+                            elif delta.get("type") == "thinking_delta":
+                                # Thinking content — don't yield to main content, just indicate progress
+                                pass
+                        elif event_type == "message_delta":
+                            # End of message — may contain stop_reason
+                            pass
+                        elif event_type == "error":
+                            error_data = chunk.get("error", {})
+                            error_msg = error_data.get("message", "Unknown streaming error")
+                            raise OpenAICompatError(f"Stream error: {error_msg}")
                     except json.JSONDecodeError:
                         continue
 
