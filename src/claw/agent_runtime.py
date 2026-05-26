@@ -374,6 +374,10 @@ class LocalCodingAgent:
                 content = response.get("content", "")
                 tool_calls = response.get("tool_calls")
 
+                # Extract thinking metadata for session persistence
+                _thinking = response.get("_thinking")
+                _thinking_signature = response.get("_thinking_signature")
+
                 # Add assistant message
                 if tool_calls:
                     parsed_tool_calls = []
@@ -395,9 +399,15 @@ class LocalCodingAgent:
                         parsed_tool_calls.append(
                             ToolCall(id=tc["id"], name=tc["function"]["name"], arguments=parsed_args)
                         )
-                    self.session.add_assistant_message(content=content, tool_calls=parsed_tool_calls)
+                    self.session.add_assistant_message(
+                        content=content, tool_calls=parsed_tool_calls,
+                        thinking=_thinking, thinking_signature=_thinking_signature,
+                    )
                 elif content:
-                    self.session.add_assistant_message(content=content)
+                    self.session.add_assistant_message(
+                        content=content,
+                        thinking=_thinking, thinking_signature=_thinking_signature,
+                    )
 
                 messages.append(response)
 
@@ -627,6 +637,8 @@ class LocalCodingAgent:
         content_parts = []
         tool_call_buffer: Dict[str, Dict[str, Any]] = {}
         usage = {"input_tokens": 0, "output_tokens": 0, "model_calls": 1, "tool_calls": 0}
+        thinking_text = None
+        thinking_signature = None
 
         for chunk in self.client.stream(
             messages=messages,
@@ -652,6 +664,12 @@ class LocalCodingAgent:
                     last_tc = list(tool_call_buffer.values())[-1]
                     last_tc["function"]["arguments"] += chunk["partial_args"]
 
+            # Capture thinking metadata emitted at end of stream
+            if "_thinking" in chunk:
+                thinking_text = chunk["_thinking"]
+            if "_thinking_signature" in chunk:
+                thinking_signature = chunk["_thinking_signature"]
+
         if content_parts:
             print()  # newline after streaming
 
@@ -666,6 +684,13 @@ class LocalCodingAgent:
             usage["tool_calls"] = len(tool_calls)
 
         response["usage"] = usage
+
+        # Pass thinking metadata through so it can be persisted in session
+        if thinking_text:
+            response["_thinking"] = thinking_text
+        if thinking_signature:
+            response["_thinking_signature"] = thinking_signature
+
         return response
 
     def _get_toolspec(self) -> List[Dict[str, Any]]:

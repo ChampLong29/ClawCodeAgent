@@ -152,7 +152,7 @@ def cmd_tui(args) -> int:
         from .tui import ClawTUIApp
     except ImportError:
         print("Error: TUI requires 'textual' package.", file=sys.stderr)
-        print("Install with: pip install -e '.[tui]'", file=sys.stderr)
+        print("Install with: uv sync --extra tui", file=sys.stderr)
         return 1
 
     app = ClawTUIApp(cwd=cwd, model=args.model)

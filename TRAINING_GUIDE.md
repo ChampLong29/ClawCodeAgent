@@ -618,7 +618,7 @@ set -e
 # ============================================================
 
 # 1. 环境
-source .venv/bin/activate
+uv sync
 export OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 export OPENAI_API_KEY=local-token
 export OPENAI_MODEL=qwen3-coder-30b

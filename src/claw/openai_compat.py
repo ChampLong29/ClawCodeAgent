@@ -204,22 +204,61 @@ class AnthropicClient:
     Handles proper Anthropic Messages API format including:
     - tool_use content blocks in assistant messages
     - tool_result content blocks in user messages
+    - thinking content blocks (DeepSeek, Claude extended thinking)
     - Correct user/assistant message alternation
+
+    Thinking support:
+        Controlled by CLAW_THINKING_ENABLED env var (default: "auto").
+        - "true"  — always send thinking config in requests
+        - "false" — never send thinking config; strip thinking blocks from history
+        - "auto"  — don't send thinking config but handle thinking blocks if returned
+
+        CLAW_THINKING_BUDGET env var sets budget_tokens (default: 10000).
     """
 
     # Configurable timeout (seconds) via CLAW_API_TIMEOUT env var
     DEFAULT_TIMEOUT = 300
+
+    # Thinking effort presets: name → budget_tokens
+    THINKING_EFFORT_PRESETS = {
+        "low": 4000,
+        "medium": 10000,
+        "high": 30000,
+        "max": 60000,
+    }
 
     def __init__(
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
+        thinking_enabled: Optional[str] = None,
+        thinking_budget: Optional[int] = None,
+        thinking_effort: Optional[str] = None,
     ):
         self.base_url = base_url or os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
         self.model = model or os.environ.get("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
         self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
+
+        # Thinking configuration
+        self._thinking_enabled = (
+            thinking_enabled or os.environ.get("CLAW_THINKING_ENABLED", "auto")
+        ).lower().strip()
+
+        # Resolve thinking budget: explicit budget > effort preset > default
+        explicit_budget = thinking_budget or (
+            int(os.environ["CLAW_THINKING_BUDGET"])
+            if os.environ.get("CLAW_THINKING_BUDGET")
+            else None
+        )
+        if explicit_budget:
+            self._thinking_budget = explicit_budget
+        else:
+            effort = (
+                thinking_effort or os.environ.get("CLAW_THINKING_EFFORT", "medium")
+            ).lower().strip()
+            self._thinking_budget = self.THINKING_EFFORT_PRESETS.get(effort, 10000)
 
     def _convert_messages(
         self,
@@ -230,17 +269,21 @@ class AnthropicClient:
 
         Internal format uses OpenAI-style messages:
         - {"role": "assistant", "content": "...", "tool_calls": [...]}
+        - {"role": "assistant", "content": "...", "_thinking": "...", "_thinking_signature": "..."}
         - {"role": "tool", "tool_call_id": "...", "content": "..."}
 
         Anthropic format requires:
-        - Assistant: {"role": "assistant", "content": [{"type": "text", ...}, {"type": "tool_use", ...}]}
+        - Assistant: {"role": "assistant", "content": [{"type": "thinking", ...}, {"type": "text", ...}, {"type": "tool_use", ...}]}
         - Tool results: {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "...", ...}]}
+
+        If thinking is disabled, thinking blocks are stripped from history.
 
         Returns:
             (anthropic_messages, system_content)
         """
         anthropic_messages = []
         system_content = system_prompt or ""
+        include_thinking = self._thinking_enabled != "false"
 
         for msg in messages:
             role = msg.get("role", "user")
@@ -252,6 +295,17 @@ class AnthropicClient:
             if role == "assistant":
                 # Build proper content blocks for assistant messages
                 content_blocks = []
+
+                # Thinking block must come FIRST if present (Anthropic requirement)
+                if include_thinking and msg.get("_thinking"):
+                    thinking_block: Dict[str, Any] = {
+                        "type": "thinking",
+                        "thinking": msg["_thinking"],
+                    }
+                    if msg.get("_thinking_signature"):
+                        thinking_block["signature"] = msg["_thinking_signature"]
+                    content_blocks.append(thinking_block)
+
                 text = msg.get("content", "")
                 if text:
                     content_blocks.append({"type": "text", "text": text})
@@ -349,6 +403,16 @@ class AnthropicClient:
         if tools:
             payload["tools"] = tools
 
+        # Add thinking configuration if explicitly enabled
+        if self._thinking_enabled == "true":
+            payload["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self._thinking_budget,
+            }
+            # When thinking is enabled, temperature must be 1 (Anthropic requirement)
+            if "temperature" in payload:
+                del payload["temperature"]
+
         headers = {
             "x-api-key": self.api_key,
             "Content-Type": "application/json",
@@ -369,11 +433,14 @@ class AnthropicClient:
                 content_blocks = data.get("content", [])
                 content_text = ""
                 tool_calls = []
+                thinking_text = ""
+                thinking_signature = ""
 
                 for block in content_blocks:
-                    if block.get("type") == "text":
+                    block_type = block.get("type", "")
+                    if block_type == "text":
                         content_text += block.get("text", "")
-                    elif block.get("type") == "tool_use":
+                    elif block_type == "tool_use":
                         tool_calls.append({
                             "id": block.get("id", ""),
                             "function": {
@@ -381,13 +448,14 @@ class AnthropicClient:
                                 "arguments": json.dumps(block.get("input", {})),
                             }
                         })
-                    elif block.get("type") == "thinking":
-                        # DeepSeek/Claude thinking mode — capture but don't expose as main content
-                        thinking_text = block.get("thinking", "") or block.get("text", "")
-                        if thinking_text and not content_text:
-                            # Show thinking indicator (will be overwritten by actual content)
-                            import sys
-                            print(f"  \033[90m💭 thinking ({len(thinking_text)} chars)...\033[0m", file=sys.stderr)
+                    elif block_type == "thinking":
+                        # Capture thinking content for session history replay
+                        thinking_text += block.get("thinking", "") or block.get("text", "")
+                        if block.get("signature"):
+                            thinking_signature = block["signature"]
+                        import sys
+                        chars = len(thinking_text)
+                        print(f"  \033[90m💭 thinking ({chars} chars)\033[0m", file=sys.stderr)
 
                 result = {
                     "role": "assistant",
@@ -397,6 +465,12 @@ class AnthropicClient:
                 if tool_calls:
                     result["tool_calls"] = tool_calls
 
+                # Attach thinking metadata so caller can persist it in session
+                if thinking_text:
+                    result["_thinking"] = thinking_text
+                if thinking_signature:
+                    result["_thinking_signature"] = thinking_signature
+
                 # Parse usage (Anthropic format)
                 usage = data.get("usage", {})
                 result["usage"] = {
@@ -405,6 +479,11 @@ class AnthropicClient:
                     "model_calls": 1,
                     "tool_calls": len(tool_calls),
                 }
+                # Track thinking tokens separately if available
+                if usage.get("cache_creation_input_tokens"):
+                    result["usage"]["cache_creation_input_tokens"] = usage["cache_creation_input_tokens"]
+                if usage.get("cache_read_input_tokens"):
+                    result["usage"]["cache_read_input_tokens"] = usage["cache_read_input_tokens"]
 
                 return result
 
@@ -445,6 +524,15 @@ class AnthropicClient:
         if tools:
             payload["tools"] = tools
 
+        # Add thinking configuration if explicitly enabled
+        if self._thinking_enabled == "true":
+            payload["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self._thinking_budget,
+            }
+            if "temperature" in payload:
+                del payload["temperature"]
+
         headers = {
             "x-api-key": self.api_key,
             "Content-Type": "application/json",
@@ -459,6 +547,11 @@ class AnthropicClient:
                 method="POST",
             )
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
+                # Track thinking state across stream chunks
+                _thinking_buffer = []
+                _thinking_signature = ""
+                _in_thinking_block = False
+
                 for line in resp:
                     line = line.decode("utf-8").strip()
                     if not line:
@@ -478,29 +571,46 @@ class AnthropicClient:
 
                         if event_type == "content_block_start":
                             block = chunk.get("content_block", {})
-                            if block.get("type") == "text":
+                            block_type = block.get("type", "")
+                            if block_type == "text":
+                                _in_thinking_block = False
                                 yield {"role": "assistant", "content": ""}
-                            elif block.get("type") == "tool_use":
+                            elif block_type == "tool_use":
+                                _in_thinking_block = False
                                 yield {"role": "assistant", "tool_call": {
                                     "id": block.get("id", ""),
                                     "name": block.get("name", ""),
                                 }}
-                            elif block.get("type") == "thinking":
-                                # Thinking block started — show indicator
+                            elif block_type == "thinking":
+                                _in_thinking_block = True
                                 import sys
                                 print(f"  \033[90m💭 thinking...\033[0m", file=sys.stderr, flush=True)
+
                         elif event_type == "content_block_delta":
                             delta = chunk.get("delta", {})
-                            if delta.get("type") == "text_delta":
+                            delta_type = delta.get("type", "")
+                            if delta_type == "text_delta":
                                 yield {"role": "assistant", "content": delta.get("text", "")}
-                            elif delta.get("type") == "input_json_delta":
+                            elif delta_type == "input_json_delta":
                                 yield {"role": "assistant", "partial_args": delta.get("partial_json", "")}
-                            elif delta.get("type") == "thinking_delta":
-                                # Thinking content — don't yield to main content, just indicate progress
-                                pass
+                            elif delta_type == "thinking_delta":
+                                # Accumulate thinking content for session persistence
+                                _thinking_buffer.append(delta.get("thinking", ""))
+                            elif delta_type == "signature_delta":
+                                _thinking_signature += delta.get("signature", "")
+
+                        elif event_type == "content_block_stop":
+                            _in_thinking_block = False
+
                         elif event_type == "message_delta":
-                            # End of message — may contain stop_reason
-                            pass
+                            # End of message — emit accumulated thinking as metadata
+                            if _thinking_buffer:
+                                thinking_text = "".join(_thinking_buffer)
+                                yield {
+                                    "role": "assistant",
+                                    "_thinking": thinking_text,
+                                    "_thinking_signature": _thinking_signature or None,
+                                }
                         elif event_type == "error":
                             error_data = chunk.get("error", {})
                             error_msg = error_data.get("message", "Unknown streaming error")

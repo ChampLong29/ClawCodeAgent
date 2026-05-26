@@ -40,13 +40,29 @@ class AgentSession:
         self,
         content: Optional[str] = None,
         tool_calls: Optional[List[ToolCall]] = None,
+        thinking: Optional[str] = None,
+        thinking_signature: Optional[str] = None,
     ) -> None:
-        """Add an assistant message to the session."""
+        """Add an assistant message to the session.
+
+        Args:
+            content: Text content of the assistant reply.
+            tool_calls: List of tool calls made.
+            thinking: Raw thinking/reasoning content from models that support it
+                (e.g. DeepSeek, Claude extended thinking). Stored for faithful
+                replay in subsequent API calls.
+            thinking_signature: Opaque signature associated with thinking block
+                (required by some providers for verification).
+        """
         msg: Dict[str, Any] = {"role": "assistant"}
         if content:
             msg["content"] = content
         if tool_calls:
             msg["tool_calls"] = [tc.to_dict() for tc in tool_calls]
+        if thinking:
+            msg["_thinking"] = thinking
+        if thinking_signature:
+            msg["_thinking_signature"] = thinking_signature
         self.messages.append(msg)
         self.updated_at = time.time()
 
