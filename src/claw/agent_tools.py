@@ -261,8 +261,23 @@ def _list_dir(path: str, **kwargs) -> Dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def _resolve_cwd_path(path: str, kwargs: Dict[str, Any]) -> str:
+    """Resolve *path* against the agent's cwd if it was provided in kwargs.
+
+    The agent runtime injects ``_cwd`` via ToolExecutionContext. Tools that
+    operate on filesystem paths must honor it so sandboxed agents (training
+    rollouts, worktrees) write into the correct directory rather than the
+    Python process's getcwd().
+    """
+    cwd = kwargs.get("_cwd")
+    if cwd and not os.path.isabs(path):
+        return os.path.join(cwd, path)
+    return path
+
+
 def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = None, **kwargs) -> Dict[str, Any]:
     """Read file contents."""
+    path = _resolve_cwd_path(path, kwargs)
     try:
         with open(path, "r", encoding="utf-8") as f:
             if offset:
@@ -287,6 +302,7 @@ def _write_file(path: str, content: str, **kwargs) -> Dict[str, Any]:
     if not permissions.get("allow_write", False):
         return {"ok": False, "error": "Write permission denied. Current phase does not allow file writes."}
 
+    path = _resolve_cwd_path(path, kwargs)
     try:
         # Ensure directory exists
         dir_path = os.path.dirname(path)
@@ -314,6 +330,7 @@ def _edit_file(path: str, old_string: str, new_string: str, count: int = 1, **kw
     if not permissions.get("allow_write", False):
         return {"ok": False, "error": "Write permission denied. Current phase does not allow file edits."}
 
+    path = _resolve_cwd_path(path, kwargs)
     try:
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -415,6 +432,7 @@ def _bash(command: str, **kwargs) -> Dict[str, Any]:
             capture_output=True,
             text=True,
             timeout=60,
+            cwd=kwargs.get("_cwd"),
         )
         return {
             "ok": result.returncode == 0,

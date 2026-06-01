@@ -469,6 +469,25 @@ def cmd_train_stats(args) -> int:
     return 0
 
 
+def cmd_train_web(args) -> int:
+    """Launch a uvicorn web server to browse training rollouts."""
+    try:
+        from .training.web import build_app
+    except ImportError as e:
+        print(f"Web extras not installed. Run: uv sync --extra web ({e})")
+        return 1
+    try:
+        import uvicorn
+    except ImportError:
+        print("uvicorn not installed. Run: uv sync --extra web")
+        return 1
+
+    app = build_app(args.results_dir)
+    print(f"Serving rollouts from {args.results_dir} at http://{args.host}:{args.port}")
+    uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
+    return 0
+
+
 def cmd_sessions(args) -> int:
     """List all saved agent sessions."""
     cwd = _resolve_cwd(args.cwd)
@@ -610,6 +629,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     train_stats_parser = subparsers.add_parser("train-stats", help="Show training statistics")
     train_stats_parser.add_argument("--input", required=True, help="Path to trajectory JSONL file")
 
+    train_web_parser = subparsers.add_parser("train-web", help="Browse training rollout JSONL files in a web UI")
+    train_web_parser.add_argument("--results-dir", "-d", required=True,
+                                  help="Directory containing *.jsonl rollout files")
+    train_web_parser.add_argument("--host", default="127.0.0.1")
+    train_web_parser.add_argument("--port", type=int, default=8080)
+    train_web_parser.add_argument("--reload", action="store_true",
+                                  help="Enable auto-reload (development)")
+
     args = parser.parse_args(argv)
 
     if not args.command:
@@ -647,6 +674,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "sessions": cmd_sessions,
         "train": cmd_train,
         "train-stats": cmd_train_stats,
+        "train-web": cmd_train_web,
     }
 
     cmd_func = cmd_map.get(args.command)

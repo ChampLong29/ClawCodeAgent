@@ -1,0 +1,38 @@
+{
+  "name": "sample_suite",
+  "description": "Minimal pilot task suite for verifying the data flywheel end-to-end. Two near-identical hello-world tasks; one is intended to succeed and one to fail, so that the reward signal can be observed to actually distinguish them.",
+  "tasks": [
+    {
+      "id": "task_easy_hello",
+      "prompt": "Create a Python file named hello.py at the project root that prints exactly the string: hello",
+      "type": "add_feature",
+      "difficulty": "easy",
+      "ground_truth_files": {
+        "hello.py": "print('hello')\n"
+      },
+      "test_commands": [
+        "python hello.py"
+      ],
+      "expected_output": "hello",
+      "tags": ["pilot", "hello"],
+      "max_turns": 5,
+      "timeout_seconds": 60.0
+    },
+    {
+      "id": "task_fail_demo",
+      "prompt": "Create a Python file named hello.py at the project root that prints exactly the string: hello",
+      "type": "add_feature",
+      "difficulty": "easy",
+      "ground_truth_files": {
+        "hello.py": "print('hello')\n"
+      },
+      "test_commands": [
+        "python hello.py"
+      ],
+      "expected_output": "hello",
+      "tags": ["pilot", "hello", "negative"],
+      "max_turns": 5,
+      "timeout_seconds": 60.0
+    }
+  ]
+}
