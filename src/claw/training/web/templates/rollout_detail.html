@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% set active = "browse" %}
+{% block title %}Rollout #{{ idx }} — {{ filename }}{% endblock %}
+{% block nav_meta %}{{ filename }} #{{ idx }}{% endblock %}
+{% block content %}
+  <div class="breadcrumb">
+    <a href="/">所有文件</a> /
+    <a href="/runs/{{ filename }}">{{ filename }}</a> /
+    Rollout {{ idx }}
+  </div>
+  <h1>{{ summary.task_id or "(无任务 ID)" }}</h1>
+
+  <div class="stats" style="flex-wrap: wrap;">
+    <div class="stat">
+      <strong>
+        <span class="reward-bar"><span class="reward-fill"
+          style="width: {{ (summary.reward * 100)|round(0) }}%; display:block; height:100%;"></span></span>
+        {{ "%.3f"|format(summary.reward) }}
+      </strong>
+      奖励
+    </div>
+    <div class="stat"><strong class="stop-{{ summary.stop_reason }}">{{ summary.stop_reason }}</strong>停止原因</div>
+    <div class="stat"><strong>{{ summary.test_passed }}</strong>测试通过</div>
+    <div class="stat"><strong>{{ summary.diff_matches }}</strong>Diff 匹配</div>
+    <div class="stat"><strong>{{ summary.input_tokens }}</strong>输入 Token</div>
+    <div class="stat"><strong>{{ summary.output_tokens }}</strong>输出 Token</div>
+    <div class="stat"><strong>{{ summary.messages_count }}</strong>消息数</div>
+    <div class="stat"><strong>{{ "%.2f"|format(summary.execution_time) }}秒</strong>耗时</div>
+  </div>
+
+  {% if summary.error %}
+  <div class="alert alert-error"><strong>错误:</strong><pre style="margin-top:.4rem;">{{ summary.error }}</pre></div>
+  {% endif %}
+
+  <h2>消息时间线（共 {{ row.messages|length }} 条）</h2>
+  {% for m in row.messages %}
+  <div class="msg msg-{{ m.role }}">
+    <div class="role">{{ m.role }}{% if m.tool_name %} · {{ m.tool_name }}{% endif %}</div>
+    {% if m.content %}<div class="content">{{ m.content }}</div>{% endif %}
+    {% if m.tool_calls %}
+      <div class="tool-calls">{{ m.tool_calls|tojson(indent=2) }}</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <h2>原始 JSON</h2>
+  <details><summary style="cursor:pointer; color: var(--accent);">展开</summary>
+    <pre>{{ row|tojson(indent=2) }}</pre>
+  </details>
+{% endblock %}

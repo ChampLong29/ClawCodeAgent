@@ -1,43 +1,34 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Claw Training Rollouts</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-           margin: 2rem auto; max-width: 980px; padding: 0 1rem; color: #222; }
-    h1 { border-bottom: 2px solid #444; padding-bottom: .4rem; }
-    .meta { color: #666; font-size: .9em; margin-bottom: 1.5rem; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { padding: .5rem .8rem; border-bottom: 1px solid #eee; text-align: left; }
-    th { background: #f5f5f5; font-weight: 600; }
-    tr:hover { background: #fafafa; }
-    a { color: #0066cc; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .empty { padding: 2rem; text-align: center; color: #888; background: #f9f9f9; border-radius: 4px; }
-    code { background: #f4f4f4; padding: .15rem .35rem; border-radius: 3px; font-size: .85em; }
-  </style>
-</head>
-<body>
-  <h1>Claw Training Rollouts</h1>
-  <div class="meta">Results directory: <code>{{ results_dir }}</code></div>
+{% extends "base.html" %}
+{% set active = "browse" %}
+{% block title %}Rollout 文件 — Claw{% endblock %}
+{% block nav_meta %}{{ results_dir }}{% endblock %}
+{% block content %}
+  <h1>Rollout 文件</h1>
+  <p style="color:var(--muted); margin-top:0;">
+    读取目录 <code>{{ results_dir }}</code> 下的所有 <code>*.jsonl</code>。
+    通过 <a href="/rollout">🚀 Rollout</a> 或 <a href="/export">📦 导出</a> 生成新文件。
+  </p>
   {% if files %}
+  <div class="card" style="padding:0;">
   <table>
     <thead>
-      <tr><th>File</th><th>Rollouts</th><th>Size (bytes)</th></tr>
+      <tr><th>文件</th><th>Rollout 数</th><th>大小</th></tr>
     </thead>
     <tbody>
       {% for f in files %}
       <tr>
-        <td><a href="/runs/{{ f.filename }}">{{ f.filename }}</a></td>
+        <td><a href="/runs/{{ f.filename }}"><strong>{{ f.filename }}</strong></a></td>
         <td>{{ f.rollouts }}</td>
-        <td>{{ f.size_bytes }}</td>
+        <td>{{ f.size_bytes }} 字节</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
-  <div class="empty">No <code>*.jsonl</code> files found in this directory.</div>
+  <div class="empty">
+    暂无 <code>*.jsonl</code> 文件。
+    使用 <a href="/rollout">🚀 Rollout</a> 生成。
+  </div>
   {% endif %}
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% set active = "export" %}
+{% block title %}导出 SFT / RL 数据集 — Claw{% endblock %}
+{% block nav_meta %}{{ results_dir }}{% endblock %}
+{% block content %}
+  <h1>📦 导出 SFT / RL 数据集</h1>
+  <p style="color:var(--muted); margin-top:0;">
+    将 Rollout 文件转换为训练数据集。
+    <strong>SFT（冷启动）</strong>：按奖励过滤，丢弃 reward 字段。
+    <strong>RL</strong>：保留全部样本及 reward。
+  </p>
+
+  {% if msg %}
+    <div class="alert alert-{{ msg_kind }}">{{ msg|safe }}</div>
+  {% endif %}
+
+  <form method="POST" action="/export" class="form-card">
+    <div class="form-row">
+      <div style="flex:2;">
+        <label for="source">源 Rollout 文件</label>
+        <select id="source" name="source" required>
+          {% if not files %}
+            <option value="">（尚无文件 — 请先运行 Rollout）</option>
+          {% endif %}
+          {% for f in files %}
+            <option value="{{ f.filename }}" {% if f.filename == selected_source %}selected{% endif %}>
+              {{ f.filename }}（{{ f.rollouts }} 条，{{ f.size_bytes }} 字节）
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="dataset_type">数据集类型</label>
+        <select id="dataset_type" name="dataset_type" onchange="toggleThreshold()">
+          <option value="sft">SFT（冷启动，按阈值过滤）</option>
+          <option value="rl">RL（全部 Rollout + reward）</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div id="threshold-row">
+        <label for="min_reward">SFT 最低奖励</label>
+        <input type="number" id="min_reward" name="min_reward" value="0.8" min="0" max="1" step="0.05">
+        <div class="help">仅奖励 ≥ 此值的 Rollout 进入 SFT（仅 SFT 模式有效）。</div>
+      </div>
+      <div>
+        <label for="domain">领域标签</label>
+        <input type="text" id="domain" name="domain" value="cli-tool">
+        <div class="help">写入 metadata，便于多领域训练。</div>
+      </div>
+      <div>
+        <label for="output">输出文件名</label>
+        <input type="text" id="output" name="output" value="dataset.jsonl">
+      </div>
+    </div>
+    <button type="submit">▶ 导出</button>
+  </form>
+
+  {% if files %}
+  <h2>{{ results_dir }} 下的现有文件</h2>
+  <div class="card" style="padding: 0;">
+  <table>
+    <thead><tr><th>文件名</th><th>条数</th><th>大小</th><th></th></tr></thead>
+    <tbody>
+      {% for f in files %}
+      <tr>
+        <td><code>{{ f.filename }}</code></td>
+        <td>{{ f.rollouts }}</td>
+        <td>{{ f.size_bytes }} 字节</td>
+        <td>
+          <a href="/runs/{{ f.filename }}">查看</a> ·
+          <a href="/api/runs/{{ f.filename }}">JSON</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+
+<script>
+function toggleThreshold() {
+  const t = document.getElementById('dataset_type').value;
+  document.getElementById('threshold-row').style.display = (t === 'sft') ? '' : 'none';
+}
+toggleThreshold();
+</script>
+{% endblock %}

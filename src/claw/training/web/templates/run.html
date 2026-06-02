@@ -1,72 +1,48 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>{{ filename }} — Claw Rollouts</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-           margin: 2rem auto; max-width: 1200px; padding: 0 1rem; color: #222; }
-    h1 { border-bottom: 2px solid #444; padding-bottom: .4rem; }
-    .breadcrumb { color: #666; font-size: .9em; margin-bottom: 1rem; }
-    .stats { display: flex; gap: 1.5rem; margin: 1rem 0 1.5rem;
-             padding: .8rem 1rem; background: #f5f5f5; border-radius: 6px; }
-    .stat { font-size: .9em; }
-    .stat strong { display: block; font-size: 1.4em; color: #333; }
-    table { border-collapse: collapse; width: 100%; font-size: .9em; }
-    th, td { padding: .45rem .65rem; border-bottom: 1px solid #eee; text-align: left;
-             vertical-align: top; }
-    th { background: #f5f5f5; font-weight: 600; cursor: default; }
-    tr:hover { background: #fafafa; }
-    a { color: #0066cc; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .reward-bar { display: inline-block; width: 50px; height: 8px;
-                  background: #eee; border-radius: 2px; vertical-align: middle;
-                  margin-right: .4rem; overflow: hidden; }
-    .reward-fill { height: 100%; background: linear-gradient(to right, #d33, #fa3, #3c3); }
-    .stop-completed { color: #2a8; }
-    .stop-error { color: #c33; }
-    .stop-budget_exceeded { color: #c83; }
-    code { background: #f4f4f4; padding: .15rem .35rem; border-radius: 3px; font-size: .85em; }
-  </style>
-</head>
-<body>
-  <div class="breadcrumb"><a href="/">&larr; index</a></div>
+{% extends "base.html" %}
+{% set active = "browse" %}
+{% block title %}{{ filename }} — Claw{% endblock %}
+{% block nav_meta %}{{ filename }}{% endblock %}
+{% block content %}
+  <div class="breadcrumb"><a href="/">← 返回所有文件</a></div>
   <h1>{{ filename }}</h1>
+
   <div class="stats">
-    <div class="stat"><strong>{{ stats.count }}</strong>rollouts</div>
-    <div class="stat"><strong>{{ "%.3f"|format(stats.avg_reward) }}</strong>avg reward</div>
-    <div class="stat"><strong>{{ "%.3f"|format(stats.max_reward) }}</strong>max reward</div>
-    <div class="stat"><strong>{{ "%.3f"|format(stats.min_reward) }}</strong>min reward</div>
+    <div class="stat"><strong>{{ stats.count }}</strong>条 Rollout</div>
+    <div class="stat"><strong>{{ "%.3f"|format(stats.avg_reward) }}</strong>平均奖励</div>
+    <div class="stat"><strong>{{ "%.3f"|format(stats.max_reward) }}</strong>最高</div>
+    <div class="stat"><strong>{{ "%.3f"|format(stats.min_reward) }}</strong>最低</div>
   </div>
+
   {% if rollouts %}
+  <div class="card" style="padding:0;">
   <table>
     <thead>
       <tr>
-        <th>#</th><th>Task</th><th>Reward</th><th>Stop</th>
-        <th>Tests</th><th>Diff</th><th>Tokens (in/out)</th><th>Msgs</th>
+        <th>#</th><th>任务</th><th>奖励</th><th>停止原因</th>
+        <th>测试</th><th>Diff</th><th>Token (输入/输出)</th><th>消息</th>
       </tr>
     </thead>
     <tbody>
       {% for r in rollouts %}
       <tr>
         <td>{{ r._index }}</td>
-        <td><a href="/runs/{{ filename }}/{{ r._index }}">{{ r.task_id or "(none)" }}</a></td>
+        <td><a href="/runs/{{ filename }}/{{ r._index }}">{{ r.task_id or "(无)" }}</a></td>
         <td>
           <span class="reward-bar"><span class="reward-fill"
             style="width: {{ (r.reward * 100)|round(0) }}%; display:block; height:100%;"></span></span>
-          {{ "%.3f"|format(r.reward) }}
+          <code>{{ "%.3f"|format(r.reward) }}</code>
         </td>
-        <td class="stop-{{ r.stop_reason }}">{{ r.stop_reason }}</td>
+        <td class="stop-{{ r.stop_reason }}"><code>{{ r.stop_reason }}</code></td>
         <td>{{ r.test_passed }}</td>
         <td>{{ r.diff_matches }}</td>
-        <td>{{ r.input_tokens }}/{{ r.output_tokens }}</td>
+        <td>{{ r.input_tokens }} / {{ r.output_tokens }}</td>
         <td>{{ r.messages_count }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {% else %}
-  <p>No rollouts in this file.</p>
+  <div class="empty">该文件没有 Rollout 记录。</div>
   {% endif %}
-</body>
-</html>
+{% endblock %}

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{% block title %}Claw 训练控制台{% endblock %}</title>
+  <style>
+    /* ==== Base ==== */
+    :root {
+      --fg: #1a1a1a; --muted: #666; --border: #e3e3e3;
+      --bg: #fafafa; --card: #fff;
+      --accent: #2563eb; --accent-hover: #1d4ed8;
+      --green: #059669; --red: #dc2626; --orange: #d97706;
+      --code-bg: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+      font-size: 14px; line-height: 1.5;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+    code { background: var(--code-bg); padding: .1rem .35rem; border-radius: 3px; font-size: .88em; }
+    pre { background: var(--code-bg); padding: .7rem; border-radius: 5px; overflow-x: auto; font-size: .82em; }
+
+    /* ==== Layout ==== */
+    .nav {
+      background: #1f2937; color: #fff;
+      padding: .7rem 1.5rem;
+      display: flex; align-items: center; gap: 1.4rem;
+      border-bottom: 1px solid #111;
+    }
+    .nav .brand { font-weight: 700; font-size: 1.05em; letter-spacing: .02em; }
+    .nav a { color: #d1d5db; text-decoration: none; padding: .25rem .6rem; border-radius: 4px; }
+    .nav a:hover { background: #374151; color: #fff; }
+    .nav a.active { background: var(--accent); color: #fff; }
+    .nav .spacer { flex: 1; }
+    .nav .meta { color: #9ca3af; font-size: .85em; font-family: ui-monospace, monospace; }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
+    h1 { margin: 0 0 .5rem; font-size: 1.5em; }
+    h2 { margin: 1.5rem 0 .8rem; font-size: 1.1em; color: #374151; }
+
+    /* ==== Forms ==== */
+    .form-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 1.2rem 1.4rem; margin-bottom: 1.5rem;
+    }
+    .form-row { display: flex; gap: 1rem; margin-bottom: .9rem; }
+    .form-row > div { flex: 1; }
+    label { display: block; font-weight: 600; margin-bottom: .3rem; color: #374151; font-size: .9em; }
+    input[type=text], input[type=number], select, textarea {
+      width: 100%; padding: .5rem .7rem; border: 1px solid var(--border); border-radius: 4px;
+      font-family: inherit; font-size: .92em; background: #fff;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+    textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, monospace; font-size: .88em; }
+    .help { font-size: .82em; color: var(--muted); margin-top: .25rem; }
+    button, .btn {
+      background: var(--accent); color: #fff; border: 0; padding: .55rem 1.1rem;
+      border-radius: 5px; font-size: .95em; font-weight: 500; cursor: pointer;
+    }
+    button:hover, .btn:hover { background: var(--accent-hover); text-decoration: none; color: #fff; }
+    button:disabled { background: #9ca3af; cursor: wait; }
+    .btn-secondary { background: #6b7280; }
+    .btn-secondary:hover { background: #4b5563; }
+
+    /* ==== Tables ==== */
+    table { border-collapse: collapse; width: 100%; }
+    th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: #f3f4f6; font-weight: 600; font-size: .85em; color: #374151; }
+    tr:hover { background: #fafafa; }
+
+    /* ==== Cards / banners ==== */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.2rem; }
+    .stats {
+      display: flex; gap: 1.2rem; padding: .85rem 1rem;
+      background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; margin-bottom: 1rem;
+    }
+    .stat { font-size: .85em; }
+    .stat strong { display: block; font-size: 1.35em; color: #1e40af; font-weight: 600; }
+    .empty { padding: 2rem; text-align: center; color: var(--muted); background: var(--card); border-radius: 6px; }
+
+    /* ==== Reward bar ==== */
+    .reward-bar {
+      display: inline-block; width: 60px; height: 8px; background: #e5e7eb;
+      border-radius: 2px; vertical-align: middle; margin-right: .4rem; overflow: hidden;
+    }
+    .reward-fill { height: 100%; background: linear-gradient(to right, #dc2626, #f59e0b, #10b981); }
+
+    /* ==== Stop reasons ==== */
+    .stop-completed { color: var(--green); }
+    .stop-error { color: var(--red); }
+    .stop-budget_exceeded { color: var(--orange); }
+
+    /* ==== Messages (chat & rollout detail) ==== */
+    .msg { margin: .65rem 0; padding: .65rem .9rem; border-radius: 6px; border-left: 3px solid; }
+    .msg-system    { background: #fefce8; border-color: #ca8a04; }
+    .msg-user      { background: #eff6ff; border-color: #2563eb; }
+    .msg-assistant { background: #f0fdf4; border-color: #059669; }
+    .msg-tool      { background: #fff7ed; border-color: #ea580c; }
+    .msg .role {
+      font-weight: 600; font-size: .78em; text-transform: uppercase;
+      letter-spacing: .04em; color: #4b5563; margin-bottom: .25rem;
+    }
+    .msg .content { white-space: pre-wrap; font-size: .92em; line-height: 1.45; word-break: break-word; }
+    .tool-calls {
+      margin-top: .4rem; padding: .45rem .7rem; background: #fff;
+      border-radius: 4px; border: 1px dashed #d1d5db; font-family: ui-monospace, monospace;
+      font-size: .82em; white-space: pre-wrap; word-break: break-word; color: #374151;
+    }
+
+    /* ==== Streaming output ==== */
+    .stream-box {
+      background: #fff; border: 1px solid var(--border); border-radius: 6px;
+      padding: 1rem; min-height: 100px; max-height: 600px; overflow-y: auto;
+    }
+    .stream-status {
+      display: inline-block; padding: .15rem .55rem; border-radius: 3px;
+      font-size: .78em; font-weight: 600; letter-spacing: .03em; margin-left: .4rem;
+    }
+    .status-running { background: #dbeafe; color: #1e40af; }
+    .status-done    { background: #d1fae5; color: #065f46; }
+    .status-error   { background: #fee2e2; color: #991b1b; }
+    .progress { display: flex; gap: .5rem; align-items: center; margin: .8rem 0; }
+    .progress-bar {
+      flex: 1; height: 8px; background: #e5e7eb; border-radius: 3px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%; background: var(--accent); transition: width .25s ease-out;
+    }
+    .breadcrumb { color: var(--muted); font-size: .9em; margin-bottom: 1rem; }
+    .alert {
+      padding: .7rem 1rem; border-radius: 5px; margin-bottom: 1rem;
+      border-left: 4px solid;
+    }
+    .alert-success { background: #d1fae5; border-color: #059669; color: #065f46; }
+    .alert-error   { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <nav class="nav">
+    <span class="brand">⚙️ Claw 训练控制台</span>
+    <a href="/" {% if active == 'browse' %}class="active"{% endif %}>📁 浏览</a>
+    <a href="/chat" {% if active == 'chat' %}class="active"{% endif %}>💬 对话</a>
+    <a href="/rollout" {% if active == 'rollout' %}class="active"{% endif %}>🚀 Rollout</a>
+    <a href="/export" {% if active == 'export' %}class="active"{% endif %}>📦 导出</a>
+    <span class="spacer"></span>
+    <span class="meta">{% block nav_meta %}{% endblock %}</span>
+  </nav>
+  <div class="container">
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
