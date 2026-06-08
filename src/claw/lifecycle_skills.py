@@ -28,7 +28,9 @@ class LifecycleSkill:
 # Requirements Analysis
 # ---------------------------------------------------------------------------
 
-LIFECYCLE_REQUIREMENTS_PROMPT = """You are acting as a Requirements Analyst. Your task is to produce a comprehensive requirements document for the following goal.
+LIFECYCLE_REQUIREMENTS_PROMPT = """You are acting as a Requirements Analyst. Your task is to produce a concise requirements document for the following goal.
+
+**重要：请使用简体中文回答。保持简洁——每节控制在关键要点即可，避免冗长叙述。**
 
 ## Goal
 {goal}
@@ -40,39 +42,38 @@ LIFECYCLE_REQUIREMENTS_PROMPT = """You are acting as a Requirements Analyst. You
 
 Produce a structured requirements document with the following sections:
 
-### 1. Executive Summary
-Brief overview of what the system will accomplish.
+### 1. 需求概述
+简要描述系统要达成的目标（2-3句话）。
 
-### 2. User Stories
-Use the format: "As a [role], I want [feature] so that [benefit]". Include acceptance criteria for each story.
+### 2. 用户故事
+格式："作为[角色]，我希望[功能]，以便[价值]"。每则故事附带验收标准。最多列出3-5个核心用户故事。
 
-### 3. Functional Requirements (FR)
-Numbered list of specific functional requirements. Use EARS format where applicable:
-- **FR-1**: The system SHALL [do something]
-- **FR-2**: The system SHALL [do something else]
+### 3. 功能需求 (FR)
+编号的功能需求列表，使用 SHALL 格式：
+- **FR-1**: 系统应[具体行为]
 
-### 4. Non-Functional Requirements (NFR)
-- **Performance**: Response times, throughput expectations
-- **Security**: Authentication, authorization, data protection
-- **Reliability**: Availability, fault tolerance
-- **Scalability**: Expected growth, scaling strategy
-- **Maintainability**: Code quality, documentation standards
+### 4. 非功能需求 (NFR)
+- **性能**: 响应时间、吞吐量期望
+- **安全**: 认证、授权、数据保护
+- **可靠性**: 可用性、容错
 
-### 5. Constraints and Assumptions
-Technical constraints, business constraints, assumptions made.
+### 5. 约束与假设
+技术约束、业务约束、已做的假设。
 
-### 6. Scope
-What is IN scope and OUT of scope for this iteration.
+### 6. 范围
+本迭代的范围内/外内容。
 
-### Output Format
-Output as a well-formatted Markdown document. This will be saved as docs/requirements.md."""
+### 输出格式
+输出规范的 Markdown 文档，控制在1500字以内。将保存为 docs/requirements.md。"""
 
 
 # ---------------------------------------------------------------------------
 # System Design
 # ---------------------------------------------------------------------------
 
-LIFECYCLE_DESIGN_PROMPT = """You are acting as a System Designer. Your task is to produce a system design document.
+LIFECYCLE_DESIGN_PROMPT = """You are acting as a System Designer. Your task is to produce a concise system design document.
+
+**重要：请使用简体中文回答。保持简洁——每节控制在2-4个要点，避免冗长。**
 
 ## Goal
 {goal}
@@ -87,45 +88,37 @@ LIFECYCLE_DESIGN_PROMPT = """You are acting as a System Designer. Your task is t
 
 Produce a structured design document with the following sections:
 
-### 1. System Overview
-High-level description of the system and its boundaries.
+### 1. 系统概述
+系统的高层次描述及其边界（2-3句话）。
 
-### 2. Module Decomposition
-For each major module/component:
-- **Name**: Module name
-- **Responsibility**: What it owns and does
-- **Public API**: Key interfaces it exposes
-- **Dependencies**: Other modules it depends on
-- **Data**: Data it manages
+### 2. 模块分解
+对每个主要模块/组件：
+- **名称**
+- **职责**
+- **对外接口**: 暴露的关键接口
+- **依赖**: 依赖的其他模块
+- **数据**: 管理的数据
 
-### 3. Data Model
-- Key entities and their relationships
-- Database schema (tables, collections) if applicable
-- Data flow between components
+### 3. 数据模型
+- 关键实体及其关系
+- 数据库Schema概要（如适用）
 
-### 4. API Design
-- Endpoint definitions (if REST API)
-- Request/response formats
-- Authentication and authorization flow
+### 4. API设计
+- 端点定义（REST API项目）
+- 请求/响应格式
+- 认证和授权流程
 
-### 5. Sequence Diagrams (textual)
-For critical flows, describe:
-- Which components interact
-- Message order and content
-- Error handling paths
+### 5. 技术栈
+- 语言、框架、数据库
+- 每项选择的理由
 
-### 6. Technology Stack
-- Languages, frameworks, databases
-- Justification for each choice
+### 6. 安全设计
+- 认证机制
+- 授权模型
+- 数据保护（加密、脱敏）
 
-### 7. Security Design
-- Authentication mechanism
-- Authorization model
-- Data protection (encryption, sanitization)
-- Threat mitigations
-
-### Output Format
-Output as a well-formatted Markdown document. This will be saved as docs/design.md."""
+### 输出格式
+输出规范的 Markdown 文档，控制在2000字以内。将保存为 docs/design.md。"""
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +126,8 @@ Output as a well-formatted Markdown document. This will be saved as docs/design.
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_CODE_REVIEW_PROMPT = """You are acting as a Code Reviewer. Your task is to review the implemented code.
+
+**重要：请使用简体中文输出审查报告。保持简洁——每个类别列出关键发现即可。**
 
 ## Goal
 {goal}
@@ -144,59 +139,57 @@ LIFECYCLE_CODE_REVIEW_PROMPT = """You are acting as a Code Reviewer. Your task i
 
 Review the actual implementation files using read_file, grep, and bash tools. Evaluate each area:
 
-### 1. Security
-- Are there any injection vulnerabilities (SQL, command, XSS)?
-- Is authentication and authorization properly implemented?
-- Are secrets exposed in code?
-- Is input validation sufficient?
+### 1. 安全性
+- 是否存在注入漏洞（SQL、命令、XSS）？
+- 认证和授权是否正确实现？
+- 代码中是否暴露了密钥？
+- 输入验证是否充分？
 
-### 2. Performance
-- Are there obvious N+1 queries or inefficient loops?
-- Is resource cleanup proper (file handles, connections)?
-- Are there unnecessary allocations?
+### 2. 性能
+- 是否存在明显的 N+1 查询或低效循环？
+- 资源清理是否正确（文件句柄、连接）？
+- 是否存在不必要的内存分配？
 
-### 3. Error Handling
-- Are exceptions caught appropriately?
-- Do error messages leak sensitive information?
-- Is the system in a consistent state after errors?
+### 3. 错误处理
+- 异常是否恰当捕获？
+- 错误信息是否泄露敏感信息？
+- 错误后系统是否处于一致状态？
 
-### 4. Code Quality
-- Does the code follow the project's conventions?
-- Are functions and variables well-named?
-- Is there duplicate code?
-- Are there appropriate comments?
+### 4. 代码质量
+- 代码是否遵循项目规范？
+- 函数和变量命名是否恰当？
+- 是否有重复代码？
 
-### 5. Maintainability
-- Is the code modular and loosely coupled?
-- Are there appropriate abstractions?
-- Would a new developer understand this code?
+### 5. 可维护性
+- 代码是否模块化、松耦合？
+- 是否存在合适的抽象？
+- 新开发者能否理解此代码？
 
-### Output Format
-Output a code review report in Markdown:
+### 输出格式
 
 ```
-## Code Review Report
+## 代码审查报告
 
-### Security
-[findings with file paths and line numbers]
+### 安全性
+[附文件路径和行号的发现]
 
-### Performance
-[findings with specific code references]
+### 性能
+[附具体代码引用的发现]
 
-### Error Handling
-[findings]
+### 错误处理
+[发现]
 
-### Code Quality
-[findings]
+### 代码质量
+[发现]
 
-### Maintainability
-[findings]
+### 可维护性
+[发现]
 
-### Overall Assessment
-[PASS / PASS WITH SUGGESTIONS / NEEDS REWORK]
+### 总体评估
+[通过 / 有建议的通过 / 需要返工]
 
-### Recommendations
-[prioritized list of recommended changes]
+### 建议
+[按优先级排列的改进建议]
 ```"""
 
 
@@ -205,6 +198,8 @@ Output a code review report in Markdown:
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_UNIT_TEST_PROMPT = """You are acting as a Test Engineer. Your task is to write unit tests for the implemented code.
+
+**重要：请使用简体中文输出测试报告。**
 
 ## Goal
 {goal}
@@ -218,39 +213,30 @@ LIFECYCLE_UNIT_TEST_PROMPT = """You are acting as a Test Engineer. Your task is 
 2. Identify all public functions, methods, and classes that need tests.
 3. Write comprehensive unit tests covering:
 
-### Test Coverage
-- **Happy path**: Normal usage scenarios
-- **Edge cases**: Empty inputs, boundary values, special characters
-- **Error cases**: Invalid inputs, exception paths
-- **State transitions**: Where applicable
+### 测试覆盖
+- **正常路径**: 常规使用场景
+- **边界情况**: 空输入、边界值、特殊字符
+- **错误情况**: 无效输入、异常路径
 
-### Test Quality Standards
-- Tests must be self-contained and isolated
-- Use appropriate mocking for external dependencies
-- Test names should describe the scenario being tested
-- Each test should have a single clear assertion purpose
-- Aim for >80% code coverage on new code
+### 测试质量标准
+- 测试必须自包含且隔离
+- 对外部依赖使用适当的 Mock
+- 测试名称应描述被测试的场景
+- 每个测试应有单一清晰的断言目的
 
-### Test Framework
-Use the project's existing test framework. For Python projects, use pytest or unittest.
-
-### Output Format
-1. Write actual test files using write_file tool
-2. Run the tests using bash to verify they pass
-3. Report a summary:
-   - Number of tests written
-   - Test coverage estimate
-   - Any tests that need further investigation
-4. Output a verification table:
+### 输出格式
+1. 使用 write_file 工具编写实际的测试文件
+2. 使用 bash 运行测试验证通过
+3. 输出验证表：
 
 ```
-## Unit Test Report
+## 单元测试报告
 
-| Test File | Tests Written | Passed | Failed | Coverage Estimate |
-|-----------|---------------|--------|--------|-------------------|
-| ...       | ...           | ...    | ...    | ...               |
+| 测试文件 | 测试数 | 通过 | 失败 | 预估覆盖率 |
+|---------|--------|------|------|-----------|
+| ...     | ...    | ...  | ...  | ...       |
 
-### Overall: PASS / NEEDS MORE TESTS
+### 总体: 通过 / 需补充测试
 ```"""
 
 
@@ -259,6 +245,8 @@ Use the project's existing test framework. For Python projects, use pytest or un
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_INTEGRATION_TEST_PROMPT = """You are acting as an Integration Test Engineer. Your task is to write and run integration tests.
+
+**重要：请使用简体中文输出测试报告。**
 
 ## Goal
 {goal}
@@ -277,31 +265,28 @@ LIFECYCLE_INTEGRATION_TEST_PROMPT = """You are acting as an Integration Test Eng
    - Components integrate without errors
    - API endpoints return expected responses
    - Data persists correctly across operations
-   - Error scenarios are handled gracefully
 
-### Test Scenarios
-- **API Integration**: Test each endpoint with realistic requests
-- **Data Flow**: Verify data moves correctly between components
-- **Authentication Flow**: Test login → authorized access → logout
-- **Concurrent Access**: Basic concurrent operation testing
-- **Error Recovery**: System behavior after component failures
+### 测试场景
+- **API集成**: 用真实请求测试每个端点
+- **数据流**: 验证数据在组件间正确传递
+- **认证流程**: 登录→授权访问→登出
+- **错误恢复**: 组件失败后的系统行为
 
-### Output Format
-1. Write integration test files using write_file
-2. Start the service if needed (using bash)
-3. Run the tests and capture results
-4. Report:
+### 输出格式
+1. 使用 write_file 编写集成测试文件
+2. 使用 bash 启动服务（如需要）并运行测试
+3. 报告：
 
 ```
-## Integration Test Report
+## 集成测试报告
 
-| Scenario | Status | Details |
-|----------|--------|---------|
-| ...      | PASS/FAIL | ...  |
+| 场景 | 状态 | 详情 |
+|-----|------|-----|
+| ... | 通过/失败 | ... |
 
-### Overall: PASS / NEEDS FIXES
-### Issues Found
-[list of issues with severity]
+### 总体: 通过 / 需修复
+### 发现的问题
+[问题列表及严重等级]
 ```"""
 
 
@@ -310,6 +295,8 @@ LIFECYCLE_INTEGRATION_TEST_PROMPT = """You are acting as an Integration Test Eng
 # ---------------------------------------------------------------------------
 
 LIFECYCLE_ACCEPTANCE_PROMPT = """You are acting as an Acceptance Tester. Your task is to verify that the system meets the original requirements.
+
+**重要：请使用简体中文输出验收报告。**
 
 ## Goal
 {goal}
@@ -326,39 +313,39 @@ LIFECYCLE_ACCEPTANCE_PROMPT = """You are acting as an Acceptance Tester. Your ta
 2. For each functional requirement, verify it is met by the implementation.
 3. Use read_file, grep, and bash tools to check the actual system.
 
-### Verification Method
-For each requirement:
-1. State the requirement
-2. Describe how you verified it (what tools/commands you used)
-3. Report the evidence
-4. Mark as PASS, PARTIAL, or FAIL
+### 验证方法
+对每项需求：
+1. 陈述需求
+2. 描述验证方法（使用了哪些工具/命令）
+3. 报告证据
+4. 标记为 通过、部分通过 或 未通过
 
-### Output Format
+### 输出格式
 
 ```
-## Acceptance Test Report
+## 验收测试报告
 
-### Requirements Traceability Matrix
+### 需求追溯矩阵
 
-| Req ID | Requirement | Status | Verification Method | Evidence |
-|--------|-------------|--------|---------------------|----------|
-| FR-1   | ...         | PASS   | ...                 | ...      |
-| FR-2   | ...         | PASS   | ...                 | ...      |
+| 需求ID | 需求描述 | 状态 | 验证方法 | 证据 |
+|--------|---------|------|---------|------|
+| FR-1   | ...     | 通过 | ...     | ...  |
+| FR-2   | ...     | 通过 | ...     | ...  |
 
-### Non-Functional Requirements
+### 非功能需求
 
-| NFR ID | Requirement | Status | Evidence |
-|--------|-------------|--------|----------|
-| NFR-1  | ...         | PASS   | ...      |
+| NFR ID | 需求描述 | 状态 | 证据 |
+|--------|---------|------|------|
+| NFR-1  | ...     | 通过 | ...  |
 
-### Overall Verdict: [PASS / FAIL]
+### 总体结论: [通过 / 未通过]
 
-### Sign-off Checklist
-- [ ] All functional requirements met
-- [ ] All non-functional requirements met
-- [ ] All test suites passing
-- [ ] Documentation complete
-- [ ] Code review passed
+### 签核检查清单
+- [ ] 所有功能需求已满足
+- [ ] 所有非功能需求已满足
+- [ ] 所有测试套件通过
+- [ ] 文档完整
+- [ ] 代码审查通过
 ```"""
 
 

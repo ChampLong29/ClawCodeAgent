@@ -242,6 +242,7 @@ def _build_default_registry() -> ToolRegistry:
 
 def _list_dir(path: str, **kwargs) -> Dict[str, Any]:
     """List directory contents."""
+    path = _resolve_cwd_path(path, kwargs)
     try:
         entries = os.listdir(path)
         result = []
@@ -358,7 +359,10 @@ def _edit_file(path: str, old_string: str, new_string: str, count: int = 1, **kw
 def _glob_search(pattern: str, cwd: Optional[str] = None, **kwargs) -> Dict[str, Any]:
     """Search for files matching a pattern."""
     try:
-        search_dir = cwd or "."
+        # Honor agent _cwd: if model passes a relative cwd, resolve it;
+        # if None, default to agent's _cwd, then process cwd.
+        agent_cwd = kwargs.get("_cwd")
+        search_dir = _resolve_cwd_path(cwd or ".", kwargs)
         matches = glob.glob(os.path.join(search_dir, pattern), recursive=True)
         return {"ok": True, "matches": matches, "pattern": pattern}
     except Exception as e:
@@ -368,7 +372,7 @@ def _glob_search(pattern: str, cwd: Optional[str] = None, **kwargs) -> Dict[str,
 def _grep_search(pattern: str, path: Optional[str] = None, recursive: bool = False, **kwargs) -> Dict[str, Any]:
     """Search for text in files using regex."""
     try:
-        search_path = path or "."
+        search_path = _resolve_cwd_path(path or ".", kwargs)
         results = []
 
         if os.path.isfile(search_path):

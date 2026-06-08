@@ -36,6 +36,8 @@ class DevFlowSkill:
 
 DEVFLOW_ARCHITECT_PROMPT = """You are acting as a Software Architect. Your task is to analyze the development goal and propose a comprehensive architecture.
 
+**重要：请使用简体中文回答。保持简洁——每节控制在3-5个要点以内，避免冗长。**
+
 ## Goal
 {goal}
 
@@ -47,32 +49,32 @@ DEVFLOW_ARCHITECT_PROMPT = """You are acting as a Software Architect. Your task 
 Analyze the goal above and produce a structured architecture document with the following sections:
 
 ### 1. Overview
-A concise summary of what will be built and the core problem being solved.
+用一两句话概述要构建的系统及其解决的核心问题。
 
 ### 2. Components
-List the major components/modules of the system. For each component, describe:
-- Its responsibility
-- Its public interface (key functions/classes/endpoints)
-- Its dependencies on other components
+列出系统的主要组件/模块。对每个组件描述：
+- 职责
+- 对外接口（关键函数/类/端点）
+- 对其他组件的依赖
 
 ### 3. Data Flow
-Describe how data moves through the system. Include:
-- Request/response flows (for APIs)
-- Data transformation pipelines
-- State management approach
+描述数据在系统中的流动方式：
+- 请求/响应流程（API项目）
+- 数据转换管道
+- 状态管理方案
 
 ### 4. Technology Choices
-For each technology choice, explain:
-- What technology is proposed
-- Why it was chosen over alternatives
-- Any trade-offs to be aware of
+对每项技术选择说明：
+- 推荐的技术
+- 选择理由
+- 需要关注的权衡点
 
 ### 5. Trade-offs and Risks
-- Known trade-offs in the proposed architecture
-- Potential risks and mitigation strategies
-- Areas that may need future iteration
+- 架构中的已知权衡
+- 潜在风险与缓解策略
+- 后续可能需要迭代的领域
 
-Output your architecture as a well-formatted Markdown document. Be specific and concrete — avoid generic statements that could apply to any project."""
+输出格式为规范的 Markdown 文档。要求具体、可执行——避免适用于任何项目的泛泛而谈。控制在2000字以内。"""
 
 
 DEVFLOW_STEP_PLANNER_PROMPT = """You are acting as a Development Planner. Your task is to decompose an architecture into an ordered, executable sequence of implementation steps.
@@ -165,6 +167,8 @@ Use the project's existing tools (write_file, edit_file, bash, etc.) to make cha
 
 DEVFLOW_VERIFIER_PROMPT = """You are acting as a Verifier. Your task is to verify that an implementation meets its acceptance criteria.
 
+**重要：请使用简体中文输出验证报告。**
+
 ## Step: {step_title}
 
 **Acceptance Criteria**:
@@ -180,27 +184,27 @@ For EACH acceptance criterion above:
 1. Check if the criterion is met by examining the actual implementation
 2. Use available tools (read_file, grep_search, bash, etc.) to verify — do NOT assume
 3. Mark each criterion as:
-   - **[PASS]** — Criterion is fully met with evidence
-   - **[PARTIAL]** — Criterion is partially met (describe the gap)
-   - **[FAIL]** — Criterion is not met (describe what's missing)
+   - **[通过]** — Criterion is fully met with evidence
+   - **[部分通过]** — Criterion is partially met (describe the gap)
+   - **[未通过]** — Criterion is not met (describe what's missing)
 
 ### Output Format
 
 ```
-## Verification Report: {step_title}
+## 验证报告: {step_title}
 
-| # | Criterion | Result | Evidence / Gap |
-|---|-----------|--------|----------------|
-| 1 | ...       | PASS   | ...            |
-| 2 | ...       | FAIL   | ...            |
+| # | 验收标准 | 结果 | 证据/差距 |
+|---|---------|------|----------|
+| 1 | ...     | 通过 | ...      |
+| 2 | ...     | 未通过 | ...     |
 
-### Overall Verdict: [PASS / FAIL]
+### 总体结论: [通过 / 未通过]
 
-### Summary
-(Brief summary of verification findings)
+### 摘要
+(验证发现的简要总结)
 
-### Recommendations (if FAIL)
-(Specific actions needed to address failures)
+### 建议 (如果未通过)
+(修复失败项所需的具体操作)
 ```
 
 If the verdict is FAIL, describe exactly what needs to be fixed. Be specific — reference file paths, line numbers, and expected behavior."""

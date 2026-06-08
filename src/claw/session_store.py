@@ -184,6 +184,9 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
                 obj = json.loads(first_line)
                 if obj.get("__meta__"):
                     msg_count = _count_jsonl_messages(filepath)
+                    # Extract tui_mode from nested metadata (set by TUI on save)
+                    nested_meta = obj.get("metadata", {})
+                    tui_mode = nested_meta.get("tui_mode") if isinstance(nested_meta, dict) else None
                     return {
                         "session_id": obj.get("session_id", sid),
                         "name": obj.get("name"),
@@ -193,6 +196,7 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
                         "model": obj.get("model"),
                         "stop_reason": obj.get("stop_reason"),
                         "cwd": obj.get("cwd"),
+                        "tui_mode": tui_mode,
                     }
             except json.JSONDecodeError:
                 pass
@@ -204,6 +208,8 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
     # Legacy JSON
     with open(filepath, "r", encoding="utf-8") as f:
         data = json.load(f)
+    nested_meta = data.get("metadata", {})
+    tui_mode = nested_meta.get("tui_mode") if isinstance(nested_meta, dict) else None
     return {
         "session_id": data.get("session_id", sid),
         "name": data.get("name"),
@@ -213,6 +219,7 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
         "model": data.get("model"),
         "stop_reason": data.get("stop_reason"),
         "cwd": data.get("cwd"),
+        "tui_mode": tui_mode,
     }
 
 

@@ -144,15 +144,38 @@ def cmd_agent_chat(args) -> int:
     return 0
 
 
+def _tui_install_hint() -> str:
+    """Detect install type and return the right command to install textual.
+    
+    If claw is installed in editable/dev mode → uv sync --extra tui
+    If claw is installed as a global tool        → uv tool install --reinstall .[tui]
+    """
+    import claw
+    claw_path = os.path.dirname(os.path.abspath(claw.__file__))
+    
+    # Walk up from claw package looking for pyproject.toml (editable install)
+    probe = claw_path
+    for _ in range(6):
+        if os.path.exists(os.path.join(probe, "pyproject.toml")):
+            return f"  cd {probe} && uv sync --extra tui"
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            break
+        probe = parent
+    
+    # Not an editable install — assume global/tool install
+    return "  pip install claw-code-agent[tui]\n  (or uv tool install --reinstall claw-code-agent[tui])"
+
+
 def cmd_tui(args) -> int:
     """Run agent in TUI mode (Textual-based interface)."""
     cwd = _resolve_cwd(args.cwd)
 
-    try:
-        from .tui import ClawTUIApp
-    except ImportError:
+    from .tui import ClawTUIApp
+
+    if ClawTUIApp is None:
         print("Error: TUI requires 'textual' package.", file=sys.stderr)
-        print("Install with: uv sync --extra tui", file=sys.stderr)
+        print(_tui_install_hint(), file=sys.stderr)
         return 1
 
     app = ClawTUIApp(cwd=cwd, model=args.model)
