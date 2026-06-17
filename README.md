@@ -90,6 +90,11 @@ uv run claw tui --cwd .
 
 安装后 `uv run claw` 即可在任意目录执行（uv 自动管理虚拟环境，无需手动 activate）。
 
+> **macOS 用户注意**：macOS Spotlight 会将 `_` 开头的 `.pth` 文件标记为隐藏，导致 editable install 的包无法导入。本项目已配置 `UV_NO_EDITABLE=1` 环境变量（写入 `~/.zshrc`），使用非 editable 模式安装。如遇 `ModuleNotFoundError: No module named 'claw'`，请运行：
+> ```bash
+> export UV_NO_EDITABLE=1 && uv sync --extra tui && uv run claw tui --cwd .
+> ```
+
 ### 训练控制台 Web 端（数据飞轮工作台）
 
 ```bash
@@ -205,11 +210,13 @@ User (CLI / REPL / GUI)
 ```
 
 **特点**：
+- **交互式问卷（新增）**：REQUIREMENTS、SYSTEM_DESIGN、ARCHITECTURE 阶段自动生成 5-8 个澄清问题，逐题引导用户回答后，将答案作为权威输入注入 skill prompt，确保产出符合用户意图而非 agent 猜测
 - 每个阶段自动执行对应的 skill prompt（需求分析、系统设计、代码审查等）
 - 开发阶段（ARCHITECTURE → IMPLEMENTATION）自动委托给 DevFlow
-- 只读阶段禁止写文件，实现阶段自动开启写权限
+- **Action Masking**：只读阶段物理屏蔽 write_file/bash，实现阶段自动开启
 - 每阶段产出物自动保存到 `projects/<项目名>/docs/` 目录
 - 阶段间自动进行上下文压缩，保持 token 消耗可控
+- 支持 `accept`/`reject`/`skip` 自然语言控制（REPL + TUI）
 
 **REPL 命令**：`/lifecycle start`、`/lifecycle accept`、`/lifecycle reject`、`/lifecycle rollback`
 
@@ -270,6 +277,20 @@ User (CLI / REPL / GUI)
 | 跳题 | 不支持 | `/goto N` 任意跳转 |
 | 状态追踪 | 无 | 每题 answered/skipped/pending |
 | 产出物 | 无结构化输出 | 自动编译为 Markdown 需求文档 |
+
+### TUI — 三模式终端界面
+
+基于 Textual 的全功能终端 UI（`claw tui`），支持三独立 Agent 上下文：
+
+| 模式 | 快捷键 | 功能 |
+|------|--------|------|
+| 💬 Chat | `Ctrl+1` | 自由对话，Shell/Write 默认关闭，实时权限切换 |
+| 🔧 DevFlow | `Ctrl+2` | 结构化开发流程，阶段审批与回滚 |
+| 📋 Lifecycle | `Ctrl+3` | 完整工程生命周期，自动生成问卷、逐题交互，支持 `accept`/`reject`/`skip` 自然语言控制 |
+
+**其他快捷键**：`Ctrl+D` Deep-Dive 隔离调研 · `Ctrl+S` 切换 Shell · `Ctrl+W` 切换 Write · `Ctrl+Q` 退出
+
+**关键设计**：三种模式各持独立 Agent 实例与消息历史，切换不串扰；History 面板按模式分组保存会话，恢复时自动归位。
 
 ### Deep-Dive — 技术栈深钻
 

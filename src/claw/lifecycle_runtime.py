@@ -8,8 +8,10 @@ Phase list is configurable via .claw-lifecycle.json. Default: full 10-phase life
 
 from __future__ import annotations
 
+import collections
 import json
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -47,6 +49,93 @@ DEVFLOW_PHASES = {
 
 # Phases that require write permissions
 WRITE_PHASES = {"IMPLEMENTATION", "UNIT_TEST", "INTEGRATION_TEST"}
+
+# Phases that support interactive questionnaire before execution
+# When these phases are pending, the system will first ask the user
+# clarifying questions, then feed the answers into the skill prompt.
+QUESTIONNAIRE_PHASES = {"REQUIREMENTS", "SYSTEM_DESIGN", "ARCHITECTURE"}
+
+# Phase-specific questionnaire prompts
+_PHASE_QUESTIONNAIRE_PROMPTS = {
+    "REQUIREMENTS": """You are helping to gather requirements for a software project.
+
+## Project Goal
+{goal}
+
+## Instructions
+Generate 5-8 clarifying questions to better define the requirements.
+Focus on: users/roles, core features, scope boundaries, non-functional needs,
+constraints, integration points, and success criteria.
+
+Output as a JSON array:
+```json
+[
+  {{"id": "q1", "text": "Who are the primary users of this system?"}},
+  {{"id": "q2", "text": "What are the must-have vs nice-to-have features?"}}
+]
+```
+
+Rules:
+- Each question must have a unique id (q1, q2, ...).
+- Questions should be specific and actionable.
+- Only output the JSON array — no other text.""",
+
+    "SYSTEM_DESIGN": """You are designing the architecture for a software system.
+
+## Project Goal
+{goal}
+
+## Requirements Summary
+{requirements_summary}
+
+## Instructions
+Generate 5-8 clarifying questions to make better architecture/design decisions.
+Focus on: technology choices, deployment architecture, data storage, API design
+patterns, authentication/authorization approach, scalability needs, and
+integration with external systems.
+
+Output as a JSON array:
+```json
+[
+  {{"id": "q1", "text": "Which database technology best fits the data model?"}},
+  {{"id": "q2", "text": "Should the system use a monolith or microservices?"}}
+]
+```
+
+Rules:
+- Each question must have a unique id (q1, q2, ...).
+- Questions should be specific and actionable.
+- Only output the JSON array — no other text.""",
+
+    "ARCHITECTURE": """You are making architecture decisions for a software project.
+
+## Project Goal
+{goal}
+
+## Requirements Summary
+{requirements_summary}
+
+## Design Summary
+{design_summary}
+
+## Instructions
+Generate 5-8 clarifying questions to refine the architecture.
+Focus on: component boundaries, data flow, caching strategy, error handling,
+deployment topology, monitoring/observability, and security architecture.
+
+Output as a JSON array:
+```json
+[
+  {{"id": "q1", "text": "What caching strategy should be used?"}},
+  {{"id": "q2", "text": "How should components communicate (REST, gRPC, message queue)?"}}
+]
+```
+
+Rules:
+- Each question must have a unique id (q1, q2, ...).
+- Questions should be specific and actionable.
+- Only output the JSON array — no other text.""",
+}
 
 # ---------------------------------------------------------------------------
 # Phase-level tool access control (action masking)
@@ -126,17 +215,22 @@ PHASE_ARTIFACTS = {
 class LifecyclePhase:
     """A single phase in the lifecycle."""
     name: str
-    status: str = "pending"  # pending | in_progress | completed | skipped | failed
+    status: str = "pending"  # pending | in_progress | completed | skipped | failed | awaiting_input
     output: Optional[str] = None
     artifact_path: Optional[str] = None
+    # Interactive questionnaire state (for QUESTIONNAIRE_PHASES)
+    questionnaire: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "name": self.name,
             "status": self.status,
             "output": self.output,
             "artifact_path": self.artifact_path,
         }
+        if self.questionnaire:
+            d["questionnaire"] = self.questionnaire
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> LifecyclePhase:
@@ -145,6 +239,7 @@ class LifecyclePhase:
             status=data.get("status", "pending"),
             output=data.get("output"),
             artifact_path=data.get("artifact_path"),
+            questionnaire=data.get("questionnaire"),
         )
 
 
@@ -802,12 +897,17 @@ class LifecycleRuntime(RuntimeBase):
     # Phase execution
     # ------------------------------------------------------------------
 
-    def execute_phase(self, agent: LocalCodingAgent) -> str:
+    def execute_phase(self, agent: LocalCodingAgent, questionnaire_results: str = "") -> str:
         """Run the agent for the current phase.
 
         Returns the agent's output. For read-only phases, uses the
         lifecycle skill prompt. For DevFlow phases, delegates to DevFlow.
         For write phases, temporarily enables write permissions.
+
+        Args:
+            agent: The agent instance to run.
+            questionnaire_results: Optional compiled answers from an
+                interactive questionnaire, injected as extra context.
         """
         if not self.session:
             raise RuntimeError("No active lifecycle session.")
@@ -830,16 +930,21 @@ class LifecycleRuntime(RuntimeBase):
         if not skill:
             raise RuntimeError(f"Skill '{skill_name}' not found")
 
-        # Build prompt context
+        # Build prompt context (use defaultdict so templates can safely
+        # reference optional keys like {questionnaire_results} without KeyError)
         requirements_summary = self.session.get_completed_output("REQUIREMENTS")
         implementation_summary = self.session.get_completed_output("IMPLEMENTATION")
+        design_summary = self.session.get_completed_output("SYSTEM_DESIGN")
 
-        prompt = skill.prompt.format(
+        format_kwargs: Dict[str, str] = collections.defaultdict(str, dict(
             goal=self.session.overall_goal,
             constraints=self.session.user_constraints or "None",
             requirements_summary=requirements_summary,
             implementation_summary=implementation_summary,
-        )
+            design_summary=design_summary,
+            questionnaire_results=questionnaire_results or "",
+        ))
+        prompt = skill.prompt.format_map(format_kwargs)
 
         # Apply hard tool constraints for this phase (action masking)
         self.apply_phase_constraints(agent, phase.name)
@@ -880,6 +985,185 @@ class LifecycleRuntime(RuntimeBase):
         self.session.updated_at = time.time()
         self.save()
         return output
+
+    # ------------------------------------------------------------------
+    # Interactive questionnaire (auto-triggered for decision phases)
+    # ------------------------------------------------------------------
+
+    def phase_supports_questionnaire(self) -> bool:
+        """Check if the current phase supports interactive Q&A."""
+        if not self.session:
+            return False
+        phase = self.session.get_current_phase()
+        return phase is not None and phase.name in QUESTIONNAIRE_PHASES
+
+    def has_phase_questionnaire(self) -> bool:
+        """Check if the current phase already has questionnaire data."""
+        phase = self.session.get_current_phase() if self.session else None
+        return phase is not None and bool(phase.questionnaire)
+
+    def generate_phase_questionnaire(self, agent: LocalCodingAgent) -> List[Dict]:
+        """Generate clarifying questions for the current phase.
+
+        Runs the agent with a phase-specific prompt to produce a list of
+        questions, then stores them on the phase.  Sets phase status to
+        ``"awaiting_input"``.
+
+        Returns the question list.
+        """
+        if not self.session:
+            raise RuntimeError("No active lifecycle session.")
+        phase = self.session.get_current_phase()
+        if not phase:
+            raise RuntimeError("No current phase.")
+
+        prompt_template = _PHASE_QUESTIONNAIRE_PROMPTS.get(phase.name)
+        if not prompt_template:
+            raise RuntimeError(f"No questionnaire prompt for phase '{phase.name}'")
+
+        prompt = prompt_template.format(
+            goal=self.session.overall_goal,
+            requirements_summary=self.session.get_completed_output("REQUIREMENTS") or "",
+            design_summary=self.session.get_completed_output("SYSTEM_DESIGN") or "",
+        )
+
+        # Generate questions (read-only, quick LLM call)
+        self.apply_phase_constraints(agent, phase.name)
+        try:
+            result = agent.run(prompt=prompt, stream=False)
+            raw = result.final_message or ""
+        finally:
+            self.release_phase_constraints(agent)
+
+        # Parse JSON from agent output
+        questions = self._parse_questionnaire_json(raw)
+        if not questions:
+            raise RuntimeError(f"Failed to parse questionnaire JSON from agent output")
+
+        phase.questionnaire = {
+            "questions": questions,
+            "current_index": 0,
+        }
+        phase.status = "awaiting_input"
+        self.session.updated_at = time.time()
+        self.save()
+        return questions
+
+    def _parse_questionnaire_json(self, raw: str) -> List[Dict]:
+        """Extract a JSON question array from agent output."""
+        # Try to find JSON block first
+        m = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', raw, re.DOTALL)
+        if m:
+            raw = m.group(1)
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return [{"id": item.get("id", f"q{i+1}"), "text": item["text"]}
+                    for i, item in enumerate(data) if "text" in item]
+        return []
+
+    def get_current_phase_question(self) -> Optional[Dict]:
+        """Return the current question dict, or None."""
+        phase = self.session.get_current_phase() if self.session else None
+        qdata = phase.questionnaire if phase else None
+        if not qdata:
+            return None
+        idx = qdata.get("current_index", 0)
+        questions = qdata.get("questions", [])
+        if 0 <= idx < len(questions):
+            return questions[idx]
+        return None
+
+    def has_more_phase_questions(self) -> bool:
+        """Check if there are unanswered questions remaining."""
+        q = self.get_current_phase_question()
+        return q is not None
+
+    def answer_current_phase_question(self, answer: str) -> bool:
+        """Record an answer for the current question and advance.
+
+        Returns True if there are more questions, False if this was the last.
+        """
+        phase = self.session.get_current_phase() if self.session else None
+        if not phase or not phase.questionnaire:
+            return False
+        idx = phase.questionnaire["current_index"]
+        questions = phase.questionnaire["questions"]
+        if 0 <= idx < len(questions):
+            questions[idx]["answer"] = answer
+        phase.questionnaire["current_index"] = idx + 1
+        self.session.updated_at = time.time()
+        self.save()
+        return self.has_more_phase_questions()
+
+    def skip_current_phase_question(self) -> bool:
+        """Skip the current question (no answer recorded).
+
+        Returns True if there are more questions, False if this was the last.
+        """
+        phase = self.session.get_current_phase() if self.session else None
+        if not phase or not phase.questionnaire:
+            return False
+        idx = phase.questionnaire["current_index"]
+        phase.questionnaire["current_index"] = idx + 1
+        self.session.updated_at = time.time()
+        self.save()
+        return self.has_more_phase_questions()
+
+    def phase_questionnaire_progress(self) -> Dict[str, int]:
+        """Return {total, current_index, answered, skipped, pending}."""
+        phase = self.session.get_current_phase() if self.session else None
+        qdata = phase.questionnaire if phase else None
+        if not qdata:
+            return {"total": 0, "current_index": 0, "answered": 0, "skipped": 0, "pending": 0}
+        questions = qdata.get("questions", [])
+        idx = qdata.get("current_index", 0)
+        answered = sum(1 for q in questions[:idx] if q.get("answer"))
+        skipped = sum(1 for q in questions[:idx] if not q.get("answer"))
+        pending = len(questions) - idx
+        return {
+            "total": len(questions),
+            "current_index": idx + 1,  # 1-based for display
+            "answered": answered,
+            "skipped": skipped,
+            "pending": pending,
+        }
+
+    def finalize_phase_questionnaire(self) -> str:
+        """Compile all answers into a Markdown context string.
+
+        Resets questionnaire state and sets phase back to ``"pending"``
+        so the main ``execute_phase()`` can proceed with enriched context.
+        """
+        phase = self.session.get_current_phase() if self.session else None
+        if not phase or not phase.questionnaire:
+            return ""
+
+        questions = phase.questionnaire.get("questions", [])
+        answered = [q for q in questions if q.get("answer")]
+        if not answered:
+            return ""
+
+        lines = ["## 用户澄清答复 (Interactive Questionnaire)", ""]
+        for q in answered:
+            lines.append(f"**Q: {q['text']}**")
+            lines.append(f"A: {q['answer']}")
+            lines.append("")
+
+        # Reset questionnaire state; restore phase to pending for execution
+        phase.questionnaire = None
+        phase.status = "pending"
+        self.session.updated_at = time.time()
+        self.save()
+        return "\n".join(lines).strip()
+
+    def cancel_phase_questionnaire(self) -> None:
+        """Cancel the questionnaire and reset phase to pending."""
+        phase = self.session.get_current_phase() if self.session else None
+        if phase:
+            phase.questionnaire = None
+            phase.status = "pending"
+        self.session.updated_at = time.time()
+        self.save()
 
     def _execute_devflow_phase(self, agent: LocalCodingAgent, phase: LifecyclePhase) -> str:
         """Delegate execution to DevFlow for development phases.

@@ -38,9 +38,14 @@ LIFECYCLE_REQUIREMENTS_PROMPT = """You are acting as a Requirements Analyst. You
 ## Constraints
 {constraints}
 
+## User Clarifications
+{questionnaire_results}
+
 ## Instructions
 
-Produce a structured requirements document with the following sections:
+Produce a structured requirements document with the following sections.  If
+user clarifications are provided above, treat them as authoritative
+answers — they represent the user's explicit choices and preferences.
 
 ### 1. 需求概述
 简要描述系统要达成的目标（2-3句话）。
@@ -84,9 +89,14 @@ LIFECYCLE_DESIGN_PROMPT = """You are acting as a System Designer. Your task is t
 ## Constraints
 {constraints}
 
+## User Design Decisions
+{questionnaire_results}
+
 ## Instructions
 
-Produce a structured design document with the following sections:
+Produce a structured design document with the following sections.  If user
+design decisions are provided above, treat them as authoritative — they
+represent the user's explicit architecture and technology choices.
 
 ### 1. 系统概述
 系统的高层次描述及其边界（2-3句话）。

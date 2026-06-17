@@ -427,11 +427,37 @@ class ClawRepl:
     def _execute(self, prompt: str):
         """Execute a user prompt with streaming and tool visibility.
 
-        When a lifecycle session is active with a pending phase, the prompt
-        is routed through ``lifecycle_rt.execute_phase()`` so that phase
-        output and status are properly tracked.
+        Routing priority:
+        1. Lifecycle phase questionnaire input (awaiting_input + non-slash prompt)
+        2. Lifecycle pending phase auto-execution
+        3. Normal agent chat
         """
-        # If lifecycle is active with a pending phase, execute that phase
+        # ---- Lifecycle: handle questionnaire input ----
+        if self._lifecycle_rt.has_active_session() and self._lifecycle_rt.has_phase_questionnaire():
+            phase = self._lifecycle_rt.session.get_current_phase() if self._lifecycle_rt.session else None
+            if phase and phase.status == "awaiting_input":
+                prompt_stripped = prompt.strip()
+                if prompt_stripped.lower() in ("skip", "s"):
+                    has_more = self._lifecycle_rt.skip_current_phase_question()
+                    if has_more:
+                        self._show_phase_question()
+                    else:
+                        self._finalize_and_execute_phase_questionnaire()
+                    return
+                elif prompt_stripped.lower() in ("cancel", "quit"):
+                    self._lifecycle_rt.cancel_phase_questionnaire()
+                    _print_colored("Questionnaire cancelled. Phase reset to pending.", Colors.YELLOW)
+                    return
+                else:
+                    # Treat as answer to current question
+                    has_more = self._lifecycle_rt.answer_current_phase_question(prompt_stripped)
+                    if has_more:
+                        self._show_phase_question()
+                    else:
+                        self._finalize_and_execute_phase_questionnaire()
+                    return
+
+        # ---- Lifecycle: auto-execute pending phase ----
         if self._lifecycle_rt.has_active_session():
             phase = self._lifecycle_rt.session.get_current_phase() if self._lifecycle_rt.session else None
             if phase and phase.status == "pending":
@@ -2096,7 +2122,13 @@ class ClawRepl:
         return self.agent
 
     def _run_lifecycle_current_phase(self, agent: LocalCodingAgent) -> None:
-        """Execute the current lifecycle phase and display the output."""
+        """Execute the current lifecycle phase and display the output.
+
+        For questionnaire-enabled phases (REQUIREMENTS, SYSTEM_DESIGN,
+        ARCHITECTURE), this first generates clarifying questions and
+        enters an interactive Q&A loop.  User answers are fed into the
+        skill prompt as authoritative input.
+        """
         session = self._lifecycle_rt.get_session()
         if not session:
             return
@@ -2106,9 +2138,33 @@ class ClawRepl:
             return
 
         if phase.status not in ("pending",):
-            # Phase already executed or completed — nothing to do
             return
 
+        # — Questionnaire-eligible phase → generate questions first —
+        if self._lifecycle_rt.phase_supports_questionnaire():
+            if not self._lifecycle_rt.has_phase_questionnaire():
+                _print_colored("")
+                _print_colored(f"Generating clarifying questions for {phase.name}...", Colors.DIM)
+                try:
+                    questions = self._lifecycle_rt.generate_phase_questionnaire(agent)
+                    _print_colored(
+                        f"I have {len(questions)} questions about your {phase.name.lower()}. ",
+                        Colors.GREEN,
+                    )
+                    _print_colored("Type your answer (or 'skip' / 'cancel'):", Colors.DIM)
+                    self._show_phase_question()
+                except Exception as e:
+                    _print_colored(f"Error generating questions: {e}", Colors.RED)
+                    _print_colored("Falling back to direct phase execution.", Colors.YELLOW)
+                    self._lifecycle_rt.cancel_phase_questionnaire()
+                    self._execute_phase_direct(agent, phase)
+                return
+
+        # — Direct execution (non-questionnaire phase) —
+        self._execute_phase_direct(agent, phase)
+
+    def _execute_phase_direct(self, agent: LocalCodingAgent, phase) -> None:
+        """Run the phase with the lifecycle skill prompt directly."""
         _print_colored("")
         _print_colored(f"Running {phase.name} phase...", Colors.DIM)
 
@@ -2123,6 +2179,43 @@ class ClawRepl:
             _print_colored("Review the output above.", Colors.BOLD)
             _print_colored("  /lifecycle accept  — approve and advance to next phase", Colors.DIM)
             _print_colored("  /lifecycle reject [feedback] — request regeneration", Colors.DIM)
+        except Exception as e:
+            _print_colored(f"Error executing phase: {e}", Colors.RED)
+
+    def _show_phase_question(self) -> None:
+        """Display the current questionnaire question."""
+        q = self._lifecycle_rt.get_current_phase_question()
+        if not q:
+            return
+        prog = self._lifecycle_rt.phase_questionnaire_progress()
+        _print_colored("")
+        _print_colored(f"╭─ Q{prog['current_index']}/{prog['total']} ─────────────────────────────────", Colors.CYAN)
+        _print_colored(f"│ {q['text']}", Colors.BOLD)
+        _print_colored("╰", Colors.CYAN, end="")
+        _print_colored(" > ", Colors.CYAN, end="")
+
+    def _finalize_and_execute_phase_questionnaire(self) -> None:
+        """Compile questionnaire answers and feed them into phase execution."""
+        _print_colored("")
+        _print_colored("All questions answered! Generating phase output...", Colors.GREEN)
+        try:
+            results = self._lifecycle_rt.finalize_phase_questionnaire()
+            if self.agent is None:
+                self._new_agent()
+            phase = self._lifecycle_rt.session.get_current_phase() if self._lifecycle_rt.session else None
+            if phase:
+                _print_colored("")
+                _print_colored(f"Running {phase.name} with your input...", Colors.DIM)
+                output = self._lifecycle_rt.execute_phase(self.agent, questionnaire_results=results)
+                _print_colored("")
+                _print_colored(f"╭─ {phase.name} Output ─────────────────────────╮", Colors.GREEN)
+                for line in output.split("\n"):
+                    _print_colored(f"│ {line}", Colors.DIM)
+                _print_colored("╰──────────────────────────────────────────────╯", Colors.GREEN)
+                _print_colored("")
+                _print_colored("Review the output above.", Colors.BOLD)
+                _print_colored("  /lifecycle accept  — approve and advance to next phase", Colors.DIM)
+                _print_colored("  /lifecycle reject [feedback] — request regeneration", Colors.DIM)
         except Exception as e:
             _print_colored(f"Error executing phase: {e}", Colors.RED)
 

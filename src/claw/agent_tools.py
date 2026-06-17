@@ -416,18 +416,19 @@ def _grep_search(pattern: str, path: Optional[str] = None, recursive: bool = Fal
 
 def _bash(command: str, **kwargs) -> Dict[str, Any]:
     """Execute a bash command with security validation."""
-    # Security validation — MUST run before subprocess.run
-    security_result = validate_bash_command(command)
     permissions = kwargs.get("permissions", {})
 
+    # Shell permission check — applies to ALL commands regardless of security level.
+    # Must come BEFORE security validation so allow_shell=False actually blocks execution.
+    if not permissions.get("allow_shell", False):
+        if permissions.get("_has_permission_callback"):
+            return {"ok": False, "need_permission": True, "command": command, "security": "ASK"}
+        return {"ok": False, "error": f"Shell access not permitted. Set allow_shell=True to run: {command}"}
+
+    # Security validation — MUST run before subprocess.run
+    security_result = validate_bash_command(command)
     if security_result == SecurityResult.DENY:
         return {"ok": False, "error": f"Command blocked by security policy: {command}"}
-    elif security_result == SecurityResult.ASK:
-        if not permissions.get("allow_shell", False):
-            if permissions.get("_has_permission_callback"):
-                return {"ok": False, "need_permission": True, "command": command, "security": "ASK"}
-            return {"ok": False, "error": f"Shell access not permitted. Set allow_shell=True to run: {command}"}
-    # ALLOW or PASSTHROUGH proceed normally
 
     try:
         result = subprocess.run(

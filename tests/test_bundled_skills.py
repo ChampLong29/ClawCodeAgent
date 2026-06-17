@@ -84,7 +84,12 @@ class TestBundledSkills(unittest.TestCase):
 
     def test_lifecycle_requirements_formatting(self):
         skill = get_skill("lifecycle-requirements")
-        result = skill.prompt.format(goal="Build API", constraints="REST only")
+        # Use format_map + defaultdict so optional keys (questionnaire_results)
+        # resolve to empty strings instead of raising KeyError.
+        import collections
+        result = skill.prompt.format_map(
+            collections.defaultdict(str, goal="Build API", constraints="REST only")
+        )
         self.assertIn("Build API", result)
         self.assertIn("REST only", result)
 

@@ -178,6 +178,7 @@ class DeepDiveModal(Vertical):
         yield Input(placeholder="e.g. PostgreSQL, Redis caching, FastAPI middleware", id="dd-input")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        event.stop()  # prevent bubbling to parent App
         text = event.value.strip()
         if text:
             self.post_message(DeepDiveRequest(text))
@@ -188,8 +189,8 @@ class DeepDiveModal(Vertical):
 # Input Box
 # ---------------------------------------------------------------------------
 
-class InputSubmitted(Message):
-    """Fired when user submits input (Ctrl+J / Cmd+Enter)."""
+class ChatSubmitted(Message):
+    """Fired when user submits input in the main chat box (Ctrl+J / Cmd+Enter)."""
 
     def __init__(self, text: str) -> None:
         super().__init__()
@@ -201,13 +202,22 @@ class ChatInput(TextArea):
 
     BINDINGS = [
         Binding("ctrl+j", "submit", "Send", show=True),
+        # Override TextArea's built-in ctrl+w (=delete_word_left) so Ctrl+W
+        # toggles write mode instead of deleting a word.  We forward to the
+        # App's toggle_write action via the parent.
+        Binding("ctrl+w", "forward_toggle_write", "", show=False),
     ]
 
     def action_submit(self) -> None:
         text = self.text.strip()
         if text:
-            self.post_message(InputSubmitted(text))
+            self.post_message(ChatSubmitted(text))
             self.clear()
+
+    def action_forward_toggle_write(self) -> None:
+        """Forward Ctrl+W to the parent App's toggle_write action."""
+        if isinstance(self.app, ClawTUIApp):
+            self.app.action_toggle_write()
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +230,11 @@ class ClawTUIApp(App):
     TITLE = "Claw Code Agent"
     SUB_TITLE = "TUI"
     CSS_PATH = "styles/app.tcss"
+
+    # Disable Textual's built-in command palette (Ctrl+P) — it auto-discovers
+    # commands from all components, which is slow with 3 independent agent
+    # instances and many runtime instances, causing UI freezes.
+    ENABLE_COMMAND_PALETTE = False
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit"),
@@ -479,6 +494,138 @@ class ClawTUIApp(App):
         return None
 
     # ------------------------------------------------------------------
+    # Lifecycle phase routing (TUI)
+    # ------------------------------------------------------------------
+
+    async def _run_lifecycle_phase(self, agent: Any, prompt: str, messages: Any) -> bool:
+        """Route a prompt through the lifecycle runtime when in lifecycle mode.
+
+        Returns True if the prompt was handled (prevents fallback to
+        normal agent.run), False otherwise.
+        """
+        lc_rt = agent._runtime_instances.get("lifecycle") if hasattr(agent, "_runtime_instances") else None
+        if lc_rt is None:
+            return False
+
+        # — Accept / Reject keywords —
+        prompt_lower = prompt.strip().lower()
+        if lc_rt.has_active_session() and lc_rt.session:
+            phase = lc_rt.session.get_current_phase()
+            if phase and phase.status == "in_progress":
+                if prompt_lower in ("accept", "approve", "yes", "ok", "continue", "done",
+                                    "/lifecycle accept", "/accept"):
+                    has_next = await asyncio.to_thread(
+                        lc_rt.advance_phase, agent_session=agent.session
+                    )
+                    messages.write("[bold green]Phase accepted.[/bold green]")
+                    self._store_message("add_info", "Phase accepted.")
+                    if has_next:
+                        next_phase = lc_rt.session.get_current_phase()
+                        if next_phase and next_phase.status == "pending":
+                            await self._execute_lifecycle_phase(lc_rt, agent, messages)
+                    else:
+                        messages.write("[bold green]Lifecycle complete![/bold green]")
+                        self._store_message("add_info", "Lifecycle complete!")
+                        archive_path = lc_rt.archive()
+                        if archive_path:
+                            messages.write(f"[dim]Archived to {archive_path}[/dim]")
+                            self._store_message("add_info", f"Archived to {archive_path}")
+                    self._update_sidebar_status()
+                    return True
+
+                if prompt_lower.startswith("reject") or prompt_lower.startswith(
+                    "/lifecycle reject"
+                ) or prompt_lower.startswith("retry"):
+                    reason = ""
+                    parts = prompt.split(None, 1)
+                    if len(parts) > 1:
+                        reason = parts[1]
+                    if reason:
+                        lc_rt.session.user_constraints = (
+                            (lc_rt.session.user_constraints or "")
+                            + f"\n[User feedback on {phase.name}]: {reason}"
+                        )
+                    lc_rt.retry_phase()
+                    messages.write(f"[bold yellow]Phase rejected. Retrying...[/bold yellow]")
+                    self._store_message("add_info", f"Phase rejected. Reason: {reason}")
+                    await self._execute_lifecycle_phase(lc_rt, agent, messages)
+                    self._update_sidebar_status()
+                    return True
+
+                if prompt_lower in ("skip", "/lifecycle skip"):
+                    has_next = lc_rt.skip_phase(agent_session=agent.session)
+                    messages.write("[dim]Phase skipped.[/dim]")
+                    self._store_message("add_info", "Phase skipped.")
+                    if has_next:
+                        next_phase = lc_rt.session.get_current_phase()
+                        if next_phase and next_phase.status == "pending":
+                            await self._execute_lifecycle_phase(lc_rt, agent, messages)
+                    self._update_sidebar_status()
+                    return True
+
+                # Any other input during "in_progress" → regular chat (user feedback / Q&A)
+                return False
+
+        # — Start new lifecycle session with the prompt as the goal —
+        if not lc_rt.has_active_session():
+            session = await asyncio.to_thread(lc_rt.start_session, prompt)
+            project_dir = lc_rt.get_project_dir()
+            if project_dir and agent:
+                agent.cwd = project_dir
+            messages.write(f"[bold cyan]Lifecycle session started[/bold cyan]")
+            messages.write(f"[dim]Goal: {prompt}[/dim]")
+            messages.write(f"[dim]Session: {session.session_id}[/dim]")
+            self._store_message("add_info", f"Lifecycle session started: {session.session_id}")
+            self._store_message("add_info", f"Goal: {prompt}")
+            # Auto-execute the first pending phase
+            await self._execute_lifecycle_phase(lc_rt, agent, messages)
+            self._update_sidebar_status()
+            return True
+
+        # — Execute pending phase —
+        if lc_rt.session:
+            phase = lc_rt.session.get_current_phase()
+            if phase and phase.status == "pending":
+                await self._execute_lifecycle_phase(lc_rt, agent, messages)
+                self._update_sidebar_status()
+                return True
+
+        return False
+
+    async def _execute_lifecycle_phase(self, lc_rt: Any, agent: Any, messages: Any) -> None:
+        """Execute the current lifecycle phase and display output + hints."""
+        phase = lc_rt.session.get_current_phase()
+        phase_name = phase.name if phase else "?"
+        messages.write(f"[dim]Running {phase_name} phase...[/dim]")
+        self._store_message("add_info", f"Running {phase_name} phase...")
+        self._set_status_working(True)
+
+        try:
+            output = await asyncio.to_thread(lc_rt.execute_phase, agent)
+            self._set_status_working(False)
+            messages.write(f"\n[bold green]╭─ {phase_name} Output[/bold green]")
+            for line in output.split("\n")[:60]:  # cap display lines
+                messages.write(f"[dim]│ {line}[/dim]")
+            if len(output.split("\n")) > 60:
+                messages.write(f"[dim]│ ... (truncated, see artifact file)[/dim]")
+            messages.write("[bold green]╰────────────────────[/bold green]")
+            self._store_message("add_info", f"--- {phase_name} Output ---")
+            self._store_message("add_info", output)
+            messages.write("")
+            messages.write(
+                "[bold]Actions:[/bold] "
+                "[green]accept[/green] · [yellow]reject <reason>[/yellow] · [dim]skip[/dim]"
+            )
+            self._store_message(
+                "add_info",
+                "Actions: accept · reject <reason> · skip · type any message for chat",
+            )
+        except Exception as e:
+            self._set_status_working(False)
+            messages.add_error(f"Error executing {phase_name}: {e}")
+            self._store_message("add_error", f"Error executing {phase_name}: {e}")
+
+    # ------------------------------------------------------------------
     # Session persistence
     # ------------------------------------------------------------------
 
@@ -604,7 +751,7 @@ class ClawTUIApp(App):
     # Input handling
     # ------------------------------------------------------------------
 
-    def on_input_submitted(self, event: InputSubmitted) -> None:
+    def on_chat_submitted(self, event: ChatSubmitted) -> None:
         if self._agent_running:
             return
         mode = self.active_mode
@@ -633,6 +780,12 @@ class ClawTUIApp(App):
             if agent and agent.permissions:
                 agent.permissions["allow_write"] = self.write_enabled
                 agent.permissions["allow_shell"] = self.shell_enabled
+
+            # — Lifecycle mode routing —
+            if mode == "lifecycle" and agent:
+                handled = await self._run_lifecycle_phase(agent, prompt, messages)
+                if handled:
+                    return
 
             messages.write("[dim]Agent is working...[/dim]")
             self._store_message("add_info", "Agent is working...")
