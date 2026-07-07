@@ -296,7 +296,10 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             model=ModelConfig(name=db.agent_state.model_name) if db.agent_state.model_name else None,
             budget=BudgetConfig(),
             permissions=db._get_permissions_dict(),
-            stream=db.agent_state.streaming,
+            # GUI currently renders the final assistant message via the done event.
+            # Keep streaming disabled here to avoid empty web-chat responses until
+            # token callbacks are wired through LocalCodingAgent.
+            stream=False,
         )
 
         # Build a permission callback that works with the GUI event system
@@ -345,7 +348,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                     result = agent.run(prompt, max_turns=config.max_turns, stream=config.stream)
                     if agent.session:
                         session_id_new = agent.session.session_id
+                        db.agent_state.session_id = session_id_new
                         eq.put({"type": "session", "data": {"session_id": session_id_new}})
+
 
                 # Persist session
                 if agent.session:
@@ -616,17 +621,46 @@ function sendQuery() {
 
 function newSession() {
   currentSessionId = null;
+  fetch('/api/agent-state', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({session_id: null})
+  }).catch(() => {});
   document.getElementById('chat').innerHTML = '<div class="chat-empty">New session — enter a prompt to start</div>';
   document.querySelectorAll('.session-item.active').forEach(el => el.classList.remove('active'));
   connectSSE();
 }
 
+function renderSessionMessages(messages) {
+  const chat = document.getElementById('chat');
+  chat.innerHTML = '';
+  if (!messages || messages.length === 0) {
+    chat.innerHTML = '<div class="chat-empty">No messages yet — enter a prompt to continue</div>';
+    return;
+  }
+  messages.forEach(m => {
+    const role = m.role || '';
+    const content = m.content || '';
+    if (!content) return;
+    const div = document.createElement('div');
+    div.className = 'msg ' + (role === 'user' ? 'user' : (role === 'assistant' ? 'assistant' : 'tool'));
+    div.textContent = content;
+    chat.appendChild(div);
+  });
+}
+
 function selectSession(sid) {
   currentSessionId = sid;
   document.querySelectorAll('.session-item').forEach(el => el.classList.toggle('active', el.dataset.sid === sid));
-  document.getElementById('chat').innerHTML = '<div class="chat-empty">Session ' + sid + ' — enter a prompt to continue</div>';
+  fetch('/api/sessions/' + encodeURIComponent(sid) + '/resume', {method: 'POST'})
+    .then(r => r.json())
+    .then(() => fetch('/api/sessions/' + encodeURIComponent(sid)))
+    .then(r => r.json())
+    .then(d => renderSessionMessages(d.recent_messages || []))
+    .catch(err => appendError(err.message));
   connectSSE();
 }
+
 
 function loadSessions() {
   fetch('/api/sessions').then(r => r.json()).then(d => {

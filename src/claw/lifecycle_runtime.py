@@ -1193,60 +1193,67 @@ class LifecycleRuntime(RuntimeBase):
             self.session.devflow_session_id = devflow_rt.session.session_id
             self.save()
 
-        # Run the appropriate DevFlow phase
+        # Run the appropriate DevFlow phase under the same phase constraints
+        # as non-DevFlow lifecycle phases.  This is important for TUI/demo
+        # stability: ARCHITECTURE/STEP_DEFINITION/MODULE_ANALYSIS remain
+        # read-only, while IMPLEMENTATION can write/run shell.
         devflow_session = devflow_rt.get_session()
         if not devflow_session:
             return "Error: DevFlow session not available."
 
         output = ""
+        self.apply_phase_constraints(agent, phase.name)
+        try:
+            if phase.name == "ARCHITECTURE":
+                if devflow_session.phase == "ARCHITECTURE" and not devflow_session.architecture:
+                    output = devflow_rt.propose_architecture(agent)
+                    devflow_rt.approve_architecture()
+                else:
+                    output = devflow_session.architecture or "Architecture already generated."
 
-        if phase.name == "ARCHITECTURE":
-            if devflow_session.phase == "ARCHITECTURE" and not devflow_session.architecture:
-                output = devflow_rt.propose_architecture(agent)
-                devflow_rt.approve_architecture()
-            else:
-                output = devflow_session.architecture or "Architecture already generated."
+            elif phase.name == "STEP_DEFINITION":
+                if devflow_session.phase == "STEP_DEFINITION" and not devflow_session.steps:
+                    devflow_rt.generate_steps(agent)
+                    devflow_rt.approve_steps()
+                    output = f"Generated {len(devflow_session.steps)} steps."
+                else:
+                    output = f"Steps already generated: {len(devflow_session.steps)} steps."
 
-        elif phase.name == "STEP_DEFINITION":
-            if devflow_session.phase == "STEP_DEFINITION" and not devflow_session.steps:
-                devflow_rt.generate_steps(agent)
-                devflow_rt.approve_steps()
-                output = f"Generated {len(devflow_session.steps)} steps."
-            else:
-                output = f"Steps already generated: {len(devflow_session.steps)} steps."
-
-        elif phase.name == "MODULE_ANALYSIS":
-            step = devflow_session.get_current_step()
-            if step and not step.has_modules():
-                devflow_rt.analyze_step(agent)
-                devflow_rt.approve_modules()
-                output = f"Generated {len(step.modules)} modules for step '{step.title}'."
-            elif step:
-                output = f"Modules already generated: {len(step.modules)} modules."
-
-        elif phase.name == "IMPLEMENTATION":
-            # Run through all DevFlow implementation steps
-            results = []
-            while not devflow_session.completed and devflow_session.phase != "DONE":
+            elif phase.name == "MODULE_ANALYSIS":
                 step = devflow_session.get_current_step()
-                if not step:
-                    break
+                if step and not step.has_modules():
+                    devflow_rt.analyze_step(agent)
+                    devflow_rt.approve_modules()
+                    output = f"Generated {len(step.modules)} modules for step '{step.title}'."
+                elif step:
+                    output = f"Modules already generated: {len(step.modules)} modules."
 
-                step_output = devflow_rt.execute_step(agent)
-                results.append(f"Step '{step.title}': {step_output[:500]}...")
+            elif phase.name == "IMPLEMENTATION":
+                # Run through all DevFlow implementation steps
+                results = []
+                while not devflow_session.completed and devflow_session.phase != "DONE":
+                    step = devflow_session.get_current_step()
+                    if not step:
+                        break
 
-                # Verify
-                if step.status == "implemented":
-                    devflow_rt.verify_step(agent)
+                    step_output = devflow_rt.execute_step(agent)
+                    results.append(f"Step '{step.title}': {step_output[:500]}...")
 
-                # Advance
-                if step.status == "verified":
-                    devflow_rt.next_step()
+                    # Verify
+                    if step.status == "implemented":
+                        devflow_rt.verify_step(agent)
 
-            output = "\n\n".join(results) if results else "Implementation complete."
+                    # Advance
+                    if step.status == "verified":
+                        devflow_rt.next_step()
 
-        else:
-            output = f"DevFlow phase '{phase.name}' handled automatically."
+                output = "\n\n".join(results) if results else "Implementation complete."
+
+            else:
+                output = f"DevFlow phase '{phase.name}' handled automatically."
+        finally:
+            self.release_phase_constraints(agent)
+
 
         phase.output = output
         phase.status = "in_progress"

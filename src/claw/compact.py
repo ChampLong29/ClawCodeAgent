@@ -5,8 +5,11 @@ Handles compaction of messages to control token usage.
 
 from __future__ import annotations
 
+import json
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
+
 
 # Default buffer threshold for triggering compaction
 AUTOCOMPACT_BUFFER_TOKENS = 150000
@@ -16,6 +19,45 @@ MIN_MESSAGES_TO_KEEP = 4
 
 # System message priority (always kept)
 SYSTEM_MESSAGE_PRIORITY = 0
+
+
+@dataclass
+class CompactionSummary:
+    """Semantic summary of compacted conversation messages."""
+
+    total_messages: int
+    file_writes: List[str] = field(default_factory=list)
+    file_edits: List[str] = field(default_factory=list)
+    commands: List[str] = field(default_factory=list)
+    reads_count: int = 0
+    agent_conclusion: str = ""
+
+    def render(self) -> str:
+        parts = [f"## 操作摘要（{self.total_messages} 条消息压缩）"]
+        if self.file_writes:
+            parts.append("### 文件写入")
+            parts.extend(f"- {path}" for path in _dedupe(self.file_writes))
+        if self.file_edits:
+            parts.append("### 文件编辑")
+            parts.extend(f"- {path}" for path in _dedupe(self.file_edits))
+        if self.commands:
+            parts.append("### 命令执行")
+            parts.extend(f"- `{cmd}`" for cmd in self.commands[:20])
+        if self.reads_count:
+            parts.append(f"### 文件读取: {self.reads_count} 次")
+        if self.agent_conclusion:
+            parts.append(f"### Agent 结论\n{self.agent_conclusion}")
+        return "\n".join(parts)
+
+
+def _dedupe(items: List[str]) -> List[str]:
+    seen = set()
+    result = []
+    for item in items:
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
 
 
 class CompactionStrategy(Enum):

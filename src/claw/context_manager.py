@@ -87,35 +87,32 @@ class ContextManager:
         policy = self.policy
         messages = session.messages
 
-        boundary_indices: Dict[str, int] = {
-            _get_phase_name_from_boundary(m): i
-            for i, m in enumerate(messages)
-            if _get_phase_name_from_boundary(m)
-        }
+        phase_boundaries: List[tuple[str, int]] = []
+        for i, msg in enumerate(messages):
+            phase_name = _get_phase_name_from_boundary(msg)
+            if phase_name:
+                phase_boundaries.append((phase_name, i))
 
-        if not boundary_indices:
+        if not phase_boundaries:
             return list(messages)
 
-        sorted_phases = sorted(
-            boundary_indices.keys(), key=lambda n: boundary_indices[n]
-        )
+        current_boundary_pos: Optional[int] = None
+        for pos, (phase_name, _) in enumerate(phase_boundaries):
+            if phase_name == current_phase:
+                current_boundary_pos = pos
 
         kept: List[Dict[str, Any]] = []
-        first_boundary_idx = min(boundary_indices.values())
+        first_boundary_idx = phase_boundaries[0][1]
         kept.extend(messages[:first_boundary_idx])
 
-        for i, phase_name in enumerate(sorted_phases):
-            start = boundary_indices[phase_name]
-            end = (
-                boundary_indices[sorted_phases[i + 1]]
-                if i + 1 < len(sorted_phases)
-                else len(messages)
-            )
+        for pos, (phase_name, start) in enumerate(phase_boundaries):
+            end = phase_boundaries[pos + 1][1] if pos + 1 < len(phase_boundaries) else len(messages)
 
             if policy.keep_phase_boundaries:
                 kept.append(messages[start])
 
-            if phase_name == current_phase:
+            is_current_boundary = current_boundary_pos is not None and pos == current_boundary_pos
+            if is_current_boundary:
                 phase_msgs = messages[start + 1:end]
                 keep_count = policy.keep_last_n_exchanges * 2
                 kept.extend(phase_msgs[-keep_count:])

@@ -106,6 +106,25 @@ def _build_default_registry() -> ToolRegistry:
         handler=_read_file,
     ))
 
+    # code_outline tool
+    registry.register(AgentTool(
+        name="code_outline",
+        description=(
+            "Return a compact code structure outline (classes/functions with line numbers) "
+            "without reading the full file. Use read_file with offset/limit after this "
+            "when only a specific section is needed."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path to outline"},
+                "includeDocstrings": {"type": "boolean", "description": "Include first docstring line"},
+            },
+            "required": ["path"],
+        },
+        handler=_code_outline,
+    ))
+
     # write_file tool
     registry.register(AgentTool(
         name="write_file",
@@ -292,6 +311,76 @@ def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = N
         return {"ok": True, "content": content, "path": path}
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def _code_outline(path: str, includeDocstrings: bool = False, **kwargs) -> Dict[str, Any]:
+    """Return a compact outline of classes/functions in a source file."""
+    resolved = _resolve_cwd_path(path, kwargs)
+    if not os.path.isfile(resolved):
+        return {"ok": False, "error": f"File not found: {path}"}
+
+    try:
+        with open(resolved, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except OSError as e:
+        return {"ok": False, "error": str(e)}
+
+    ext = os.path.splitext(resolved)[1].lower()
+    if ext == ".py":
+        outline_lines = _python_outline(lines, includeDocstrings)
+    elif ext in (".js", ".jsx", ".ts", ".tsx"):
+        outline_lines = _js_outline(lines)
+    else:
+        outline_lines = _generic_outline(lines)
+
+    if not outline_lines:
+        outline = f"No structural elements found in {path} ({len(lines)} lines total)."
+    else:
+        outline = f"# Outline: {path} ({len(lines)} lines total)\n" + "\n".join(outline_lines)
+    return {"ok": True, "path": resolved, "outline": outline, "line_count": len(lines)}
+
+
+def _python_outline(lines: List[str], include_docs: bool = False) -> List[str]:
+    result: List[str] = []
+    keywords = ("class ", "def ", "async def ")
+    for i, line in enumerate(lines, 1):
+        stripped = line.rstrip()
+        lstripped = stripped.lstrip()
+        if any(lstripped.startswith(kw) for kw in keywords):
+            indent = len(stripped) - len(lstripped)
+            prefix = "  " * (indent // 4)
+            signature = lstripped.split(":", 1)[0] + ":"
+            result.append(f"L{i:>4}: {prefix}{signature}")
+            if include_docs and i < len(lines):
+                doc = lines[i].strip()
+                if doc.startswith("\"\"\"") or doc.startswith("'''"):
+                    doc = doc.strip("\"'").strip()
+                    if doc:
+                        result.append(f"       {prefix}  → {doc[:80]}")
+    return result
+
+
+def _js_outline(lines: List[str]) -> List[str]:
+    result: List[str] = []
+    patterns = [
+        r"^\s*(export\s+)?class\s+\w+",
+        r"^\s*(export\s+)?(async\s+)?function\s+\w+",
+        r"^\s*(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s*)?\(",
+    ]
+    compiled = [re.compile(p) for p in patterns]
+    for i, line in enumerate(lines, 1):
+        if any(p.search(line) for p in compiled):
+            result.append(f"L{i:>4}: {line.rstrip()[:120]}")
+    return result
+
+
+def _generic_outline(lines: List[str]) -> List[str]:
+    result: List[str] = []
+    keywords = ("class ", "function ", "def ", "fn ", "pub fn ", "func ")
+    for i, line in enumerate(lines, 1):
+        if any(line.lstrip().startswith(kw) for kw in keywords):
+            result.append(f"L{i:>4}: {line.rstrip()[:120]}")
+    return result
 
 
 def _write_file(path: str, content: str, **kwargs) -> Dict[str, Any]:
@@ -722,6 +811,14 @@ def execute_tool(
 
         # Normalize result to dict
         if isinstance(result, dict):
+            if result.get("need_permission"):
+                return ToolExecutionResult(
+                    ok=False,
+                    tool_name=tool_name,
+                    result=result,
+                    error=result.get("error", "Permission required"),
+                    stderr=result.get("stderr"),
+                )
             if result.get("ok", True) is False:
                 return ToolExecutionResult(
                     ok=False,

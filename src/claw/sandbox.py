@@ -365,8 +365,12 @@ class WorkspaceSandbox:
                 shutil.copy2(src, dst)
 
     def cleanup(self) -> None:
-        """Remove the sandbox directory (only if we created it)."""
+        """Remove the sandbox directory only if this instance created it.
+
+        Never delete a user-provided cwd.  WorkspaceSandbox is also used with
+        real project directories during lifecycle runs, so cleanup must be
+        conservative.
+        """
         if self._temp_dir and os.path.isdir(self._temp_dir):
             shutil.rmtree(self._temp_dir, ignore_errors=True)
-        elif os.path.isdir(self.cwd):
-            shutil.rmtree(self.cwd, ignore_errors=True)
+

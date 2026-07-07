@@ -596,6 +596,23 @@ class ClawTUIApp(App):
         """Execute the current lifecycle phase and display output + hints."""
         phase = lc_rt.session.get_current_phase()
         phase_name = phase.name if phase else "?"
+
+        # Reflect lifecycle action masking in the TUI while the phase runs.
+        # The runtime enforces the same constraints on the agent; this keeps
+        # the sidebar/status bar truthful during demos.
+        try:
+            from ..lifecycle_runtime import PHASE_ALLOWED_TOOLS
+            allowed = PHASE_ALLOWED_TOOLS.get(phase_name, set())
+            self.write_enabled = "write_file" in allowed or "edit_file" in allowed
+            self.shell_enabled = "bash" in allowed
+            if agent and agent.permissions:
+                agent.permissions["allow_write"] = self.write_enabled
+                agent.permissions["allow_shell"] = self.shell_enabled
+            self._update_sidebar_status()
+            self._update_status()
+        except Exception:
+            pass
+
         messages.write(f"[dim]Running {phase_name} phase...[/dim]")
         self._store_message("add_info", f"Running {phase_name} phase...")
         self._set_status_working(True)
