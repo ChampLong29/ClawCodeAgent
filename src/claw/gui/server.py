@@ -319,7 +319,9 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
 
         config.permission_callback = gui_permission_callback
 
-        session_id = db.agent_state.session_id
+        requested_session_id = data.get("session_id")
+        session_id = requested_session_id or db.agent_state.session_id
+        db.agent_state.session_id = session_id
 
         def run_agent():
             """Run agent in background thread, pushing events to SSE queue."""

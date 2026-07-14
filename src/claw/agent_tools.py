@@ -73,7 +73,7 @@ def default_tool_registry() -> ToolRegistry:
 
 
 def _build_default_registry() -> ToolRegistry:
-    """Build the default tool registry with 8 built-in tools."""
+    """Build the default tool registry with built-in tools."""
     registry = ToolRegistry()
 
     # list_dir tool
@@ -296,15 +296,20 @@ def _resolve_cwd_path(path: str, kwargs: Dict[str, Any]) -> str:
 
 
 def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = None, **kwargs) -> Dict[str, Any]:
-    """Read file contents."""
+    """Read file contents.
+
+    ``offset`` is a 0-based line offset, matching the tool schema.
+    """
     path = _resolve_cwd_path(path, kwargs)
     try:
+        start_line = max(0, int(offset or 0))
+        max_lines = int(limit) if limit else None
         with open(path, "r", encoding="utf-8") as f:
-            if offset:
-                f.seek(offset)
             lines = []
             for i, line in enumerate(f):
-                if limit and i >= limit:
+                if i < start_line:
+                    continue
+                if max_lines is not None and len(lines) >= max_lines:
                     break
                 lines.append(line.rstrip("\n"))
         content = "\n".join(lines)

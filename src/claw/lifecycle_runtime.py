@@ -153,7 +153,7 @@ Rules:
 # ---------------------------------------------------------------------------
 
 # All read-only tools (always available)
-_READ_TOOLS = {"list_dir", "read_file", "glob_search", "grep_search", "web_search", "web_fetch", "use_skill"}
+_READ_TOOLS = {"list_dir", "read_file", "code_outline", "glob_search", "grep_search", "web_search", "web_fetch", "use_skill"}
 
 # Write tools (only available in write phases)
 _WRITE_TOOLS = {"write_file", "edit_file"}
