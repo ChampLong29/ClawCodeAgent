@@ -110,6 +110,22 @@
       border-radius: 4px; border: 1px dashed #d1d5db; font-family: ui-monospace, monospace;
       font-size: .82em; white-space: pre-wrap; word-break: break-word; color: #374151;
     }
+    .tool-call {
+      margin-top: .45rem; padding: .55rem .7rem; background: #fff;
+      border-radius: 4px; border: 1px dashed #d1d5db;
+    }
+    .tool-call-head {
+      display: flex; gap: .45rem; align-items: center; flex-wrap: wrap;
+      margin-bottom: .45rem; color: #374151; font-size: .86em;
+    }
+    .tool-call pre {
+      margin: .35rem 0 0; max-height: 360px; white-space: pre;
+    }
+    .tool-call .arg-table {
+      display: grid; grid-template-columns: max-content 1fr; gap: .25rem .6rem;
+      font-family: ui-monospace, monospace; font-size: .82em;
+    }
+    .tool-call .arg-key { color: #6b7280; }
 
     /* ==== Streaming output ==== */
     .stream-box {

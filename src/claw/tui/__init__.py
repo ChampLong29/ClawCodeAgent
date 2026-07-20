@@ -5,13 +5,23 @@ Launch with: claw tui --cwd /path/to/project
 
 import os
 import sys
+from typing import Any
 
-# Module-level attempt — if textual is missing, ClawTUIApp will be None.
-# cmd_tui in main.py and the claw-tui entry point both handle this gracefully.
-try:
-    from .app import ClawTUIApp
-except ImportError:
-    ClawTUIApp = None  # type: ignore[assignment]
+
+def _load_app_class() -> Any:
+    """Load the Textual app only when a TUI is actually started."""
+    try:
+        from .app import ClawTUIApp as app_cls
+    except ImportError:
+        return None
+    return app_cls
+
+
+def __getattr__(name: str) -> Any:
+    """Keep `from claw.tui import ClawTUIApp` compatible and lazy."""
+    if name == "ClawTUIApp":
+        return _load_app_class()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _tui_install_hint() -> str:
@@ -37,17 +47,18 @@ def main():
     """Entry point for claw-tui command."""
     import argparse
 
-    if ClawTUIApp is None:
-        print("Error: TUI requires 'textual' package.", file=sys.stderr)
-        print(_tui_install_hint(), file=sys.stderr)
-        sys.exit(1)
-
     parser = argparse.ArgumentParser(description="Claw Code Agent TUI")
     parser.add_argument("--cwd", default=".", help="Working directory")
     parser.add_argument("--model", default=None, help="Model override")
     args = parser.parse_args()
 
-    app = ClawTUIApp(cwd=args.cwd, model=args.model)
+    app_cls = _load_app_class()
+    if app_cls is None:
+        print("Error: TUI requires 'textual' package.", file=sys.stderr)
+        print(_tui_install_hint(), file=sys.stderr)
+        sys.exit(1)
+
+    app = app_cls(cwd=args.cwd, model=args.model)
     app.run()
 
 

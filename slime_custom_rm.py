@@ -67,14 +67,24 @@ def extract_written_files(response: List[Dict[str, Any]]) -> Dict[str, str]:
         if msg.get("role") == "assistant":
             tool_calls = msg.get("tool_calls", [])
             for tc in tool_calls:
-                if tc.get("name") == "write_file":
-                    args = tc.get("arguments", {})
+                name = tc.get("name")
+                args = tc.get("arguments", {})
+
+                # OpenAI-style tool call: {"function": {"name": ..., "arguments": "{...}"}}
+                function = tc.get("function")
+                if isinstance(function, dict):
+                    name = function.get("name", name)
+                    args = function.get("arguments", args)
+
+                if name == "write_file":
                     if isinstance(args, str):
                         try:
                             args = json.loads(args)
                         except json.JSONDecodeError:
                             continue
-                    file_path = args.get("file_path", "")
+                    if not isinstance(args, dict):
+                        continue
+                    file_path = args.get("file_path") or args.get("path") or ""
                     content = args.get("content", "")
                     if file_path and content:
                         files[file_path] = content

@@ -121,6 +121,7 @@ def build_app(results_dir: str) -> FastAPI:
     templates = Jinja2Templates(directory=TEMPLATES_DIR)
     base = Path(results_dir).expanduser().resolve()
     base.mkdir(parents=True, exist_ok=True)
+    config_cwd = str(base.parent)
 
     # ---------------- Browse ----------------
 
@@ -163,7 +164,11 @@ def build_app(results_dir: str) -> FastAPI:
 
     @app.get("/chat", response_class=HTMLResponse)
     def chat_form(request: Request):
-        default_model = os.environ.get("OPENAI_MODEL") or os.environ.get("ANTHROPIC_MODEL") or ""
+        try:
+            from ...api_config import APIConfigRuntime
+            default_model = APIConfigRuntime(cwd=config_cwd).get_config().model
+        except Exception:
+            default_model = os.environ.get("OPENAI_MODEL") or os.environ.get("ANTHROPIC_MODEL") or ""
         return templates.TemplateResponse(
             request, "chat.html", {"default_model": default_model},
         )
@@ -171,7 +176,7 @@ def build_app(results_dir: str) -> FastAPI:
     @app.get("/api/chat/stream")
     def chat_stream(prompt: str, model: str = "", max_turns: int = 10, allow_shell: str = "true"):
         return StreamingResponse(
-            _chat_event_stream(prompt, model, max_turns, allow_shell == "true"),
+            _chat_event_stream(prompt, model, max_turns, allow_shell == "true", config_cwd),
             media_type="text/event-stream",
         )
 
@@ -260,7 +265,8 @@ def build_app(results_dir: str) -> FastAPI:
 # Chat SSE — runs LocalCodingAgent in a thread, tails session for new messages
 # ---------------------------------------------------------------------------
 
-def _chat_event_stream(prompt: str, model: str, max_turns: int, allow_shell: bool):
+def _chat_event_stream(prompt: str, model: str, max_turns: int, allow_shell: bool,
+                       api_config_cwd: Optional[str] = None):
     # Lazy import — avoid pulling LocalCodingAgent into web app on startup
     try:
         from ...agent_runtime import LocalCodingAgent
@@ -271,7 +277,8 @@ def _chat_event_stream(prompt: str, model: str, max_turns: int, allow_shell: boo
 
     sandbox_dir = tempfile.mkdtemp(prefix="claw_chat_")
     try:
-        model_config = ModelConfig(name=model) if model else ModelConfig()
+        model_name = model.strip()
+        model_config = ModelConfig(name=model_name) if model_name else None
         permissions = AgentPermissions(
             allow_write=True, allow_shell=allow_shell,
         )
@@ -280,6 +287,7 @@ def _chat_event_stream(prompt: str, model: str, max_turns: int, allow_shell: boo
             model_config=model_config,
             budget=BudgetConfig(max_total_tokens=80000, max_model_calls=max_turns + 2),
             permissions=permissions.to_dict(),
+            api_config_cwd=api_config_cwd,
         )
 
         result_holder: Dict[str, Any] = {}
@@ -320,9 +328,19 @@ def _chat_event_stream(prompt: str, model: str, max_turns: int, allow_shell: boo
             return
 
         result = result_holder.get("result")
+        stop_reason = result.stop_reason if result else "unknown"
+        result_error = result.error if result else None
+        if stop_reason == "error" or result_error:
+            yield _sse_event({
+                "type": "error",
+                "error": result_error or "agent stopped with error",
+                "stop_reason": stop_reason,
+            })
+            return
+
         yield _sse_event({
             "type": "done",
-            "stop_reason": result.stop_reason if result else "unknown",
+            "stop_reason": stop_reason,
             "usage": result.usage.to_dict() if result and result.usage else {},
         })
     finally:
@@ -350,8 +368,9 @@ def _rollout_event_stream(results_dir: Path, suite_path: str, output: str,
         from ..tasks import TaskSuite
         from ..sandbox import SandboxManager
         from ..agent_env import AgentEnv
-        from ..runner import RolloutRunner, RolloutResult
+        from ..runner import RolloutResult
         from ..determinism import DeterministicConfig
+        from ..mock_client import build_mock_client_factory
     except ImportError as e:
         yield _sse_event({"type": "error", "error": f"training import failed: {e}"})
         return
@@ -382,7 +401,7 @@ def _rollout_event_stream(results_dir: Path, suite_path: str, output: str,
     # Prepare mock script if needed
     mock_script = None
     if mode == "mock":
-        mock_script = _build_mock_client_factory()
+        mock_script = build_mock_client_factory()
 
     results: List[Any] = []
     for idx, (task, run_id) in enumerate(tasks):
@@ -413,6 +432,7 @@ def _rollout_event_stream(results_dir: Path, suite_path: str, output: str,
                 usage=info.get("usage", {}),
                 test_result=info.get("test_result"),
                 diff_result=info.get("diff_result"),
+                task=task.to_dict(),
             )
             results.append(r)
             tr = info.get("test_result") or {}
@@ -458,58 +478,6 @@ def _rollout_event_stream(results_dir: Path, suite_path: str, output: str,
     })
 
 
-def _build_mock_client_factory():
-    """Returns a function task -> FakeOpenAIClient.
-
-    The mock writes the *correct* ground_truth content for the task
-    (so reward is high), unless the task has the 'negative' tag in which
-    case it writes a wrong content (so reward is low). This mimics a
-    flywheel where the model usually succeeds but sometimes fails.
-    """
-    import json as _json
-
-    class FakeClient:
-        def __init__(self, scripted):
-            self._queue = list(scripted)
-            self.model = "mock-model"
-        def complete(self, *args, **kwargs):
-            if self._queue:
-                return self._queue.pop(0)
-            return {"content": "Done.", "tool_calls": None,
-                    "usage": {"input_tokens": 1, "output_tokens": 1, "model_calls": 1}}
-        def stream(self, *args, **kwargs):
-            yield self.complete()
-
-    def factory(task):
-        # Determine target filename + content
-        gt = task.ground_truth_files or {}
-        if not gt:
-            # No ground truth — model just declares done
-            return FakeClient([])
-        path, expected = next(iter(gt.items()))
-        # Write wrong content for "negative" tagged tasks
-        if "negative" in (task.tags or []):
-            content = expected.replace("hello", "wrong") if "hello" in expected else "WRONG\n"
-        else:
-            content = expected
-        return FakeClient([
-            {
-                "content": "I'll create the file.",
-                "tool_calls": [{
-                    "id": "call_1",
-                    "function": {
-                        "name": "write_file",
-                        "arguments": _json.dumps({"path": path, "content": content}),
-                    },
-                }],
-                "usage": {"input_tokens": 50, "output_tokens": 20, "model_calls": 1},
-            },
-            {"content": "Created.", "tool_calls": None,
-             "usage": {"input_tokens": 30, "output_tokens": 10, "model_calls": 1}},
-        ])
-    return factory
-
-
 # ---------------------------------------------------------------------------
 # Export — call SlimeDataAdapter
 # ---------------------------------------------------------------------------
@@ -544,6 +512,8 @@ def _run_export(results_dir: Path, source: str, dataset_type: str,
                 reward=float(r.get("reward", 0.0)),
                 task_id=r.get("task_id", ""),
                 domain=domain,
+                difficulty=(r.get("task") or {}).get("difficulty", ""),
+                task_definition=r.get("task") or r.get("task_definition"),
             ).to_dict()
             samples.append(sample)
 

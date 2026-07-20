@@ -64,6 +64,7 @@ class SlimeDataAdapter:
         domain: str = "",
         difficulty: str = "",
         review: Optional[ReviewReport] = None,
+        task_definition: Optional[Dict[str, Any]] = None,
     ) -> SlimeTrainingSample:
         """Split agent session messages into prompt and response portions.
 
@@ -73,6 +74,16 @@ class SlimeDataAdapter:
         prompt: List[Dict[str, Any]] = []
         response: List[Dict[str, Any]] = []
         user_seen = False
+
+        if task_definition:
+            prompt.append({
+                "role": "system",
+                "content": (
+                    "task_definition:\n```json\n"
+                    + json.dumps(task_definition, ensure_ascii=False, indent=2)
+                    + "\n```"
+                ),
+            })
 
         for msg in messages:
             role = msg.get("role", "")

@@ -2,11 +2,38 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+import os
+from typing import Any, Dict, List
 
-from ..session_store import list_sessions, load_agent_session, delete_agent_session
-from ..agent_runtime import LocalCodingAgent
-from ..agent_types import ModelConfig
+from ..session_store import load_agent_session, delete_agent_session
+
+def _fast_list_sessions(cwd: str) -> List[Dict[str, Any]]:
+    """Return session stubs without reading full session JSON files."""
+    session_dir = os.path.join(cwd, ".port_sessions", "agent")
+    if not os.path.isdir(session_dir):
+        return []
+
+    sessions: List[Dict[str, Any]] = []
+    for name in os.listdir(session_dir):
+        if not name.endswith(".json"):
+            continue
+        path = os.path.join(session_dir, name)
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+        session_id = name[:-5]
+        sessions.append({
+            "session_id": session_id,
+            "created_at": stat.st_ctime,
+            "updated_at": stat.st_mtime,
+            "model": "",
+            "stop_reason": "saved",
+            "message_count": 0,
+        })
+
+    sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
+    return sessions
 
 
 def handle_request(handler, method: str, path: str, data: Dict[str, Any], db) -> None:
@@ -15,9 +42,7 @@ def handle_request(handler, method: str, path: str, data: Dict[str, Any], db) ->
 
     if method == "GET":
         if path == "/api/sessions":
-            sessions = list_sessions(cwd)
-            # Sort by updated_at descending
-            sessions.sort(key=lambda s: s.get("updated_at") or 0, reverse=True)
+            sessions = _fast_list_sessions(cwd)
             handler.send_json({"sessions": sessions})
         elif path.startswith("/api/sessions/"):
             session_id = path.split("/api/sessions/")[1]

@@ -11,7 +11,7 @@
         "hello.py": "print('hello')\n"
       },
       "test_commands": [
-        "python hello.py"
+        "python3 hello.py"
       ],
       "expected_output": "hello",
       "tags": ["pilot", "hello"],
@@ -27,7 +27,7 @@
         "hello.py": "print('hello')\n"
       },
       "test_commands": [
-        "python hello.py"
+        "python3 hello.py"
       ],
       "expected_output": "hello",
       "tags": ["pilot", "hello", "negative"],

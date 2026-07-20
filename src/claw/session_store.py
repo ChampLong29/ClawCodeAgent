@@ -81,6 +81,7 @@ def _write_checkpoint(session: AgentSession, filepath: str) -> None:
         "stop_reason": session.stop_reason,
         "cwd": session.cwd,
         "phase_boundaries": session.phase_boundaries,
+        "metadata": session.metadata,
     }
     with open(filepath, "w", encoding="utf-8") as f:
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
@@ -132,6 +133,7 @@ def _load_from_jsonl(filepath: str) -> AgentSession:
     session = AgentSession(
         session_id=meta.get("session_id", ""),
         messages=messages,
+        metadata=meta.get("metadata", {}),
         created_at=meta.get("created_at"),
         updated_at=meta.get("updated_at"),
         model=meta.get("model"),
@@ -276,6 +278,10 @@ def load_session_by_name(name: str, base_path: str) -> Optional[AgentSession]:
 
 
 def list_sessions_by_prefix(prefix: str, base_path: str) -> List[Dict[str, Any]]:
-    """List sessions whose name starts with the given prefix."""
+    """List sessions whose id or name starts with the given prefix."""
     sessions = list_sessions(base_path)
-    return [s for s in sessions if (s.get("name") or "").startswith(prefix)]
+    return [
+        s for s in sessions
+        if (s.get("session_id") or "").startswith(prefix)
+        or (s.get("name") or "").startswith(prefix)
+    ]

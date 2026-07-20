@@ -235,7 +235,7 @@ def _runtime_status(runtime_name: str, args) -> int:
 
     # Import the runtime dynamically
     try:
-        module = __import__(f"src.{runtime_name}_runtime", fromlist=[""])
+        module = __import__(f"claw.{runtime_name}_runtime", fromlist=[""])
         runtime_class = getattr(module, f"{_to_class_name(runtime_name)}Runtime", None)
         if runtime_class is None:
             # Try generic Runtime class
@@ -430,7 +430,16 @@ def cmd_train(args) -> int:
         timeout_seconds=args.timeout,
     )
 
-    runner = RolloutRunner(config=config, model_name=args.model)
+    client_factory = None
+    if getattr(args, "mode", "real") == "mock":
+        from .training.mock_client import build_mock_client_factory
+        client_factory = build_mock_client_factory()
+
+    runner = RolloutRunner(
+        config=config,
+        model_name=args.model,
+        client_factory=client_factory,
+    )
 
     if args.task:
         # Single task
@@ -508,6 +517,35 @@ def cmd_train_web(args) -> int:
     app = build_app(args.results_dir)
     print(f"Serving rollouts from {args.results_dir} at http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, reload=args.reload)
+    return 0
+
+
+def cmd_trace_show(args) -> int:
+    """Render one rollout trace as a deterministic transcript."""
+    from .training.trace_demo import load_rollout, render_rollout
+
+    row = load_rollout(args.input, args.index)
+    print(render_rollout(row))
+    return 0
+
+
+def cmd_trace_install_session(args) -> int:
+    """Install one rollout trace as a saved agent session for CLI/TUI demos."""
+    cwd = _resolve_cwd(args.cwd)
+    from .training.trace_demo import load_rollout, install_trace_session
+
+    row = load_rollout(args.input, args.index)
+    path = install_trace_session(
+        row,
+        cwd=cwd,
+        session_id=args.session_id,
+        mode=args.mode,
+    )
+    print(json.dumps({
+        "session_id": args.session_id or f"demo-{row.get('task_id', 'trace')}",
+        "mode": args.mode,
+        "path": path,
+    }, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -640,6 +678,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     train_parser.add_argument("--cwd", default=None)
     train_parser.add_argument("--task", default=None, help="JSON task definition")
     train_parser.add_argument("--suite", default=None, help="Path to task suite JSON file")
+    train_parser.add_argument("--mode", choices=["real", "mock"], default="real",
+                              help="Use real model or deterministic mock model")
     train_parser.add_argument("--model", default=None, help="Model name override")
     train_parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers")
     train_parser.add_argument("--temperature", type=float, default=0.0, help="Model temperature")
@@ -659,6 +699,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     train_web_parser.add_argument("--port", type=int, default=8080)
     train_web_parser.add_argument("--reload", action="store_true",
                                   help="Enable auto-reload (development)")
+
+    trace_show_parser = subparsers.add_parser("trace-show", help="Replay one rollout trace in the CLI")
+    trace_show_parser.add_argument("--input", required=True, help="Path to rollout JSONL")
+    trace_show_parser.add_argument("--index", type=int, default=0, help="Zero-based rollout index")
+
+    trace_install_parser = subparsers.add_parser(
+        "trace-install-session",
+        help="Install one rollout trace as a saved agent session",
+    )
+    trace_install_parser.add_argument("--cwd", default=None)
+    trace_install_parser.add_argument("--input", required=True, help="Path to rollout JSONL")
+    trace_install_parser.add_argument("--index", type=int, default=0, help="Zero-based rollout index")
+    trace_install_parser.add_argument("--session-id", default=None, help="Saved session id")
+    trace_install_parser.add_argument(
+        "--mode",
+        choices=["chat", "devflow", "lifecycle"],
+        default="chat",
+        help="TUI mode shown in History",
+    )
 
     args = parser.parse_args(argv)
 
@@ -698,6 +757,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "train": cmd_train,
         "train-stats": cmd_train_stats,
         "train-web": cmd_train_web,
+        "trace-show": cmd_trace_show,
+        "trace-install-session": cmd_trace_install_session,
     }
 
     cmd_func = cmd_map.get(args.command)

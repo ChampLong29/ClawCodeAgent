@@ -6,7 +6,7 @@ import json
 import time
 import multiprocessing
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .tasks import CodingTask, TaskSuite
 from .sandbox import SandboxManager
@@ -40,6 +40,7 @@ class RolloutResult:
     test_result: Optional[Dict[str, Any]] = None
     diff_result: Optional[Dict[str, Any]] = None
     review_report: Optional[Dict[str, Any]] = None
+    task: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -54,6 +55,7 @@ class RolloutResult:
             "test_result": self.test_result,
             "diff_result": self.diff_result,
             "review_report": self.review_report,
+            "task": self.task,
         }
 
     @classmethod
@@ -70,6 +72,7 @@ class RolloutResult:
             test_result=data.get("test_result"),
             diff_result=data.get("diff_result"),
             review_report=data.get("review_report"),
+            task=data.get("task"),
         )
 
 
@@ -87,9 +90,11 @@ class RolloutRunner:
         self,
         config: Optional[RolloutConfig] = None,
         model_name: Optional[str] = None,
+        client_factory: Optional[Callable[[CodingTask], Any]] = None,
     ):
         self.config = config or RolloutConfig()
         self.model_name = model_name or ""
+        self.client_factory = client_factory
 
     def run_episode(self, task: CodingTask) -> RolloutResult:
         """Run a single episode for one task.
@@ -115,6 +120,8 @@ class RolloutRunner:
 
         try:
             env.reset(task)
+            if self.client_factory is not None:
+                env._agent.client = self.client_factory(task)
             obs, reward, done, info = env.step()
 
             # Reuse cached test/diff results from env (avoids double-computation)
@@ -132,6 +139,7 @@ class RolloutRunner:
                 execution_time=time.time() - start,
                 test_result=test_result,
                 diff_result=diff_result,
+                task=task.to_dict(),
             )
         except Exception as e:
             return RolloutResult(
@@ -219,6 +227,7 @@ class RolloutRunner:
                     "test_result": r.test_result,
                     "diff_result": r.diff_result,
                     "messages": r.messages,
+                    "task": r.task,
                 }
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 

@@ -38,7 +38,30 @@
     <div class="role">{{ m.role }}{% if m.tool_name %} · {{ m.tool_name }}{% endif %}</div>
     {% if m.content %}<div class="content">{{ m.content }}</div>{% endif %}
     {% if m.tool_calls %}
-      <div class="tool-calls">{{ m.tool_calls|tojson(indent=2) }}</div>
+      {% for call in m.tool_calls %}
+        {% set args = call.arguments if call.arguments else {} %}
+        <div class="tool-call">
+          <div class="tool-call-head">
+            <code>{{ call.name or "tool" }}</code>
+            {% if args.path %}<span>path: <code>{{ args.path }}</code></span>{% endif %}
+            {% if args.command %}<span>command</span>{% endif %}
+          </div>
+          {% if args.content %}
+            <pre>{{ args.content }}</pre>
+          {% elif args.command %}
+            <pre>{{ args.command }}</pre>
+          {% elif args %}
+            <div class="arg-table">
+              {% for key, value in args.items() %}
+                <span class="arg-key">{{ key }}</span>
+                <span>{{ value }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <pre>{{ call|tojson(indent=2) }}</pre>
+          {% endif %}
+        </div>
+      {% endfor %}
     {% endif %}
   </div>
   {% endfor %}

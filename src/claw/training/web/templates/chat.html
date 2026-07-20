@@ -100,7 +100,13 @@ function runChat() {
       count += 1;
       document.getElementById('msg-count').textContent = '（共 ' + count + ' 条消息）';
     } else if (d.type === 'done') {
-      setStatus('完成 · ' + d.stop_reason, 'status-done');
+      if (d.stop_reason === 'error' || d.error) {
+        const out = document.getElementById('output');
+        out.appendChild(el('div', 'alert alert-error', '<strong>错误:</strong> ' + escapeHtml(d.error || 'agent stopped with error')));
+        setStatus('错误', 'status-error');
+      } else {
+        setStatus('完成 · ' + (d.stop_reason || 'completed'), 'status-done');
+      }
       finish();
     } else if (d.type === 'error') {
       const out = document.getElementById('output');

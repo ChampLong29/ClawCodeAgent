@@ -70,6 +70,7 @@ class LocalCodingAgent:
     model_config: Optional[Any] = None
     budget: Optional[BudgetConfig] = None
     permissions: Optional[Dict[str, Any]] = None
+    api_config_cwd: Optional[str] = None
 
     # Internal state
     session: Optional[AgentSession] = None
@@ -96,7 +97,7 @@ class LocalCodingAgent:
     def __post_init__(self):
         """Initialize the agent after construction."""
         # Use API config to determine provider and client type
-        api_config_runtime = APIConfigRuntime(cwd=self.cwd)
+        api_config_runtime = APIConfigRuntime(cwd=self.api_config_cwd or self.cwd)
         api_config = api_config_runtime.get_config()
 
         # Honor explicit model_config override if provided

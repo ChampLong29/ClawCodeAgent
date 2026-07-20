@@ -14,16 +14,21 @@ from socketserver import ThreadingMixIn
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse, parse_qs
 
-from ..agent_runtime import LocalCodingAgent
-from ..agent_types import AgentPermissions, ModelConfig, BudgetConfig
-from ..query_engine import QueryEngine, QueryEngineConfig
-from ..session_store import list_sessions, save_agent_session
 from .permission_manager import PermissionManager
 
 
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     """HTTP server that handles each request in a new thread."""
     daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        """Suppress noisy tracebacks from browser/SSE disconnects."""
+        import sys
+
+        exc_type, _, _ = sys.exc_info()
+        if exc_type in (BrokenPipeError, ConnectionResetError, OSError):
+            return
+        super().handle_error(request, client_address)
 
 
 @dataclass
@@ -49,9 +54,7 @@ class GUIDatabase:
         self.event_queue: queue.Queue = queue.Queue()
         self.permission_manager = PermissionManager()
 
-        # Populate sessions from disk
-        for s in list_sessions(cwd):
-            self.sessions[s["session_id"]] = s
+        # Sessions are loaded lazily so GUI startup is never blocked by slow disks.
 
         # Wire permission callback to push events to SSE queue
         def on_permission_request(req):
@@ -78,7 +81,7 @@ class GUIDatabase:
                 "cwd": self.agent_state.cwd,
                 "api_config": self.agent_state.api_config,
             },
-            "sessions": list_sessions(self.cwd),
+            "sessions": list(self.sessions.values()),
             "runtime_count": len(self.runtime_states),
         }
 
@@ -91,12 +94,22 @@ class GUIDatabase:
     def _get_permissions_dict(self) -> Dict[str, Any]:
         """Convert permission_mode string to permissions dict."""
         mode = self.agent_state.permission_mode
+        from ..agent_types import AgentPermissions
+
         if mode == "allow-shell":
             return AgentPermissions(allow_write=True, allow_shell=True).to_dict()
         elif mode == "allow-write":
             return AgentPermissions(allow_write=True, allow_shell=False).to_dict()
         else:
             return AgentPermissions(allow_write=False, allow_shell=False).to_dict()
+
+
+
+def _list_sessions(cwd: str) -> List[Dict[str, Any]]:
+    """Load persisted sessions without importing agent runtime at GUI startup."""
+    from ..session_store import list_sessions
+
+    return list_sessions(cwd)
 
 
 # Global database instance
@@ -124,7 +137,7 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
-        self.wfile.write(json.dumps(data).encode("utf-8"))
+        self.wfile.write(json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"))
 
     def do_GET(self):
         """Handle GET requests."""
@@ -292,6 +305,11 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
             self.send_json({"error": "No prompt provided"}, 400)
             return
 
+        from ..agent_runtime import LocalCodingAgent
+        from ..agent_types import BudgetConfig, ModelConfig
+        from ..query_engine import QueryEngineConfig
+        from ..session_store import save_agent_session
+
         config = QueryEngineConfig(
             model=ModelConfig(name=db.agent_state.model_name) if db.agent_state.model_name else None,
             budget=BudgetConfig(),
@@ -357,10 +375,15 @@ class GUIRequestHandler(BaseHTTPRequestHandler):
                 # Persist session
                 if agent.session:
                     save_agent_session(agent.session, db.agent_state.cwd)
-                    # Refresh session list
-                    db.sessions = {}
-                    for s in list_sessions(db.agent_state.cwd):
-                        db.sessions[s["session_id"]] = s
+                    # Refresh the active session entry without scanning all history.
+                    db.sessions[agent.session.session_id] = {
+                        "session_id": agent.session.session_id,
+                        "created_at": agent.session.created_at,
+                        "updated_at": agent.session.updated_at,
+                        "model": agent.session.model,
+                        "stop_reason": agent.session.stop_reason,
+                        "message_count": len(agent.session.messages),
+                    }
 
                 eq.put({
                     "type": "done",
@@ -438,6 +461,7 @@ a { color: #00d4ff; }
 .msg.assistant { align-self: flex-start; background: #1e2d50; color: #ddd; border-bottom-left-radius: 4px; }
 .msg.tool { align-self: flex-start; background: #2a2a1a; color: #cc0; font-size: 11px; font-family: monospace; border-left: 3px solid #cc0; }
 .msg.error { align-self: flex-start; background: #3a1a1a; color: #f66; border-left: 3px solid #f66; }
+.chat-empty { pointer-events: none; }
 
 .permission-card { align-self: center; background: #3a2a0a; border: 2px solid #f90; border-radius: 12px; padding: 16px; max-width: 500px; width: 100%; }
 .permission-card h4 { color: #f90; margin-bottom: 8px; }
@@ -542,7 +566,17 @@ function showThinking(active) {
   status.innerHTML = active ? '<span class="spinner"></span>Thinking...' : '';
 }
 
+function clearEmptyState() {
+  document.querySelectorAll('.chat-empty').forEach(el => el.remove());
+}
+
+function scrollChatToBottom() {
+  const chat = document.getElementById('chat');
+  chat.scrollTop = chat.scrollHeight;
+}
+
 function appendText(text) {
+  clearEmptyState();
   const chat = document.getElementById('chat');
   const last = chat.lastElementChild;
   if (last && last.classList.contains('msg') && last.classList.contains('assistant') && last.dataset.streaming === 'true') {
@@ -554,14 +588,17 @@ function appendText(text) {
     div.textContent = text;
     chat.appendChild(div);
   }
+  scrollChatToBottom();
 }
 
 function appendError(text) {
+  clearEmptyState();
   const chat = document.getElementById('chat');
   const div = document.createElement('div');
   div.className = 'msg error';
   div.textContent = 'Error: ' + text;
   chat.appendChild(div);
+  scrollChatToBottom();
 }
 
 function showPermissionCard(req) {
@@ -597,11 +634,13 @@ function sendQuery() {
   if (!prompt) return;
   input.value = '';
 
+  clearEmptyState();
   const chat = document.getElementById('chat');
   const userDiv = document.createElement('div');
   userDiv.className = 'msg user';
   userDiv.textContent = prompt;
   chat.appendChild(userDiv);
+  scrollChatToBottom();
 
   // Mark all streaming messages as done
   chat.querySelectorAll('.msg[data-streaming]').forEach(m => delete m.dataset.streaming);
@@ -674,9 +713,10 @@ function loadSessions() {
       if (s.session_id === currentSessionId) div.classList.add('active');
       div.dataset.sid = s.session_id;
       const date = s.created_at ? new Date(s.created_at * 1000).toLocaleString() : 'unknown';
-      const modelShort = (s.model || '').split('/').pop() || '?';
+      const modelShort = (s.model || '').split('/').pop() || 'local session';
+      const msgText = Number.isFinite(s.message_count) && s.message_count > 0 ? (s.message_count + ' msgs') : 'saved session';
       div.innerHTML = '<div class="sess-id">' + escapeHtml(s.session_id) + '</div>'
-        + '<div class="sess-meta">' + s.message_count + ' msgs &middot; ' + (s.stop_reason || 'active') + '</div>'
+        + '<div class="sess-meta">' + msgText + ' &middot; ' + (s.stop_reason || 'active') + '</div>'
         + '<div class="sess-model">' + escapeHtml(modelShort) + ' &middot; ' + date + '</div>';
       div.onclick = () => selectSession(s.session_id);
       list.appendChild(div);
@@ -726,7 +766,7 @@ def run_server(cwd: str, host: str, port: int, stream: bool) -> None:
         _db.agent_state.api_config = {
             "base_url": api_cfg.base_url,
             "model": api_cfg.model,
-            "provider": api_cfg.provider,
+            "provider": getattr(api_cfg.provider, "value", str(api_cfg.provider)),
         }
     except Exception:
         pass

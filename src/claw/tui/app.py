@@ -745,6 +745,15 @@ class ClawTUIApp(App):
                 store.append(("add_user_message", (content,)))
             elif role == "assistant":
                 store.append(("add_assistant_message", (content,)))
+                for call in msg.get("tool_calls") or []:
+                    if "name" in call:
+                        tool_name = call.get("name") or "tool"
+                        args_preview = call.get("arguments") or {}
+                    else:
+                        fn = call.get("function") or {}
+                        tool_name = fn.get("name") or "tool"
+                        args_preview = fn.get("arguments") or {}
+                    store.append(("add_tool_call", (str(tool_name), str(args_preview))))
             elif role == "tool":
                 tc_id = msg.get("tool_call_id", "")
                 store.append(("add_info", (f"  🔧 tool result [{tc_id[:8] if tc_id else '?'}]",)))
@@ -798,7 +807,12 @@ class ClawTUIApp(App):
                 agent.permissions["allow_write"] = self.write_enabled
                 agent.permissions["allow_shell"] = self.shell_enabled
 
-            # — Lifecycle mode routing —
+            # — DevFlow / Lifecycle mode routing —
+            if mode == "devflow" and agent:
+                handled = await self._run_devflow_phase(agent, prompt, messages)
+                if handled:
+                    return
+
             if mode == "lifecycle" and agent:
                 handled = await self._run_lifecycle_phase(agent, prompt, messages)
                 if handled:
@@ -832,6 +846,168 @@ class ClawTUIApp(App):
             self._store_message("add_error", err_msg)
         finally:
             self._agent_running = False
+
+    # ------------------------------------------------------------------
+    # DevFlow phase routing (TUI)
+    # ------------------------------------------------------------------
+
+    async def _run_devflow_phase(self, agent: Any, prompt: str, messages: Any) -> bool:
+        """Route DevFlow mode input through DevFlowRuntime.
+
+        The CLI/REPL has slash commands for DevFlow.  TUI users expect the
+        DevFlow tab itself to drive the structured flow, so this method maps a
+        plain goal plus accept/reject/continue actions onto the runtime.
+        """
+        df_rt = agent._runtime_instances.get("devflow") if hasattr(agent, "_runtime_instances") else None
+        if df_rt is None:
+            return False
+
+        prompt_clean = prompt.strip()
+        prompt_lower = prompt_clean.lower()
+
+        if not df_rt.has_active_session():
+            session = await asyncio.to_thread(df_rt.start_session, prompt_clean)
+            project_dir = df_rt.get_project_dir()
+            if project_dir and agent:
+                agent.cwd = project_dir
+            messages.write("[bold cyan]DevFlow session started[/bold cyan]")
+            messages.write(f"[dim]Goal: {prompt_clean}[/dim]")
+            messages.write(f"[dim]Session: {session.session_id}[/dim]")
+            self._store_message("add_info", f"DevFlow session started: {session.session_id}")
+            self._store_message("add_info", f"Goal: {prompt_clean}")
+            await self._execute_devflow_phase(df_rt, agent, messages)
+            self._update_sidebar_status()
+            return True
+
+        session = df_rt.get_session()
+        if not session:
+            return False
+
+        if prompt_lower in ("accept", "approve", "yes", "ok", "continue", "done",
+                            "/devflow accept", "/accept"):
+            phase = session.phase
+            try:
+                if phase == "ARCHITECTURE":
+                    df_rt.approve_architecture(agent_session=agent.session)
+                elif phase == "STEP_DEFINITION":
+                    df_rt.approve_steps(agent_session=agent.session)
+                elif phase == "STEP_ANALYSIS":
+                    df_rt.approve_modules(agent_session=agent.session)
+                elif phase == "IMPLEMENTATION":
+                    session.phase = "VERIFY"
+                    df_rt.save()
+                elif phase == "VERIFY":
+                    if not df_rt.next_module():
+                        if not df_rt.next_step(agent_session=agent.session):
+                            messages.write("[bold green]DevFlow complete![/bold green]")
+                            self._store_message("add_info", "DevFlow complete!")
+                            archive_path = df_rt.archive()
+                            messages.write(f"[dim]Archived to {archive_path}[/dim]")
+                            self._store_message("add_info", f"Archived to {archive_path}")
+                            self._update_sidebar_status()
+                            return True
+                elif phase == "DONE":
+                    messages.write("[bold green]DevFlow is already complete.[/bold green]")
+                    return True
+            except Exception as e:
+                messages.add_error(f"DevFlow accept failed: {e}")
+                self._store_message("add_error", f"DevFlow accept failed: {e}")
+                return True
+
+            await self._execute_devflow_phase(df_rt, agent, messages)
+            self._update_sidebar_status()
+            return True
+
+        if prompt_lower.startswith("reject") or prompt_lower.startswith("/devflow reject") or prompt_lower.startswith("retry"):
+            reason = ""
+            parts = prompt_clean.split(None, 1)
+            if len(parts) > 1:
+                reason = parts[1]
+                session.user_constraints = (
+                    (session.user_constraints or "")
+                    + f"\n[User feedback on {session.phase}]: {reason}"
+                )
+
+            if session.phase == "ARCHITECTURE":
+                session.architecture = None
+            elif session.phase == "STEP_DEFINITION":
+                session.steps = []
+            elif session.phase in ("STEP_ANALYSIS", "IMPLEMENTATION", "VERIFY"):
+                df_rt.retry_step()
+
+            df_rt.save()
+            messages.write("[bold yellow]DevFlow phase rejected. Retrying...[/bold yellow]")
+            self._store_message("add_info", f"DevFlow phase rejected. Reason: {reason}")
+            await self._execute_devflow_phase(df_rt, agent, messages)
+            self._update_sidebar_status()
+            return True
+
+        if prompt_lower in ("skip", "/devflow skip"):
+            if df_rt.skip_step(agent_session=agent.session):
+                await self._execute_devflow_phase(df_rt, agent, messages)
+            else:
+                messages.write("[dim]No further DevFlow steps.[/dim]")
+                self._store_message("add_info", "No further DevFlow steps.")
+            self._update_sidebar_status()
+            return True
+
+        # Let ordinary feedback/questions go through the normal agent loop.
+        return False
+
+    async def _execute_devflow_phase(self, df_rt: Any, agent: Any, messages: Any) -> None:
+        """Execute the current DevFlow phase and render a bounded preview."""
+        session = df_rt.get_session()
+        phase = session.phase if session else "?"
+
+        messages.write(f"[dim]Running DevFlow {phase} phase...[/dim]")
+        self._store_message("add_info", f"Running DevFlow {phase} phase...")
+        self._set_status_working(True)
+
+        try:
+            if phase == "ARCHITECTURE":
+                output = await asyncio.to_thread(df_rt.propose_architecture, agent)
+            elif phase == "STEP_DEFINITION":
+                steps = await asyncio.to_thread(df_rt.generate_steps, agent)
+                output = "\n".join(
+                    f"- {s.id}: {s.title}\n  Goal: {s.goal}\n  Depends on: {', '.join(s.depends_on) if s.depends_on else 'None'}"
+                    for s in steps
+                ) or "No steps were generated."
+            elif phase == "STEP_ANALYSIS":
+                modules = await asyncio.to_thread(df_rt.analyze_step, agent)
+                output = "\n".join(
+                    f"- {m.id}: {m.file_path}\n  Goal: {m.goal}"
+                    for m in modules
+                ) or "No modules were generated."
+            elif phase == "IMPLEMENTATION":
+                output = await asyncio.to_thread(df_rt.execute_step, agent)
+            elif phase == "VERIFY":
+                output = await asyncio.to_thread(df_rt.verify_step, agent)
+            elif phase == "DONE":
+                archive_path = df_rt.archive()
+                output = f"DevFlow complete. Archived to {archive_path}"
+            else:
+                output = f"Unsupported DevFlow phase: {phase}"
+
+            self._set_status_working(False)
+            messages.write(f"\n[bold green]╭─ DevFlow {phase} Output[/bold green]")
+            lines = output.split("\n")
+            for line in lines[:60]:
+                messages.write(f"[dim]│ {line}[/dim]")
+            if len(lines) > 60:
+                messages.write("[dim]│ ... (truncated, see session artifact)[/dim]")
+            messages.write("[bold green]╰────────────────────[/bold green]")
+            self._store_message("add_info", f"--- DevFlow {phase} Output ---")
+            self._store_message("add_info", output)
+            messages.write("")
+            messages.write(
+                "[bold]Actions:[/bold] "
+                "[green]accept[/green] · [yellow]reject <reason>[/yellow] · [dim]skip[/dim]"
+            )
+            self._store_message("add_info", "Actions: accept · reject <reason> · skip")
+        except Exception as e:
+            self._set_status_working(False)
+            messages.add_error(f"Error executing DevFlow {phase}: {e}")
+            self._store_message("add_error", f"Error executing DevFlow {phase}: {e}")
 
     # ------------------------------------------------------------------
     # Deep-dive
