@@ -58,6 +58,20 @@ class RolloutResult:
             "task": self.task,
         }
 
+    def to_trajectory(self, **conversion_options: Any):
+        """Convert this legacy result to an append-only agent_trajectory.v2."""
+        from ..trajectory.migration import rollout_result_to_trajectory
+
+        return rollout_result_to_trajectory(self, **conversion_options)
+
+    def to_verification(self, *, trajectory_ref: str, **conversion_options: Any):
+        """Convert legacy reward signals to a separate verification_report.v2."""
+        from ..experiment.migration import rollout_result_to_verification
+
+        return rollout_result_to_verification(
+            self, trajectory_ref=trajectory_ref, **conversion_options
+        )
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> RolloutResult:
         return cls(

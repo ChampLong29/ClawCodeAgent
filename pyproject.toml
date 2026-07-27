@@ -17,6 +17,13 @@ dev = [
 tui = [
     "textual>=0.80.0",
 ]
+sft = [
+    "accelerate>=0.34",
+    "bitsandbytes>=0.43",
+    "peft>=0.13",
+    "torch>=2.1",
+    "transformers>=4.45",
+]
 web = [
     "fastapi>=0.100",
     "uvicorn>=0.23",

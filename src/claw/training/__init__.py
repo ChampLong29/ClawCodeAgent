@@ -26,6 +26,13 @@ _LAZY_EXPORTS = {
     "ReviewIssue": (".reviewer", "ReviewIssue"),
     "SlimeDataAdapter": (".slime_adapter", "SlimeDataAdapter"),
     "SlimeTrainingSample": (".slime_adapter", "SlimeTrainingSample"),
+    "SFTTrainingConfig": ("..training_backends", "SFTTrainingConfig"),
+    "TrainingDatasetSource": ("..training_backends", "TrainingDatasetSource"),
+    "TrainingRunRecord": ("..training_backends", "TrainingRunRecord"),
+    "TrainingBackend": ("..training_backends", "TrainingBackend"),
+    "DryRunBackend": ("..training_backends", "DryRunBackend"),
+    "PeFTSFTBackend": ("..training_backends", "PeFTSFTBackend"),
+    "ToolUseChatEncoder": ("..training_backends", "ToolUseChatEncoder"),
 }
 
 __all__ = list(_LAZY_EXPORTS)
@@ -53,3 +60,12 @@ if TYPE_CHECKING:
     from .domain_config import DomainConfig, DomainRegistry, default_registry
     from .reviewer import ReviewerAgent, ReviewReport, ReviewScore, ReviewIssue
     from .slime_adapter import SlimeDataAdapter, SlimeTrainingSample
+    from ..training_backends import (
+        DryRunBackend,
+        PeFTSFTBackend,
+        SFTTrainingConfig,
+        ToolUseChatEncoder,
+        TrainingBackend,
+        TrainingDatasetSource,
+        TrainingRunRecord,
+    )
