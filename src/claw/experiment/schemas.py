@@ -19,6 +19,16 @@ _SIGNAL_KINDS = {"hard", "soft"}
 _SIGNAL_STATUSES = {"pass", "fail", "unknown", "not_applicable"}
 _DATASET_STRATEGIES = {"raw", "success_only", "verifier_filtered"}
 _VERDICTS = {"success", "failure", "not_verifiable"}
+EXPERIMENT_STATUSES = {
+    "created",
+    "training",
+    "trained",
+    "contract_verified",
+    "benchmarking",
+    "completed",
+    "failed",
+    "recovery_required",
+}
 
 
 class SchemaValidationError(ValueError):
@@ -323,7 +333,15 @@ class ExperimentRun:
     benchmark_ref: Optional[str] = None
     metrics: Dict[str, Any] = field(default_factory=dict)
     artifact_refs: List[str] = field(default_factory=list)
+    git_commit: str = ""
+    environment: Dict[str, Any] = field(default_factory=dict)
+    inference_config: Dict[str, Any] = field(default_factory=dict)
+    training_run_ref: Optional[str] = None
+    result_refs: List[str] = field(default_factory=list)
+    status_history: List[Dict[str, Any]] = field(default_factory=list)
+    evidence: Dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=utc_now)
+    updated_at: str = field(default_factory=utc_now)
     schema_version: str = EXPERIMENT_SCHEMA_VERSION
 
     def validate(self) -> None:
@@ -340,6 +358,31 @@ class ExperimentRun:
             "status",
         ):
             _require_text(name, getattr(self, name))
+        if self.status not in EXPERIMENT_STATUSES:
+            raise SchemaValidationError(
+                f"status must be one of {sorted(EXPERIMENT_STATUSES)}"
+            )
+        if self.seed < 0:
+            raise SchemaValidationError("seed must be non-negative")
+        if not isinstance(self.training_config, dict):
+            raise SchemaValidationError("training_config must be an object")
+        if not isinstance(self.environment, dict):
+            raise SchemaValidationError("environment must be an object")
+        if not isinstance(self.inference_config, dict):
+            raise SchemaValidationError("inference_config must be an object")
+        if len(set(self.artifact_refs)) != len(self.artifact_refs):
+            raise SchemaValidationError("artifact_refs must be unique")
+        if len(set(self.result_refs)) != len(self.result_refs):
+            raise SchemaValidationError("result_refs must be unique")
+        for event in self.status_history:
+            if not isinstance(event, dict):
+                raise SchemaValidationError(
+                    "status_history entries must be objects"
+                )
+            if event.get("status") not in EXPERIMENT_STATUSES:
+                raise SchemaValidationError(
+                    "status_history contains an unsupported status"
+                )
 
     def to_dict(self) -> Dict[str, Any]:
         self.validate()
