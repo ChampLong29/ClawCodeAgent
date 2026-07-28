@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -56,7 +57,8 @@ def workspace_hash(
             digest.update(b"symlink\0")
             digest.update(os.readlink(path).encode("utf-8"))
         else:
-            digest.update(str(path.stat().st_mode & 0o777).encode("ascii"))
+            executable = bool(path.stat().st_mode & stat.S_IXUSR)
+            digest.update(b"755" if executable else b"644")
             digest.update(b"\0")
             with path.open("rb") as handle:
                 while True:

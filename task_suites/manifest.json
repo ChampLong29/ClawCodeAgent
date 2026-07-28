@@ -1,0 +1,1098 @@
+{
+  "content_hash": "91db1087953160fb354e6dfb9429dc4a92ce4f92e34bd1c37355053f00698169",
+  "description": "Deterministic executable coding suite covering Python CLI and library tasks, two task types, three family-safe splits, and reference fixes.",
+  "generated_by": "tools/generate_task_suite.py",
+  "schema_version": "task_suite.v1",
+  "suite_id": "claw-m1-core",
+  "tasks": [
+    {
+      "content_hash": "41884e79d21610278b70f287d2813e5a7af072c50c99c03074d80c80923bf1f9",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-01",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-01",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run1:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-cli-add_feature-01",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "644a643ba565a40454bbebc1646f7e35e739f4640403fcfa6c64d538bec45d83",
+      "template_ref": "task_suites/templates/python-cli-add_feature-01",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "84c4073b916d1a583a362320320551c108acd00db5f976dc3e0b027d21514ea4",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-02",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-02",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run2:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-cli-add_feature-02",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "c60af9154061b7f88a968f1e650d609042059ab2a86f2dcc8fda77e5aa21ea2d",
+      "template_ref": "task_suites/templates/python-cli-add_feature-02",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "cd74ac54904a336edc97359283e65d729ebba3981803883115f71f959594e1a2",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-03",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-03",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run3:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-cli-add_feature-03",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "97f20685e8b70a00e0ecb5ce851f53b56e05b02948307eb5429af76825c71026",
+      "template_ref": "task_suites/templates/python-cli-add_feature-03",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "5d767ebe30fec99d88504866b2057820d384562cb9a2bb9a5babfb4a4b853d90",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-04",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-04",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run4:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-cli-add_feature-04",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "43310ebdcb327327633a2ea8efa4a5207aee9092df0b4c59a7c076982d31bcf0",
+      "template_ref": "task_suites/templates/python-cli-add_feature-04",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "e1a870ea24e2b7044e27fd6383bfe43d903e93362005a5bef1b0acf6574c72fd",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-05",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-05",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run5:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-cli-add_feature-05",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "05d6e54374f79187fcc8e0d068d5b688f30ae3f17016086647ec55dfe591331c",
+      "template_ref": "task_suites/templates/python-cli-add_feature-05",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "82d901c4d0f41d8f742e7759c83eabfb6587f479d5620aa61911c3fc624a3fa7",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-06",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-06",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run6:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "dev",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-cli-add_feature-06",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "cbcbc0c615f3021dd769ba120f42bf7d31430bb8e77295e523b8a271545b51fc",
+      "template_ref": "task_suites/templates/python-cli-add_feature-06",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "3e5f594225f3fc992c9d4a032e98d7fb1c0a80147ad789625b4f1bd5d6326103",
+      "difficulty": "hard",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-07",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-07",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run7:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "hard"
+      ],
+      "task_id": "python-cli-add_feature-07",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "60b200e11f34442268d3414ceaeaece17630975a6ae5639d8a9b6548d626f443",
+      "template_ref": "task_suites/templates/python-cli-add_feature-07",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "a2784d79d1198ea0c85d63da4edf62eb85537a8798385258223fde1a0e62c4ab",
+      "difficulty": "hard",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-add_feature-08",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-add_feature-08",
+      "prompt": "Implement build_command(name) so a non-empty string becomes 'run8:<name>'; reject invalid names with ValueError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-cli",
+        "add_feature",
+        "hard"
+      ],
+      "task_id": "python-cli-add_feature-08",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "6963d27dda7708caf98c7ad6b83e8063e1963dd0c5fcb35e52b9f93429803d9e",
+      "template_ref": "task_suites/templates/python-cli-add_feature-08",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "065b47441a5de1d0146e4727eba7b56ae27ac223135f3deca1fe6798dca5ee3d",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-01",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-01",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8001, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-cli-fix_bug-01",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "00170bdb5fb6e18093ec77de36785bbc901ffce184820f98392488e319edfa81",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-01",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "29ec71a7719689bb92adc015529146cf5e5ecbe3bd5901cfa50c4a18d111b079",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-02",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-02",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8002, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-cli-fix_bug-02",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "9ce6c31cad58fb140855d1e0f8c66d249b82137d85e6288477c2b29bed51c85c",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-02",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "e1e6bfda9c189d1180346160f7644c7d0468a84d60862f7e9ca459bc78dff60a",
+      "difficulty": "easy",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-03",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-03",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8003, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-cli-fix_bug-03",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "6324bbd9941f7de964b7631336e9a18dfad4e9f72ba10bd74aa8d5f3bdd7d421",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-03",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "ac6a13be8be35d0fb5ef3ec9a32016ce7351e2fca7bc75761dc3fbad770512db",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-04",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-04",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8004, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-cli-fix_bug-04",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "7cedbc364f35e22893e6d8fcc59ff2b68b1a6f7afbed98ee1ad3b845630c029a",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-04",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "dd7e97a0d7b2db229d2cbca9ce2288f33f92a70cb0a3a67acfe7966aca068722",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-05",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-05",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8005, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-cli-fix_bug-05",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "414c74ede44514eb52cfb1661712dafa1590863e6a7fec8233f4e2170fa99c39",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-05",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "2f7899f58d4b41e158d34d2fb8ffa5d39a5c540b8a34db005f7618412377b9fb",
+      "difficulty": "medium",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-06",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-06",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8006, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "dev",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-cli-fix_bug-06",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "2e98940a69c0e304207b5933f5d42403b1094b1c88317fcdfa5cfcb7c67539e3",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-06",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "ba85f2fc22aac8c166705f5063651179e1563349af7d2efd3d07072eefc9abee",
+      "difficulty": "hard",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-07",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-07",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8007, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "hard"
+      ],
+      "task_id": "python-cli-fix_bug-07",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "407c0619ac7290d952f1ea0b63a0c7b9f32f352dafe4152b6bfdc48fed2f5252",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-07",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "e653542a4dc5782872c26e38382d3859c46c3c00d244ffac65edc9f3cc36bfb1",
+      "difficulty": "hard",
+      "domain": "python-cli",
+      "family_id": "family-python-cli-fix_bug-08",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-cli-fix_bug-08",
+      "prompt": "Fix parse_port(value) to return an integer from 1 through 8008, rejecting non-numeric and out-of-range values.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-cli",
+        "fix_bug",
+        "hard"
+      ],
+      "task_id": "python-cli-fix_bug-08",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "2bd4f732c3149c6c67181db1463f9a4a45101a1de8b604ce0b4ae18d9e7967e6",
+      "template_ref": "task_suites/templates/python-cli-fix_bug-08",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "9ec6a849c5e6048e219ee196c6391e72637a7fd3a972cd821a99c5473c9a3d95",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-01",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-01",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 2; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-library-add_feature-01",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "201b11e604aebc44dbee2d2589da4bb6ba6c5bb363b1b7faf8eabbbed952a254",
+      "template_ref": "task_suites/templates/python-library-add_feature-01",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "6f81c88be2dfa18796878cad02ed843267ad75ba247d05218326526899240786",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-02",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-02",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 3; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-library-add_feature-02",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "265d4bbe00d3b65ee242de32820ae23226ff87b0ff365396ce16f9e6bfe03e24",
+      "template_ref": "task_suites/templates/python-library-add_feature-02",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "120784db863b6eb54dea7bd15ba42ecdae54d845bccb0b6a2177a2e1c3ffe0ba",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-03",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-03",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 4; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "easy"
+      ],
+      "task_id": "python-library-add_feature-03",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "b3375ebfba3420aaaee3203236d383381a5c4a11dd4d8aecc0b6774ad0862e9d",
+      "template_ref": "task_suites/templates/python-library-add_feature-03",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "c36ff877492a8b3327c9e10f97b088dd6f66435f499071f84695fe74c085e5ab",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-04",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-04",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 5; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-library-add_feature-04",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "fb702ac8039788a2a2248fd4dec65a2afb797e75be9d5c3dfd45ff78cc0a2eb8",
+      "template_ref": "task_suites/templates/python-library-add_feature-04",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "4e3268d110e2dc561c44954b2b868168b777933398c66eba5ce474ef0bedabb2",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-05",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-05",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 6; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-library-add_feature-05",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "f81d353b26f76b463067db6e1d17e68b6a91f04e69a4f545ed789446dcc70354",
+      "template_ref": "task_suites/templates/python-library-add_feature-05",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "ba68acc45d29e0880861a66489124baa3d8f6820cc8bf38209706d7c0dd1f42c",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-06",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-06",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 7; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "dev",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "medium"
+      ],
+      "task_id": "python-library-add_feature-06",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "abe5b126294fac8d95d5c72341fca4b9ae40c754aef7e7f2ffb7f8d22bc601a6",
+      "template_ref": "task_suites/templates/python-library-add_feature-06",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "64a71c2a8cf5f4fdf68b7fefc65f5b417c8cf2e38d80afc1a6bf577b7115a3bd",
+      "difficulty": "hard",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-07",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-07",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 8; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "hard"
+      ],
+      "task_id": "python-library-add_feature-07",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "cca70e94ba4c522336fce5f7b413ff93faf6ab07d3628131f14bcdd6ccc44327",
+      "template_ref": "task_suites/templates/python-library-add_feature-07",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "5d996ae14f99855ef9ea3f78ec3998a1a23c055e9b43f5819acc4611060149df",
+      "difficulty": "hard",
+      "domain": "python-library",
+      "family_id": "family-python-library-add_feature-08",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-add_feature-08",
+      "prompt": "Implement weighted_total(values) as the numeric sum multiplied by 9; reject non-list inputs with TypeError.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "hard"
+      ],
+      "task_id": "python-library-add_feature-08",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "c17469145d367bc34b610f4bf83b3f03035b58e7d6df9eb87c90b3f2340d53b3",
+      "template_ref": "task_suites/templates/python-library-add_feature-08",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "75b041c09e4c85ee812c3190e5fdad7db2e40cb28501b808c1316d0e9a9a7c51",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-01",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-01",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-1'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-library-fix_bug-01",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "bedce4b29a6e7ba3668d539dd3ec6113333e2d6657fecf3e45597cb71479a20e",
+      "template_ref": "task_suites/templates/python-library-fix_bug-01",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "a1b8c6cbabb9ff32635d22186c4dcb8ef6e653ad9f80fc35bcd836401d1c2c61",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-02",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-02",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-2'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-library-fix_bug-02",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "e6521001ae1919be6aa3ed1d7c3230102aaff96d93483596d480312aa874cd47",
+      "template_ref": "task_suites/templates/python-library-fix_bug-02",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "5e44d6c39d2681697bcbf07638085c0295632ce9192ee4b360406205d26b1168",
+      "difficulty": "easy",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-03",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-03",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-3'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "easy"
+      ],
+      "task_id": "python-library-fix_bug-03",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "4b1fab54de893a44154799a64c3ead5c347dd69bc0d9c84a6f39f019f89921bf",
+      "template_ref": "task_suites/templates/python-library-fix_bug-03",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "c4d7c56fcb6caf72979d33d9c3e679ebf118c7c1cdfaa7f766404c8c3ebac185",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-04",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-04",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-4'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-library-fix_bug-04",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "4175236a0192976a2fca35fab45fcd17d3596b786146c44a41bd8d61679210b0",
+      "template_ref": "task_suites/templates/python-library-fix_bug-04",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "773e094d02dc52d3092e43b750f86da6bb72e3f9bc453cf1dafd8eca4652fa92",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-05",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-05",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-5'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "train",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-library-fix_bug-05",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "69ac6eb570ecec1959046e02dd9567abb86adf0a8f28652b98c353fe694b9967",
+      "template_ref": "task_suites/templates/python-library-fix_bug-05",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "06665c8110b3508be66fd82ab7b3b9b390d1b759e060f8cc771ff4e6f9c809e2",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-06",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-06",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-6'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "dev",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "medium"
+      ],
+      "task_id": "python-library-fix_bug-06",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "fcfb637c4641c0561cff6b3464695acd1c5c1de8233582c18d8697e598b21388",
+      "template_ref": "task_suites/templates/python-library-fix_bug-06",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "8a135ac3ae459e95c7e9a54f1a2862c3376c61e662afbd617c5d9ec9c01d241c",
+      "difficulty": "hard",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-07",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-07",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-7'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "hard"
+      ],
+      "task_id": "python-library-fix_bug-07",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "bafdd7823df3fd2fdb7d5fdda9f72b5429c6198bf4fcdef40abb7a61abbe8e49",
+      "template_ref": "task_suites/templates/python-library-fix_bug-07",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    },
+    {
+      "content_hash": "be46c41dad6e77fa8119fc6a03eebb1dcbad7bef7be84889fd0102f8272c6ad9",
+      "difficulty": "hard",
+      "domain": "python-library",
+      "family_id": "family-python-library-fix_bug-08",
+      "initial_checks": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/oracles/python-library-fix_bug-08",
+      "prompt": "Fix stable_unique(values) so duplicates are removed while the original order is preserved, including the marker 'item-8'.",
+      "resource_limits": {
+        "cpu_seconds": 10,
+        "memory_mb": 256,
+        "processes": 4
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-generated",
+      "split": "test",
+      "tags": [
+        "python-library",
+        "fix_bug",
+        "hard"
+      ],
+      "task_id": "python-library-fix_bug-08",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "e418d29cdb1a6656eff6d307443e136836a6a1f341b43e6787ae8e2ab9ae80a2",
+      "template_ref": "task_suites/templates/python-library-fix_bug-08",
+      "test_commands": [
+        "python -m unittest -q test_challenge.py"
+      ],
+      "timeout_seconds": 30.0
+    }
+  ],
+  "version": "1.0.0"
+}

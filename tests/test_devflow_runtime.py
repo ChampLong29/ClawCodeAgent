@@ -412,7 +412,7 @@ class TestDevFlowRuntime(unittest.TestCase):
 
         path = self.rt.archive()
         self.assertTrue(os.path.exists(path))
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("Archive test", content)
         self.assertIn("Step 1", content)
