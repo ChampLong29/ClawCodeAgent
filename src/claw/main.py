@@ -416,6 +416,79 @@ def cmd_lifecycle_start(args) -> int:
     return 0
 
 
+def cmd_benchmark_run(args) -> int:
+    """Run the versioned test suite through the auditable Agent benchmark."""
+    cwd = _resolve_cwd(args.cwd)
+    manifest_path = os.path.abspath(
+        args.manifest
+        if os.path.isabs(args.manifest)
+        else os.path.join(cwd, args.manifest)
+    )
+    output_root = os.path.abspath(
+        args.output
+        if os.path.isabs(args.output)
+        else os.path.join(cwd, args.output)
+    )
+    episodes_root = None
+    if args.episodes_root:
+        episodes_root = os.path.abspath(
+            args.episodes_root
+            if os.path.isabs(args.episodes_root)
+            else os.path.join(cwd, args.episodes_root)
+        )
+
+    try:
+        from .benchmark import run_local_benchmark
+
+        result = run_local_benchmark(
+            manifest_path=manifest_path,
+            output_root=output_root,
+            episodes_root=episodes_root,
+            group_name=args.group,
+            model_ref=args.model,
+            temperature=args.temperature,
+            max_tokens=args.max_tokens,
+            max_turns=args.max_turns,
+            seed=args.seed,
+            runtime_version=args.runtime_version,
+            prompt_version=args.prompt_version,
+            tool_version=args.tool_version,
+            verifier_version=args.verifier_version,
+            config_version=args.config_version,
+            task_ids=args.task_id or (),
+            limit=args.limit,
+            allowed_path_patterns=args.allow_path or ("**",),
+            dataset_manifest_ref=args.dataset_manifest_ref or "",
+            training_run_ref=args.training_run_ref or "",
+            experiment_ref=args.experiment_ref or "",
+            input_token_price_per_million=args.input_price_per_million,
+            output_token_price_per_million=args.output_price_per_million,
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"error": f"{type(exc).__name__}: {exc}"},
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+
+    report_path = os.path.join(
+        os.path.abspath(output_root), args.group, "benchmark-run.json"
+    )
+    print(json.dumps({
+        "run_id": result.run_id,
+        "group": result.config.group_name,
+        "model_ref": result.config.model_ref,
+        "protocol_fingerprint": result.config.protocol_fingerprint,
+        "task_count": len(result.task_ids),
+        "metrics": result.metrics,
+        "benchmark_run_ref": report_path,
+    }, indent=2, ensure_ascii=False))
+    return 0
+
+
 def cmd_train(args) -> int:
     """Run agent training episodes."""
     cwd = _resolve_cwd(args.cwd)
@@ -674,6 +747,52 @@ def main(argv: Optional[List[str]] = None) -> int:
     lifecycle_start_parser.add_argument("--cwd", default=None)
     lifecycle_start_parser.add_argument("--constraints", default=None, help="User constraints")
 
+    benchmark_parser = subparsers.add_parser(
+        "benchmark-run",
+        help="Run an auditable benchmark from a versioned test manifest",
+    )
+    benchmark_parser.add_argument("--cwd", default=None)
+    benchmark_parser.add_argument("--manifest", required=True)
+    benchmark_parser.add_argument(
+        "--output", default=".port_sessions/benchmark"
+    )
+    benchmark_parser.add_argument("--episodes-root", default=None)
+    benchmark_parser.add_argument(
+        "--group",
+        choices=["base", "raw_sft", "success_sft", "verifier_sft"],
+        default="base",
+    )
+    benchmark_parser.add_argument("--model", default=None)
+    benchmark_parser.add_argument("--temperature", type=float, default=0.0)
+    benchmark_parser.add_argument("--max-tokens", type=int, default=None)
+    benchmark_parser.add_argument("--max-turns", type=int, default=50)
+    benchmark_parser.add_argument("--seed", type=int, default=42)
+    benchmark_parser.add_argument("--limit", type=int, default=None)
+    benchmark_parser.add_argument("--task-id", action="append", default=[])
+    benchmark_parser.add_argument("--allow-path", action="append", default=[])
+    benchmark_parser.add_argument(
+        "--runtime-version", default="local-agent-runtime.v1"
+    )
+    benchmark_parser.add_argument(
+        "--prompt-version", default="agent-system-prompt.v1"
+    )
+    benchmark_parser.add_argument("--tool-version", default="tool-schema.v1")
+    benchmark_parser.add_argument(
+        "--verifier-version", default="verifier-policy.v1"
+    )
+    benchmark_parser.add_argument(
+        "--config-version", default="benchmark-cli.v1"
+    )
+    benchmark_parser.add_argument(
+        "--input-price-per-million", type=float, default=0.0
+    )
+    benchmark_parser.add_argument(
+        "--output-price-per-million", type=float, default=0.0
+    )
+    benchmark_parser.add_argument("--dataset-manifest-ref", default=None)
+    benchmark_parser.add_argument("--training-run-ref", default=None)
+    benchmark_parser.add_argument("--experiment-ref", default=None)
+
     train_parser = subparsers.add_parser("train", help="Run agent training episodes")
     train_parser.add_argument("--cwd", default=None)
     train_parser.add_argument("--task", default=None, help="JSON task definition")
@@ -754,6 +873,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "lifecycle-sessions": cmd_lifecycle_sessions,
         "lifecycle-start": cmd_lifecycle_start,
         "sessions": cmd_sessions,
+        "benchmark-run": cmd_benchmark_run,
         "train": cmd_train,
         "train-stats": cmd_train_stats,
         "train-web": cmd_train_web,

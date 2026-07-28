@@ -5,6 +5,7 @@ from .migration import (
     TrajectoryMigrator,
     rollout_result_to_trajectory,
 )
+from .recorder import TrajectoryRecorder
 from .replay import ReplayComparator, ReplayDiff, TraceReplayEngine, TraceReplayResult
 from .schema import (
     TRAJECTORY_SCHEMA_VERSION,
@@ -21,6 +22,7 @@ __all__ = [
     "TrajectoryEvent",
     "TrajectoryHeader",
     "TrajectoryMigrationError",
+    "TrajectoryRecorder",
     "TrajectoryMigrator",
     "ReplayComparator",
     "ReplayDiff",

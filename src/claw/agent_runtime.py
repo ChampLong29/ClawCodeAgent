@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
@@ -12,6 +13,7 @@ from .agent_types import (
     AgentPermissions,
     AgentRunResult,
     BudgetConfig,
+    ModelConfig,
     ToolCall,
     UsageStats,
 )
@@ -90,6 +92,9 @@ class LocalCodingAgent:
     # Permission callback for interactive permission requests (e.g., REPL)
     permission_callback: Optional[Any] = None
 
+    # Optional side-channel observer for append-only runtime tracing.
+    runtime_observer: Optional[Any] = None
+
     # Statistics
     usage: UsageStats = field(default_factory=UsageStats)
     turns: int = 0
@@ -100,11 +105,16 @@ class LocalCodingAgent:
         api_config_runtime = APIConfigRuntime(cwd=self.api_config_cwd or self.cwd)
         api_config = api_config_runtime.get_config()
 
-        # Honor explicit model_config override if provided
-        active_model = api_config.model
-        if self.model_config and self.model_config.name and self.model_config.name != api_config.model:
-            active_model = self.model_config.name
-            api_config.model = active_model
+        # Materialize the effective decoding configuration once so every
+        # provider call and trace uses the same audited values.
+        if self.model_config is None:
+            self.model_config = ModelConfig(
+                name=api_config.model,
+                temperature=api_config.temperature,
+                max_tokens=api_config.max_tokens,
+            )
+        elif self.model_config.name and self.model_config.name != api_config.model:
+            api_config.model = self.model_config.name
 
         # Create appropriate client based on provider
         if api_config.provider == APIProvider.ANTHROPIC:
@@ -249,8 +259,16 @@ class LocalCodingAgent:
         self.session.add_user_message(prompt)
 
         max_turns = max_turns or 100
+        if self.runtime_observer is not None:
+            self.runtime_observer.on_run_start(
+                self, prompt=prompt, phase_id=self._current_phase_id()
+            )
 
         result = self._run_loop(max_turns=max_turns, stream=stream)
+        if self.runtime_observer is not None:
+            self.runtime_observer.on_run_finish(
+                result, phase_id=self._current_phase_id()
+            )
         save_agent_session(self.session, self.cwd)
         return result
 
@@ -260,7 +278,15 @@ class LocalCodingAgent:
             raise ValueError("No session to resume. Use run() for new sessions.")
 
         self.session.add_user_message(prompt)
+        if self.runtime_observer is not None:
+            self.runtime_observer.on_run_start(
+                self, prompt=prompt, phase_id=self._current_phase_id()
+            )
         result = self._run_loop(max_turns=100, stream=stream)
+        if self.runtime_observer is not None:
+            self.runtime_observer.on_run_finish(
+                result, phase_id=self._current_phase_id()
+            )
         save_agent_session(self.session, self.cwd)
         return result
 
@@ -328,6 +354,20 @@ class LocalCodingAgent:
                 if should_compact(messages, threshold=AUTOCOMPACT_BUFFER_TOKENS):
                     messages = self._compact_messages(messages)
 
+                inference_config = self._model_inference_kwargs()
+                model_request_event_id = self._trace(
+                    "model_request",
+                    payload={
+                        "model": getattr(self.client, "model", ""),
+                        "messages": messages,
+                        "tools": self._get_toolspec(),
+                        "stream": stream,
+                        "turn": self.turns,
+                        "inference_config": inference_config,
+                    },
+                )
+                model_started = time.monotonic()
+
                 # Extract system message for Anthropic client
                 if is_anthropic:
                     system_msg = messages[0] if messages and messages[0].get("role") == "system" else None
@@ -343,6 +383,7 @@ class LocalCodingAgent:
                             messages=non_system_messages,
                             system_prompt=system_content,
                             tools=self._get_toolspec(),
+                            **inference_config,
                         )
                 else:
                     # OpenAI-compatible client
@@ -353,7 +394,20 @@ class LocalCodingAgent:
                             self.client.complete,
                             messages=messages,
                             tools=self._get_toolspec(),
+                            **inference_config,
                         )
+
+                self._trace(
+                    "model_response",
+                    payload={
+                        "content": response.get("content", ""),
+                        "tool_calls": response.get("tool_calls") or [],
+                        "usage": response.get("usage", {}),
+                        "finish_reason": response.get("finish_reason"),
+                        "duration_seconds": time.monotonic() - model_started,
+                    },
+                    parent_event_id=model_request_event_id,
+                )
 
                 # Update usage
                 if "usage" in response:
@@ -417,6 +471,15 @@ class LocalCodingAgent:
                     for tc in tool_calls:
                         tool_name = tc["function"]["name"]
                         args = tc["function"]["arguments"]
+                        tool_call_event_id = self._trace(
+                            "tool_call",
+                            payload={
+                                "call_id": tc.get("id", ""),
+                                "tool_name": tool_name,
+                                "arguments": args,
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
                         if isinstance(args, str):
                             try:
                                 args = json.loads(args)
@@ -438,6 +501,24 @@ class LocalCodingAgent:
                                         "tool_call_id": tc.get("id", ""),
                                         "content": error_msg,
                                     })
+                                    self._trace(
+                                        "tool_result",
+                                        payload={
+                                            "call_id": tc.get("id", ""),
+                                            "tool_name": tool_name,
+                                            "ok": False,
+                                            "error": error_msg,
+                                            "selection_valid": (
+                                                default_tool_registry().get(
+                                                    self._tool_aliases.get(
+                                                        tool_name, tool_name
+                                                    )
+                                                ) is not None
+                                            ),
+                                            "arguments_valid": False,
+                                        },
+                                        parent_event_id=tool_call_event_id,
+                                    )
                                     continue
 
                         # Show tool call for visibility
@@ -456,6 +537,19 @@ class LocalCodingAgent:
                                 "tool_call_id": tc["id"],
                                 "content": result_str[:4000],
                             })
+                            self._trace(
+                                "tool_result",
+                                payload={
+                                    "call_id": tc["id"],
+                                    "tool_name": tool_name,
+                                    "ok": False,
+                                    "error": result_str,
+                                    "policy_blocked": True,
+                                    "selection_valid": True,
+                                    "arguments_valid": True,
+                                },
+                                parent_event_id=tool_call_event_id,
+                            )
                             continue
 
                         # Apply tool alias mapping
@@ -467,6 +561,7 @@ class LocalCodingAgent:
                             tool_perms["_has_permission_callback"] = True
 
                         # Execute tool
+                        tool_started = time.monotonic()
                         result = execute_tool(
                             actual_tool_name,
                             args,
@@ -480,6 +575,20 @@ class LocalCodingAgent:
                                 # Ask user for permission
                                 cmd = result.result.get("command", "")
                                 allowed = self.permission_callback("bash", {"command": cmd})
+                                self._trace(
+                                    "permission_decision",
+                                    payload={
+                                        "call_id": tc["id"],
+                                        "tool_name": tool_name,
+                                        "permission": "allow_shell",
+                                        "allowed": bool(allowed),
+                                        "decision": (
+                                            "allowed" if allowed else "denied"
+                                        ),
+                                        "tool_executed": bool(allowed),
+                                    },
+                                    parent_event_id=tool_call_event_id,
+                                )
                                 if allowed:
                                     # Retry with allow_shell=True
                                     tool_perms["allow_shell"] = True
@@ -503,6 +612,21 @@ class LocalCodingAgent:
                                         "tool_call_id": tc["id"],
                                         "content": deny_msg[:4000],
                                     })
+                                    self._trace(
+                                        "tool_result",
+                                        payload={
+                                            "call_id": tc["id"],
+                                            "tool_name": tool_name,
+                                            "ok": False,
+                                            "error": deny_msg,
+                                            "selection_valid": True,
+                                            "arguments_valid": True,
+                                            "duration_seconds": (
+                                                time.monotonic() - tool_started
+                                            ),
+                                        },
+                                        parent_event_id=tool_call_event_id,
+                                    )
                                     continue
                             # else: no callback, fall through to normal error handling
 
@@ -521,6 +645,26 @@ class LocalCodingAgent:
 
                         # Truncate tool result if too long
                         truncated = truncate_tool_result(result_str)
+                        result_payload = result.to_dict()
+                        result_payload.update({
+                            "call_id": tc["id"],
+                            "requested_tool_name": tool_name,
+                            "actual_tool_name": actual_tool_name,
+                            "duration_seconds": time.monotonic() - tool_started,
+                            "exit_code": (
+                                result.result.get("returncode")
+                                if isinstance(result.result, dict)
+                                else None
+                            ),
+                            "side_effect_possible": actual_tool_name in {
+                                "write_file", "edit_file", "bash"
+                            },
+                        })
+                        self._trace(
+                            "tool_result",
+                            payload=result_payload,
+                            parent_event_id=tool_call_event_id,
+                        )
 
                         # Add tool message
                         self.session.add_tool_message(
@@ -547,6 +691,7 @@ class LocalCodingAgent:
                     )
 
         except Exception as e:
+            self.session.stop_reason = "error"
             return AgentRunResult(
                 stop_reason="error",
                 error=str(e),
@@ -560,6 +705,46 @@ class LocalCodingAgent:
             usage=self.usage,
             final_message="Max turns reached",
         )
+
+    def _trace(
+        self,
+        event_type: str,
+        *,
+        payload: Optional[Dict[str, Any]] = None,
+        parent_event_id: Optional[str] = None,
+    ) -> Optional[str]:
+        if self.runtime_observer is None:
+            return None
+        return self.runtime_observer.record(
+            event_type,
+            payload=payload or {},
+            parent_event_id=parent_event_id,
+            phase_id=self._current_phase_id(),
+        )
+
+    def _current_phase_id(self) -> str:
+        for runtime_name in ("lifecycle", "devflow"):
+            runtime = self._runtime_instances.get(runtime_name)
+            session = getattr(runtime, "session", None) if runtime else None
+            if session is None:
+                continue
+            try:
+                phase = (
+                    session.get_current_phase()
+                    if hasattr(session, "get_current_phase")
+                    else getattr(session, "phase", None)
+                )
+                if phase is None:
+                    continue
+                value = getattr(phase, "name", None) or getattr(
+                    phase, "value", None
+                ) or str(phase)
+                normalized = str(value).strip().lower().replace(" ", "_")
+                if normalized:
+                    return f"{runtime_name}:{normalized}"
+            except Exception:
+                continue
+        return "runtime"
 
     def _retry_call(self, call_fn, *args, **kwargs) -> Any:
         """Call a function with exponential backoff retry on HTTP errors.
@@ -588,13 +773,28 @@ class LocalCodingAgent:
                 raise
         raise last_error  # type: ignore[misc]
 
+    def _model_inference_kwargs(self) -> Dict[str, Any]:
+        """Return the exact decoding arguments sent to the model client."""
+        if self.model_config is None:
+            return {}
+        kwargs: Dict[str, Any] = {
+            "temperature": self.model_config.temperature,
+        }
+        if self.model_config.max_tokens is not None:
+            kwargs["max_tokens"] = self.model_config.max_tokens
+        return kwargs
+
     def _stream_openai(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Stream completion from OpenAI-compatible API and accumulate response."""
         content_parts = []
         tool_calls_map: Dict[int, Dict[str, Any]] = {}
         usage = {"input_tokens": 0, "output_tokens": 0, "model_calls": 1, "tool_calls": 0}
 
-        for chunk in self.client.stream(messages=messages, tools=self._get_toolspec()):
+        for chunk in self.client.stream(
+            messages=messages,
+            tools=self._get_toolspec(),
+            **self._model_inference_kwargs(),
+        ):
             if "content" in chunk and chunk["content"]:
                 text = chunk["content"]
                 content_parts.append(text)
@@ -645,6 +845,7 @@ class LocalCodingAgent:
             messages=messages,
             system_prompt=system_prompt,
             tools=self._get_toolspec(),
+            **self._model_inference_kwargs(),
         ):
             if "content" in chunk and chunk["content"]:
                 text = chunk["content"]

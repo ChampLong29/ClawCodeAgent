@@ -44,6 +44,7 @@ class BenchmarkConfig:
     tool_schema_version: str
     runtime_version: str
     verifier_bundle_version: str
+    prompt_version: str = "unknown"
     dataset_manifest_ref: str = ""
     training_run_ref: str = ""
     experiment_ref: str = ""
@@ -60,6 +61,7 @@ class BenchmarkConfig:
             "tool_schema_version",
             "runtime_version",
             "verifier_bundle_version",
+            "prompt_version",
         ):
             if not str(getattr(self, name)).strip():
                 raise BenchmarkError(f"{name} must not be empty")
@@ -86,6 +88,7 @@ class BenchmarkConfig:
                 "tool_schema_version": self.tool_schema_version,
                 "runtime_version": self.runtime_version,
                 "verifier_bundle_version": self.verifier_bundle_version,
+                "prompt_version": self.prompt_version,
                 "seed": self.seed,
             }
         )

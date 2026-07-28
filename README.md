@@ -571,6 +571,7 @@ Report saved to: .port_sessions/lifecycle/student-club-management-a1b2_archive.m
 | 命令 | 功能 |
 |------|------|
 |`claw train --suite <suite.json> --output results.jsonl`| 跑一遍任务集，产出 Rollout JSONL |
+|`claw benchmark-run --manifest task_suites/manifest.json --group base --limit 1`| 从版本化 test split 运行真实 Agent Benchmark，产出轨迹、验证与审计报告 |
 |`claw train-stats --input results.jsonl`| 输出 Rollout 聚合统计 |
 |`.venv/bin/claw-train-web --results-dir <dir> [--port 8080]`| 启动**训练控制台**：浏览 / 对话 / Rollout / 导出 SFT-RL（需`uv sync --extra web`） |
 

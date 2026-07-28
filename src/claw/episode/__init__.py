@@ -12,6 +12,7 @@ from .orchestrator import (
     RerunMode,
 )
 from .recovery import EpisodeRecoveryManager
+from .runtime_adapter import RuntimeAdapter
 from .state import (
     EPISODE_SCHEMA_VERSION,
     EpisodeManifest,
@@ -31,5 +32,6 @@ __all__ = [
     "EpisodeStateError",
     "InitialValidationError",
     "RerunMode",
+    "RuntimeAdapter",
     "workspace_hash",
 ]

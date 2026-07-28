@@ -279,6 +279,38 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertIsNotNone(agent.cwd)
         self.assertEqual(agent.cwd, self.tempdir)
 
+    def test_decoding_config_is_sent_to_model_client(self):
+        config = ModelConfig(
+            name="benchmark-model",
+            temperature=0.25,
+            max_tokens=321,
+        )
+        agent = LocalCodingAgent(cwd=self.tempdir, model_config=config)
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.kwargs = None
+
+            def complete(self, **kwargs):
+                self.kwargs = kwargs
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="test decoding", max_turns=1)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(client.kwargs["temperature"], 0.25)
+        self.assertEqual(client.kwargs["max_tokens"], 321)
+
     def test_create_with_budget(self):
         budget = BudgetConfig(max_total_tokens=100000, max_output_tokens=40000)
         agent = LocalCodingAgent(cwd=self.tempdir, budget=budget)

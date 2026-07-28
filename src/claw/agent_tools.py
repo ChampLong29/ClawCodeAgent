@@ -777,6 +777,8 @@ class ToolExecutionResult:
     error: Optional[str] = None
     stdout: Optional[str] = None
     stderr: Optional[str] = None
+    selection_valid: bool = True
+    arguments_valid: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -786,6 +788,8 @@ class ToolExecutionResult:
             "error": self.error,
             "stdout": self.stdout,
             "stderr": self.stderr,
+            "selection_valid": self.selection_valid,
+            "arguments_valid": self.arguments_valid,
         }
 
 
@@ -803,6 +807,8 @@ def execute_tool(
             ok=False,
             tool_name=tool_name,
             error=f"Unknown tool: {tool_name}",
+            selection_valid=False,
+            arguments_valid=False,
         )
 
     try:
@@ -844,6 +850,14 @@ def execute_tool(
                 tool_name=tool_name,
                 result=result,
             )
+    except TypeError as e:
+        return ToolExecutionResult(
+            ok=False,
+            tool_name=tool_name,
+            error=str(e),
+            selection_valid=True,
+            arguments_valid=False,
+        )
     except Exception as e:
         return ToolExecutionResult(
             ok=False,

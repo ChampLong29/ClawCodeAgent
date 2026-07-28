@@ -173,9 +173,13 @@ class EpisodeOrchestrator:
         self.manifest.transition(EpisodeState.RUNNING)
         self._save()
 
-    def begin_verification(self) -> None:
+    def begin_verification(
+        self, *, trajectory_ref: Optional[str] = None
+    ) -> None:
         self._require_bound()
         assert self.manifest is not None
+        if trajectory_ref:
+            self.manifest.trajectory_ref = trajectory_ref
         self.manifest.transition(EpisodeState.VERIFYING)
         self._save()
 
@@ -353,6 +357,66 @@ class EpisodeOrchestrator:
         if target.parent != self.episodes_root or target == self.episodes_root:
             raise EpisodeStateError(f"refusing to destroy unsafe path: {target}")
         shutil.rmtree(target, onerror=_remove_readonly)
+
+    def collect_verification_facts(
+        self, task: TaskSpec
+    ) -> Dict[str, Dict[str, Any]]:
+        self._require_bound()
+        assert self.manifest is not None
+        assert self.workspace is not None
+        task.validate()
+        expected_ref = f"{task.task_id}@{task.task_version}"
+        if self.manifest.task_ref != expected_ref:
+            raise EpisodeStateError("verification task does not match episode")
+        if self.manifest.current_state != EpisodeState.RUNNING:
+            raise EpisodeStateError(
+                "verification facts can only be collected after a running agent"
+            )
+
+        command_results = self._run_initial_checks(
+            task.test_commands, timeout=task.timeout_seconds
+        )
+        passed = sum(
+            1 for result in command_results
+            if result.get("returncode") == 0
+            and not result.get("timed_out", False)
+        )
+        status = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=str(self.workspace),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        changed_files = []
+        for line in status.stdout.splitlines():
+            path = line[3:].strip() if len(line) > 3 else ""
+            if " -> " in path:
+                path = path.split(" -> ", 1)[1]
+            if path:
+                changed_files.append(path.replace("\\", "/"))
+        patch = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "--binary", "HEAD"],
+            cwd=str(self.workspace),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        ).stdout
+        return {
+            "test_result": {
+                "total_tests": len(command_results),
+                "passed_tests": passed,
+                "failed_tests": len(command_results) - passed,
+                "commands": command_results,
+            },
+            "diff_result": {
+                "changed_files": sorted(set(changed_files)),
+                "patch": patch,
+                "workspace_hash": workspace_hash(self.workspace),
+            },
+        }
 
     def _run_initial_checks(
         self, commands: List[str], *, timeout: float

@@ -214,6 +214,11 @@ class ProcessPermissionVerifier:
             ):
                 violations.append(str(payload.get("violation", "policy violation")))
                 evidence.append(event.event_id)
+            if event.event_type == "tool_result" and payload.get(
+                "policy_blocked", False
+            ):
+                violations.append(str(payload.get("error", "policy blocked tool")))
+                evidence.append(event.event_id)
         if violations:
             status, score = "fail", 0.0
         elif complete:
