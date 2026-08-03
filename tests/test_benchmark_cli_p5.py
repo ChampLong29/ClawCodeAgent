@@ -137,6 +137,73 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
         )
         self.assertTrue(Path(result.episodes[0].trajectory_ref).is_file())
         self.assertTrue(Path(result.episodes[0].verification_ref).is_file())
+        verification = json.loads(
+            Path(result.episodes[0].verification_ref).read_text(
+                encoding="utf-8"
+            )
+        )
+        diff_scope = next(
+            signal
+            for signal in verification["signals"]
+            if signal["name"] == "diff_scope"
+        )
+        self.assertEqual(
+            diff_scope["details"]["allowed_patterns"],
+            ["challenge.py"],
+        )
+
+    def test_explicit_allowed_paths_override_oracle_scope(self):
+        oracle = (
+            self.project_root
+            / "task_suites"
+            / "oracles"
+            / "python-cli-add_feature-07"
+            / "challenge.py"
+        ).read_text(encoding="utf-8")
+
+        def factory(cwd, inference_config):
+            agent = LocalCodingAgent(
+                cwd=cwd,
+                model_config=ModelConfig(
+                    name=self.model,
+                    temperature=inference_config["temperature"],
+                    max_tokens=inference_config.get("max_tokens"),
+                ),
+                permissions=AgentPermissions(
+                    allow_write=True,
+                    allow_shell=True,
+                ).to_dict(),
+            )
+            agent.client = SequencedClient(
+                self.model,
+                [write_response(oracle), final_response()],
+            )
+            return agent
+
+        result = run_local_benchmark(
+            manifest_path=self.manifest,
+            output_root=self.output / "benchmark-override",
+            episodes_root=self.output / "episodes-override",
+            model_ref=self.model,
+            max_turns=3,
+            task_ids=["python-cli-add_feature-07"],
+            allowed_path_patterns=["custom/**"],
+            agent_factory=factory,
+        )
+        verification = json.loads(
+            Path(result.episodes[0].verification_ref).read_text(
+                encoding="utf-8"
+            )
+        )
+        diff_scope = next(
+            signal
+            for signal in verification["signals"]
+            if signal["name"] == "diff_scope"
+        )
+        self.assertEqual(
+            diff_scope["details"]["allowed_patterns"],
+            ["custom/**"],
+        )
 
     def test_unknown_or_non_test_task_is_rejected_before_agent_creation(self):
         calls = []

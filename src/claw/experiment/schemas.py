@@ -71,6 +71,8 @@ class TaskSpec:
     license: str
     initial_checks: List[str] = field(default_factory=list)
     oracle_ref: Optional[str] = None
+    test_assets_ref: Optional[str] = None
+    test_assets_hash: str = ""
     resource_limits: Dict[str, Any] = field(default_factory=dict)
     tags: List[str] = field(default_factory=list)
     content_hash: str = ""
@@ -99,6 +101,10 @@ class TaskSpec:
             raise SchemaValidationError(f"split must be one of {sorted(_SPLITS)}")
         if not self.test_commands:
             raise SchemaValidationError("test_commands must not be empty")
+        if bool(self.test_assets_ref) != bool(self.test_assets_hash):
+            raise SchemaValidationError(
+                "test_assets_ref and test_assets_hash must be set together"
+            )
         if self.timeout_seconds <= 0:
             raise SchemaValidationError("timeout_seconds must be positive")
         expected = self.compute_content_hash()
@@ -108,8 +114,7 @@ class TaskSpec:
             )
 
     def compute_content_hash(self) -> str:
-        return canonical_hash(
-            {
+        payload = {
                 "task_id": self.task_id,
                 "task_version": self.task_version,
                 "family_id": self.family_id,
@@ -129,11 +134,17 @@ class TaskSpec:
                 "license": self.license,
                 "tags": self.tags,
             }
-        )
+        if self.test_assets_ref:
+            payload["test_assets_ref"] = self.test_assets_ref
+            payload["test_assets_hash"] = self.test_assets_hash
+        return canonical_hash(payload)
 
     def to_dict(self) -> Dict[str, Any]:
         self.validate()
         data = asdict(self)
+        if not self.test_assets_ref:
+            data.pop("test_assets_ref", None)
+            data.pop("test_assets_hash", None)
         data["content_hash"] = self.content_hash or self.compute_content_hash()
         return data
 

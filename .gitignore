@@ -41,6 +41,7 @@ Thumbs.db
 # ============================================================
 .port_sessions/
 projects/
+benchmarks/swe_bench_lite/repos/
 
 # ============================================================
 # IDE / Editor / Claude Code local settings

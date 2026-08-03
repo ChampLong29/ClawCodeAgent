@@ -831,10 +831,23 @@ def execute_tool(
                     stderr=result.get("stderr"),
                 )
             if result.get("ok", True) is False:
+                error = result.get("error")
+                if not error and result.get("returncode") is not None:
+                    error = f"Command exited with code {result['returncode']}"
+                error = error or "Unknown error"
+                diagnostics = []
+                if result.get("stdout"):
+                    diagnostics.append(f"stdout:\n{result['stdout']}")
+                if result.get("stderr"):
+                    diagnostics.append(f"stderr:\n{result['stderr']}")
+                if diagnostics:
+                    error = error + "\n" + "\n".join(diagnostics)
                 return ToolExecutionResult(
                     ok=False,
                     tool_name=tool_name,
-                    error=result.get("error", "Unknown error"),
+                    result=result,
+                    error=error,
+                    stdout=result.get("stdout"),
                     stderr=result.get("stderr"),
                 )
             return ToolExecutionResult(

@@ -1,0 +1,15 @@
+{
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "dataset_last_modified": "2025-04-29T20:49:19.000Z",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "metadata_sha256": "7e6060d8f84e8e115aff95589a9ad7e0f28c2d78ec8b890dd673604a27416c64",
+  "parquet_sha256": "24d670403c3c8690a0f0d741bdcb8800322f58a407d6be148ad99d04b5d8bb32",
+  "row_count": 23,
+  "rows_sha256": "b82cf1a71e34f752a1870335f1f987f41256ecf2ca33b9c96a5f2aa811533627",
+  "schema_version": "swe_bench_lite_selection.v1",
+  "source_urls": {
+    "dataset": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Lite",
+    "rows_api": "https://datasets-server.huggingface.co/rows?dataset=SWE-bench%2FSWE-bench_Lite&config=default&split=dev&offset=0&length=100"
+  },
+  "split": "dev"
+}

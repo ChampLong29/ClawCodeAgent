@@ -131,10 +131,8 @@ class TaskSuiteValidator:
             workspace = Path(raw).resolve()
             try:
                 shutil.copytree(template, workspace, dirs_exist_ok=True)
-                initial = self._run(
-                    task.initial_checks,
-                    workspace,
-                    task.timeout_seconds,
+                initial = self._run_with_test_assets(
+                    task, task.initial_checks, workspace
                 )
                 initial_failed = (
                     bool(initial)
@@ -142,10 +140,8 @@ class TaskSuiteValidator:
                     and any(item.returncode != 0 for item in initial)
                 )
                 shutil.copytree(oracle, workspace, dirs_exist_ok=True)
-                reference = self._run(
-                    task.test_commands,
-                    workspace,
-                    task.timeout_seconds,
+                reference = self._run_with_test_assets(
+                    task, task.test_commands, workspace
                 )
                 reference_passed = bool(reference) and all(
                     item.returncode == 0 and not item.timed_out
@@ -165,6 +161,19 @@ class TaskSuiteValidator:
                     reference_passed=False,
                     error=f"{type(exc).__name__}: {exc}",
                 )
+
+    def _run_with_test_assets(
+        self, task: TaskSpec, commands: List[str], workspace: Path
+    ) -> List[CommandEvidence]:
+        if not task.test_assets_ref:
+            return self._run(commands, workspace, task.timeout_seconds)
+        source = self.manifest.resolve_ref(task.test_assets_ref)
+        destination = workspace / ".claw_hidden_tests"
+        shutil.copytree(source, destination)
+        try:
+            return self._run(commands, workspace, task.timeout_seconds)
+        finally:
+            shutil.rmtree(destination, ignore_errors=True)
 
     def validate_all(self) -> TaskSuiteValidationReport:
         return TaskSuiteValidationReport(

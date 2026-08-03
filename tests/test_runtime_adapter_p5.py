@@ -260,6 +260,10 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
             trajectory.header.termination.usage["model_calls"],
             2,
         )
+        self.assertEqual(
+            trajectory.header.termination.usage["tool_calls"],
+            1,
+        )
         event_types = [event.event_type for event in events]
         self.assertEqual(event_types.count("model_request"), 2)
         self.assertEqual(event_types.count("model_response"), 2)

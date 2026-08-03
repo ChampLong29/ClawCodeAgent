@@ -8,6 +8,7 @@ from typing import Dict, Optional, Sequence, Union
 from ..agent_runtime import LocalCodingAgent
 from ..agent_types import AgentPermissions, ModelConfig
 from ..api_config import APIConfigRuntime
+from ..experiment.schemas import TaskSpec
 from ..task_suite import TaskSuiteManifest
 from ..verification import VerificationPolicy
 from .local_agent_adapter import AgentFactory, LocalAgentBenchmarkAdapter
@@ -49,6 +50,27 @@ def _select_test_tasks(
     return tasks
 
 
+def _oracle_allowed_paths(
+    manifest: TaskSuiteManifest, task: TaskSpec
+) -> Sequence[str]:
+    """Derive the writable diff scope from a task's versioned oracle."""
+    if not task.oracle_ref:
+        raise BenchmarkError(
+            f"task {task.task_id} requires oracle_ref or explicit allowed paths"
+        )
+    oracle = manifest.resolve_ref(task.oracle_ref)
+    paths = sorted(
+        path.relative_to(oracle).as_posix()
+        for path in oracle.rglob("*")
+        if path.is_file() and ".git" not in path.relative_to(oracle).parts
+    )
+    if not paths:
+        raise BenchmarkError(
+            f"task {task.task_id} oracle contains no allowed files"
+        )
+    return paths
+
+
 def run_local_benchmark(
     *,
     manifest_path: Union[str, Path],
@@ -67,7 +89,7 @@ def run_local_benchmark(
     config_version: str = "benchmark-cli.v1",
     task_ids: Sequence[str] = (),
     limit: Optional[int] = None,
-    allowed_path_patterns: Sequence[str] = ("**",),
+    allowed_path_patterns: Sequence[str] = (),
     dataset_manifest_ref: str = "",
     training_run_ref: str = "",
     experiment_ref: str = "",
@@ -85,8 +107,6 @@ def run_local_benchmark(
     if input_token_price_per_million < 0 or output_token_price_per_million < 0:
         raise BenchmarkError("token prices must be non-negative")
     patterns = [str(pattern) for pattern in allowed_path_patterns if str(pattern)]
-    if not patterns:
-        raise BenchmarkError("allowed_path_patterns must not be empty")
 
     manifest = TaskSuiteManifest.load(manifest_path)
     tasks = _select_test_tasks(manifest, task_ids, limit)
@@ -127,6 +147,11 @@ def run_local_benchmark(
     output = Path(output_root).resolve()
     episode_output = Path(episodes_root or (output / "episodes")).resolve()
     policy = VerificationPolicy(version=verifier_version)
+    allowed_paths_resolver = (
+        (lambda _task: list(patterns))
+        if patterns
+        else (lambda task: list(_oracle_allowed_paths(manifest, task)))
+    )
     adapter = LocalAgentBenchmarkAdapter(
         episode_output,
         project_root=project_root,
@@ -137,7 +162,7 @@ def run_local_benchmark(
         tool_version=tool_version,
         config_version=config_version,
         verification_policy=policy,
-        allowed_paths_resolver=lambda _task: list(patterns),
+        allowed_paths_resolver=allowed_paths_resolver,
         input_token_price=input_token_price_per_million / 1_000_000,
         output_token_price=output_token_price_per_million / 1_000_000,
     )

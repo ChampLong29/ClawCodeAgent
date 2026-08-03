@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Union
 
@@ -27,6 +27,7 @@ class TaskSuiteManifest:
     content_hash: str
     description: str = ""
     generated_by: str = ""
+    validation: Dict[str, Any] = field(default_factory=dict)
     schema_version: str = TASK_SUITE_SCHEMA_VERSION
     source_path: Optional[Path] = None
 
@@ -42,6 +43,7 @@ class TaskSuiteManifest:
             version=str(data["version"]),
             description=str(data.get("description", "")),
             generated_by=str(data.get("generated_by", "")),
+            validation=dict(data.get("validation", {})),
             tasks=[TaskSpec.from_dict(item) for item in data.get("tasks", [])],
             content_hash=str(data["content_hash"]),
             schema_version=str(
@@ -81,24 +83,44 @@ class TaskSuiteManifest:
         return resolved
 
     def compute_content_hash(self) -> str:
-        return canonical_hash(
-            {
+        payload = {
                 "suite_id": self.suite_id,
                 "version": self.version,
                 "description": self.description,
                 "generated_by": self.generated_by,
                 "tasks": [task.to_dict() for task in self.tasks],
             }
-        )
+        if self.validation:
+            payload["validation"] = self.validation
+        return canonical_hash(payload)
 
     def validate(
         self,
         *,
         verify_templates: bool = True,
-        min_tasks: int = 30,
-        min_domains: int = 2,
-        min_task_types: int = 2,
+        min_tasks: Optional[int] = None,
+        min_domains: Optional[int] = None,
+        min_task_types: Optional[int] = None,
     ) -> None:
+        policy = self.validation or {}
+        min_tasks = int(policy.get("min_tasks", 30) if min_tasks is None else min_tasks)
+        min_domains = int(policy.get("min_domains", 2) if min_domains is None else min_domains)
+        min_task_types = int(
+            policy.get("min_task_types", 2)
+            if min_task_types is None
+            else min_task_types
+        )
+        required_splits = policy.get(
+            "required_splits", ["train", "dev", "test"]
+        )
+        if not isinstance(required_splits, list) or not required_splits:
+            raise SchemaValidationError(
+                "validation.required_splits must be a non-empty list"
+            )
+        if not set(required_splits).issubset({"train", "dev", "test"}):
+            raise SchemaValidationError(
+                "validation.required_splits contains an unsupported split"
+            )
         if self.schema_version != TASK_SUITE_SCHEMA_VERSION:
             raise SchemaValidationError(
                 f"unsupported task suite schema: {self.schema_version}"
@@ -138,7 +160,7 @@ class TaskSuiteManifest:
             raise SchemaValidationError(
                 f"task families cross splits: {leaking}"
             )
-        for split in ("train", "dev", "test"):
+        for split in required_splits:
             if not any(task.split == split for task in self.tasks):
                 raise SchemaValidationError(
                     f"task suite has no {split} tasks"
@@ -158,6 +180,11 @@ class TaskSuiteManifest:
             oracle = (
                 self.resolve_ref(task.oracle_ref) if task.oracle_ref else None
             )
+            test_assets = (
+                self.resolve_ref(task.test_assets_ref)
+                if task.test_assets_ref
+                else None
+            )
             if not template.is_dir():
                 raise SchemaValidationError(
                     f"template is not a directory: {task.template_ref}"
@@ -172,6 +199,17 @@ class TaskSuiteManifest:
                     f"template hash mismatch for {task.task_id}: "
                     f"expected {task.template_hash}, got {observed}"
                 )
+            if test_assets is not None:
+                if not test_assets.is_dir():
+                    raise SchemaValidationError(
+                        f"test assets are not a directory: {task.test_assets_ref}"
+                    )
+                observed_tests = workspace_hash(test_assets)
+                if observed_tests != task.test_assets_hash:
+                    raise SchemaValidationError(
+                        f"test assets hash mismatch for {task.task_id}: "
+                        f"expected {task.test_assets_hash}, got {observed_tests}"
+                    )
 
     def tasks_for_split(self, split: str) -> List[TaskSpec]:
         if split not in {"train", "dev", "test"}:
@@ -204,7 +242,7 @@ class TaskSuiteManifest:
 
     def to_dict(self) -> Dict[str, Any]:
         self.validate()
-        return {
+        data = {
             "schema_version": self.schema_version,
             "suite_id": self.suite_id,
             "version": self.version,
@@ -213,6 +251,9 @@ class TaskSuiteManifest:
             "content_hash": self.content_hash,
             "tasks": [task.to_dict() for task in self.tasks],
         }
+        if self.validation:
+            data["validation"] = self.validation
+        return data
 
 
 def ensure_family_split_isolation(tasks: Iterable[TaskSpec]) -> None:

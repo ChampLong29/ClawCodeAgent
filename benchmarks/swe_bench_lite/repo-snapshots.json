@@ -1,0 +1,36 @@
+{
+  "acquisition": "git fetch --depth 1 --filter=blob:none origin <base_commit>",
+  "instances": [
+    {
+      "clean": true,
+      "head": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+      "instance_id": "marshmallow-code__marshmallow-1343",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "d6a1758b8beadd5a58d4db064bccf948d5a05b4033b8419c9f6566f6591ee843",
+      "tracked_bytes": 641514,
+      "tracked_files": 73
+    },
+    {
+      "clean": true,
+      "head": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
+      "instance_id": "pylint-dev__astroid-1196",
+      "license": "LGPL-2.1-or-later",
+      "license_path": "LICENSE",
+      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
+      "tracked_bytes": 2091799,
+      "tracked_files": 272
+    },
+    {
+      "clean": true,
+      "head": "a10057635e5b2559293a676486f0b730981f037a",
+      "instance_id": "sqlfluff__sqlfluff-1763",
+      "license": "MIT",
+      "license_path": "LICENSE.md",
+      "license_sha256": "6d1e394d2e68a47106733103e9ed87c9d1573d9b7a43f5d05989424fce6dae39",
+      "tracked_bytes": 4051276,
+      "tracked_files": 1810
+    }
+  ],
+  "schema_version": "swe_bench_repo_snapshots.v1"
+}

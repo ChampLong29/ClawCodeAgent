@@ -1,0 +1,94 @@
+{
+  "content_hash": "ca8ef5b9866927b0ef7d98a611c5219374aa039826f1de59b4e514501fabc562",
+  "description": "Curated medium-complexity Python tasks with multi-module changes, atomicity or validation constraints, and versioned hidden tests.",
+  "generated_by": "tools/generate_medium_task_suite.py",
+  "schema_version": "task_suite.v1",
+  "suite_id": "claw-medium-pilot",
+  "tasks": [
+    {
+      "content_hash": "80aac8929de493c5a06b2c77e429e6d5f13e2c696ba9caa779e5fdb53df16573",
+      "difficulty": "medium",
+      "domain": "python-service",
+      "family_id": "family-order-atomic-reservation",
+      "initial_checks": [
+        "python -m unittest discover -s .claw_hidden_tests -q"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/medium/oracles/python-service-atomic-order-01",
+      "prompt": "Fix the multi-module order workflow. place_order must reject empty orders and non-positive/non-integer quantities; combine duplicate SKUs in first-seen order; validate every SKU and all stock before mutating inventory; never partially reserve on failure; and return an immutable Order with tuple lines and an exact Decimal total. Add the required Order model and an atomic catalog operation. Do not weaken the domain exceptions.",
+      "resource_limits": {
+        "cpu_seconds": 20,
+        "memory_mb": 512,
+        "processes": 8
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-curated-medium",
+      "split": "test",
+      "tags": [
+        "python-service",
+        "fix_bug",
+        "medium",
+        "hidden-tests",
+        "multi-module"
+      ],
+      "task_id": "python-service-atomic-order-01",
+      "task_type": "fix_bug",
+      "task_version": "1.0.0",
+      "template_hash": "f0ddf7a2fb67aec4f2b2335719b04bf50bc386d31a021eee79ff42ba0524093f",
+      "template_ref": "task_suites/medium/templates/python-service-atomic-order-01",
+      "test_assets_hash": "9e9ef946cb7a1d0b02a121cded61c942a748baeff7a2729fd19b18e60bb21cda",
+      "test_assets_ref": "task_suites/medium/tests/python-service-atomic-order-01",
+      "test_commands": [
+        "python -m unittest discover -s .claw_hidden_tests -q"
+      ],
+      "timeout_seconds": 60.0
+    },
+    {
+      "content_hash": "e2e8b89cf7c96c28b253c9bcf28c7ce6f104cf4bb6fd4ed4109b987a5921a9f2",
+      "difficulty": "medium",
+      "domain": "python-library",
+      "family_id": "family-layered-config-validation",
+      "initial_checks": [
+        "python -m unittest discover -s .claw_hidden_tests -q"
+      ],
+      "license": "MIT",
+      "oracle_ref": "task_suites/medium/oracles/python-library-layered-config-01",
+      "prompt": "Implement the layered configuration loader across merge.py and loader.py. Precedence is overrides > file values > defaults; nested mappings must merge recursively; inputs and nested values must not be mutated or aliased; unknown keys must raise UnknownConfigKey containing the dotted path; type mismatches must raise InvalidConfigType containing the dotted path; bool is not a valid int; and both optional layers must be mappings.",
+      "resource_limits": {
+        "cpu_seconds": 20,
+        "memory_mb": 512,
+        "processes": 8
+      },
+      "schema_version": "coding_task.v2",
+      "source": "claw-code-agent-curated-medium",
+      "split": "test",
+      "tags": [
+        "python-library",
+        "add_feature",
+        "medium",
+        "hidden-tests",
+        "multi-module"
+      ],
+      "task_id": "python-library-layered-config-01",
+      "task_type": "add_feature",
+      "task_version": "1.0.0",
+      "template_hash": "addb2a0f7b52a79ab646fe4ed72dfe75d86d7d6dd9592d6b975f4ca9b384d436",
+      "template_ref": "task_suites/medium/templates/python-library-layered-config-01",
+      "test_assets_hash": "5c1eb02ad9761854314d20c7cb8f748fc0abef427b59ed0fe0682f8d1f531da6",
+      "test_assets_ref": "task_suites/medium/tests/python-library-layered-config-01",
+      "test_commands": [
+        "python -m unittest discover -s .claw_hidden_tests -q"
+      ],
+      "timeout_seconds": 60.0
+    }
+  ],
+  "validation": {
+    "min_domains": 2,
+    "min_task_types": 2,
+    "min_tasks": 2,
+    "required_splits": [
+      "test"
+    ]
+  },
+  "version": "1.0.0"
+}

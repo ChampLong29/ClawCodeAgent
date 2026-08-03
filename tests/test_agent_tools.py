@@ -1,9 +1,10 @@
 """Tests for agent tools."""
 
+import tempfile
 import unittest
 from claw.agent_tools import (
     default_tool_registry, execute_tool,
-    AgentTool, ToolRegistry,
+    AgentTool, ToolRegistry, ToolExecutionContext,
 )
 
 
@@ -40,6 +41,28 @@ class TestToolExecution(unittest.TestCase):
     def test_list_dir_nonexistent(self):
         result = execute_tool("list_dir", {"path": "/nonexistent/path"})
         self.assertFalse(result.ok)
+
+    def test_failed_bash_preserves_exit_code_and_diagnostics(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = execute_tool(
+                "bash",
+                {
+                    "command": (
+                        "python -c \"import sys; print('visible-out'); "
+                        "print('visible-err', file=sys.stderr); "
+                        "raise SystemExit(7)\""
+                    )
+                },
+                ToolExecutionContext(
+                    cwd=directory,
+                    permissions={"allow_shell": True},
+                ),
+            )
+        self.assertFalse(result.ok)
+        self.assertIn("code 7", result.error)
+        self.assertIn("visible-out", result.error)
+        self.assertIn("visible-err", result.error)
+        self.assertEqual(result.result["returncode"], 7)
 
 
 if __name__ == "__main__":

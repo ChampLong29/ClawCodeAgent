@@ -409,20 +409,23 @@ class LocalCodingAgent:
                     parent_event_id=model_request_event_id,
                 )
 
-                # Update usage
+                # Update usage. Count model-requested tool calls from the
+                # response itself so providers cannot omit or double-report
+                # them, and so rejected/malformed calls still consume budget.
                 if "usage" in response:
                     usage_data = response["usage"]
+                    response_tool_calls = len(response.get("tool_calls") or [])
                     self.usage += UsageStats(
                         input_tokens=usage_data.get("input_tokens", 0),
                         output_tokens=usage_data.get("output_tokens", 0),
                         model_calls=usage_data.get("model_calls", 0),
-                        tool_calls=usage_data.get("tool_calls", 0),
+                        tool_calls=response_tool_calls,
                     )
                     budget.update_usage(UsageStats(
                         input_tokens=usage_data.get("input_tokens", 0),
                         output_tokens=usage_data.get("output_tokens", 0),
                         model_calls=usage_data.get("model_calls", 0),
-                        tool_calls=usage_data.get("tool_calls", 0),
+                        tool_calls=response_tool_calls,
                     ))
 
                 # Handle response
@@ -629,9 +632,6 @@ class LocalCodingAgent:
                                     )
                                     continue
                             # else: no callback, fall through to normal error handling
-
-                        self.usage.tool_calls += 1
-                        budget.update_usage(UsageStats(tool_calls=1))
 
                         # Format result
                         if result.ok:

@@ -1,0 +1,148 @@
+{
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "deferred_environment_classes": [
+    "scientific",
+    "heavy-vtk"
+  ],
+  "fallback": {
+    "base_commit": "b9fb05c177b685bf683f7f57b2d57374eb7d882d",
+    "created_at": "2020-06-26T11:47:17Z",
+    "environment_class": "moderate",
+    "environment_setup_commit": "9d69811e539774f296c2f289839147e741251716",
+    "fail_to_pass_count": 3,
+    "fallback": true,
+    "instance_id": "pydicom__pydicom-1139",
+    "license": "MIT",
+    "pass_to_pass_count": 38,
+    "patch_changed_lines": 20,
+    "patch_file_count": 1,
+    "problem_statement_chars": 541,
+    "rationale": "Pure-Python data-model task reserved if the SQLFluff image or test environment proves too expensive.",
+    "repo": "pydicom/pydicom",
+    "scores": {
+      "change_complexity": 5,
+      "environment": 4,
+      "focused_patch": 5,
+      "problem_statement": 5,
+      "regression_tests": 5
+    },
+    "selected": false,
+    "test_patch_file_count": 1,
+    "title": "Make PersonName3 iterable",
+    "total_score": 24,
+    "version": "2.0"
+  },
+  "policy": {
+    "excluded_from_agent_context": [
+      "patch",
+      "test_patch",
+      "hints_text",
+      "FAIL_TO_PASS",
+      "PASS_TO_PASS"
+    ],
+    "max_instances": 3,
+    "one_instance_per_repository": true,
+    "selection_dimensions": [
+      "environment weight",
+      "problem statement completeness",
+      "reference change complexity",
+      "FAIL_TO_PASS coverage",
+      "focused patch scope",
+      "behavioral diversity"
+    ]
+  },
+  "schema_version": "swe_bench_lite_selection.v1",
+  "selected": [
+    {
+      "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+      "created_at": "2019-08-13T04:36:01Z",
+      "environment_class": "light",
+      "environment_setup_commit": "7015fc4333a2f32cd58c3465296e834acd4496ff",
+      "fail_to_pass_count": 1,
+      "fallback": false,
+      "instance_id": "marshmallow-code__marshmallow-1343",
+      "license": "MIT",
+      "local_repo": "repos/marshmallow-code__marshmallow-1343",
+      "pass_to_pass_count": 24,
+      "patch_changed_lines": 4,
+      "patch_file_count": 1,
+      "problem_statement_chars": 2093,
+      "rationale": "Small MIT repository and one focused regression test; provides a low-cost check that the external harness is wired correctly.",
+      "repo": "marshmallow-code/marshmallow",
+      "role": "real-issue calibration",
+      "scores": {
+        "change_complexity": 3,
+        "environment": 5,
+        "focused_patch": 5,
+        "problem_statement": 5,
+        "regression_tests": 4
+      },
+      "selected": true,
+      "test_patch_file_count": 1,
+      "title": "[version 2.20.0] TypeError: 'NoneType' object is not subscriptable",
+      "total_score": 22,
+      "version": "2.20"
+    },
+    {
+      "base_commit": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
+      "created_at": "2021-10-03T15:58:07Z",
+      "environment_class": "light",
+      "environment_setup_commit": "52f6d2d7722db383af035be929f18af5e9fe8cd5",
+      "fail_to_pass_count": 2,
+      "fallback": false,
+      "instance_id": "pylint-dev__astroid-1196",
+      "license": "LGPL-2.1-or-later",
+      "local_repo": "repos/pylint-dev__astroid-1196",
+      "pass_to_pass_count": 24,
+      "patch_changed_lines": 15,
+      "patch_file_count": 1,
+      "problem_statement_chars": 1799,
+      "rationale": "Pure-Python AST inference bug with two FAIL_TO_PASS tests and a non-trivial reference change; exercises inference and exception semantics.",
+      "repo": "pylint-dev/astroid",
+      "role": "semantic reasoning",
+      "scores": {
+        "change_complexity": 5,
+        "environment": 4,
+        "focused_patch": 5,
+        "problem_statement": 5,
+        "regression_tests": 5
+      },
+      "selected": true,
+      "test_patch_file_count": 1,
+      "title": "getitem does not infer the actual unpacked value",
+      "total_score": 24,
+      "version": "2.12"
+    },
+    {
+      "base_commit": "a10057635e5b2559293a676486f0b730981f037a",
+      "created_at": "2021-10-26T17:28:28Z",
+      "environment_class": "moderate",
+      "environment_setup_commit": "67023b85c41d23d6c6d69812a41b207c4f8a9331",
+      "fail_to_pass_count": 3,
+      "fallback": false,
+      "instance_id": "sqlfluff__sqlfluff-1763",
+      "license": "MIT",
+      "local_repo": "repos/sqlfluff__sqlfluff-1763",
+      "pass_to_pass_count": 63,
+      "patch_changed_lines": 25,
+      "patch_file_count": 1,
+      "problem_statement_chars": 6698,
+      "rationale": "Encoding failure can corrupt a file; three FAIL_TO_PASS cases exercise safe replacement, cleanup, and rollback behavior.",
+      "repo": "sqlfluff/sqlfluff",
+      "role": "filesystem safety",
+      "scores": {
+        "change_complexity": 5,
+        "environment": 3,
+        "focused_patch": 5,
+        "problem_statement": 4,
+        "regression_tests": 5
+      },
+      "selected": true,
+      "test_patch_file_count": 1,
+      "title": "dbt postgres fix command errors with UnicodeEncodeError and also wipes the .sql file",
+      "total_score": 22,
+      "version": "0.6"
+    }
+  ],
+  "split": "dev"
+}

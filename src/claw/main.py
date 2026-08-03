@@ -457,7 +457,7 @@ def cmd_benchmark_run(args) -> int:
             config_version=args.config_version,
             task_ids=args.task_id or (),
             limit=args.limit,
-            allowed_path_patterns=args.allow_path or ("**",),
+            allowed_path_patterns=args.allow_path or (),
             dataset_manifest_ref=args.dataset_manifest_ref or "",
             training_run_ref=args.training_run_ref or "",
             experiment_ref=args.experiment_ref or "",

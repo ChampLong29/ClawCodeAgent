@@ -7,6 +7,7 @@ import shutil
 import stat
 import subprocess
 import uuid
+from contextlib import contextmanager
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -120,8 +121,8 @@ class EpisodeOrchestrator:
             self.manifest.metadata["observed_template_hash"] = actual_template_hash
             self.manifest.initial_commit = initialize_git(self.workspace)
 
-            initial_results = self._run_initial_checks(
-                task.initial_checks, timeout=task.timeout_seconds
+            initial_results = self._run_task_checks(
+                task, task.initial_checks, timeout=task.timeout_seconds
             )
             self.manifest.metadata["initial_check_results"] = initial_results
             if any(result.get("timed_out") for result in initial_results):
@@ -373,8 +374,8 @@ class EpisodeOrchestrator:
                 "verification facts can only be collected after a running agent"
             )
 
-        command_results = self._run_initial_checks(
-            task.test_commands, timeout=task.timeout_seconds
+        command_results = self._run_task_checks(
+            task, task.test_commands, timeout=task.timeout_seconds
         )
         passed = sum(
             1 for result in command_results
@@ -452,6 +453,39 @@ class EpisodeOrchestrator:
                     }
                 )
         return results
+
+    def _run_task_checks(
+        self, task: TaskSpec, commands: List[str], *, timeout: float
+    ) -> List[Dict[str, Any]]:
+        with self._staged_test_assets(task):
+            return self._run_initial_checks(commands, timeout=timeout)
+
+    @contextmanager
+    def _staged_test_assets(self, task: TaskSpec):
+        assert self.workspace is not None
+        if not task.test_assets_ref:
+            yield
+            return
+        source = Path(task.test_assets_ref)
+        if not source.is_absolute():
+            source = self.project_root / source
+        source = source.resolve()
+        observed_hash = workspace_hash(source)
+        if observed_hash != task.test_assets_hash:
+            raise InitialValidationError(
+                f"test assets hash mismatch: expected {task.test_assets_hash}, "
+                f"got {observed_hash}"
+            )
+        destination = self.workspace / ".claw_hidden_tests"
+        if destination.exists():
+            raise InitialValidationError(
+                "workspace already contains reserved .claw_hidden_tests"
+            )
+        shutil.copytree(source, destination)
+        try:
+            yield
+        finally:
+            shutil.rmtree(destination, ignore_errors=True)
 
     def _reset_git(self, commit: str) -> None:
         assert self.workspace is not None
