@@ -1,0 +1,57 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration.v1",
+  "captured_at": "2026-08-04",
+  "status": "passed",
+  "instance_id": "pylint-dev__astroid-1196",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
+  "environment": {
+    "python_version": "Python 3.8.20",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata"
+  },
+  "evaluator_fingerprint": {
+    "patch_sha256": "7b792b116c841e5efe20500b3362fc08213a9531ab04c8d1901526c1735b2330",
+    "test_patch_sha256": "ba7739e4cfe0d7beac3c114bd6d926dc07e1cfc2d14aa155dc1dd35ff010acf9",
+    "hints_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "test_ids_hash": "8f78c76eda7cc230e401e2429fa397232f1a73bf84b577ea35930aff342c2a6f",
+    "fail_to_pass_count": 2,
+    "pass_to_pass_count": 24
+  },
+  "runs": {
+    "baseline_fail_to_pass": {
+      "returncode": 1,
+      "passed": false,
+      "test_count": 2,
+      "stdout_sha256": "b5a6122def9d5236b9d6e2bef42e13bd1281518cb7d2f87fd46dfb31163d911d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "baseline_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 24,
+      "stdout_sha256": "d7762caef79dec0d631144d5906d3f708c0c435d7368e36bdae3938e5c314489",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_fail_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 2,
+      "stdout_sha256": "d62807e8cf882b3175d29107b27641c8ea8d8af8f9da8e9d2815f2e74c360a97",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 24,
+      "stdout_sha256": "d7762caef79dec0d631144d5906d3f708c0c435d7368e36bdae3938e5c314489",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score.",
+  "compatibility_caveats": [
+    "Docker and the official SWE-bench Harness were not used.",
+    "This evidence validates the evaluator environment and reference transition, not agent rollout quality.",
+    "No Astroid model rollout was executed as part of this calibration."
+  ]
+}

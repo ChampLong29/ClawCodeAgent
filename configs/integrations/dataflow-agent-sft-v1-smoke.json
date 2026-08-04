@@ -1,0 +1,34 @@
+{
+  "schema_version": "dataflow_smoke_evidence.v1",
+  "captured_at": "2026-08-03",
+  "status": "passed",
+  "pipeline": "agent_sft_v1",
+  "environment": {
+    "python": "3.11.15",
+    "dataflow_version": "1.0.10",
+    "dataflow_commit": "047ae01698b0cdc63556c4ee9560c37ed34884b2",
+    "numpy": "1.26.4",
+    "pandas": "2.2.3",
+    "device": "cpu",
+    "llm_or_gpu_dependencies_installed": false
+  },
+  "input": {
+    "fixture": "examples/data_pipeline/silver/silver-records.jsonl",
+    "manifest": "examples/data_pipeline/silver/silver-manifest.json",
+    "dataset_id": "silver_6a0d33976a57930c6350",
+    "record_count": 5,
+    "sha256": "da5558b24d463e0721ed0ef255fd491f0dd7ff14ebbfee7022c3fc3f201695ee"
+  },
+  "output": {
+    "step_count": 6,
+    "selected_record_count": 3,
+    "excluded_record_count": 2,
+    "sha256": "a1480609b3bb64b33f5466fb7459621a079b0e2e8f3eea0a62e5998a652faa1b"
+  },
+  "command": ".venv-dataflow/Scripts/python.exe -m data_pipelines.agent_sft_v1 --silver-records examples/data_pipeline/silver/silver-records.jsonl --silver-manifest examples/data_pipeline/silver/silver-manifest.json --cache-path external/dataflow-fixture-evidence",
+  "notes": [
+    "All six DataFlow FileStorage steps completed with exit code 0.",
+    "The three success records were retained; two test-failure records were excluded by the quality threshold.",
+    "A pandas float round-trip issue was found during the first smoke run and fixed with normalized record hashing."
+  ]
+}

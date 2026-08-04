@@ -38,16 +38,45 @@ def extract_messages(
 
     for event in trajectory.events:
         payload = _resolved_payload(event, artifact_store)
-        if event.event_type in {"model_request", "model_response"}:
+        if event.event_type == "model_request":
+            # Runtime adapter v2 records the complete request history on every
+            # model call. Treat that snapshot as authoritative so earlier
+            # response/tool events are not duplicated. Legacy trajectories
+            # instead store one message per request and remain append-only.
+            request_messages = payload.get("messages")
+            if isinstance(request_messages, list):
+                messages = copy.deepcopy(request_messages)
+                response_indices.clear()
+                seen_call_ids = {
+                    str(call.get("id"))
+                    for message in messages
+                    if isinstance(message, dict)
+                    for call in message.get("tool_calls") or []
+                    if isinstance(call, dict) and call.get("id")
+                }
+            else:
+                message = payload.get("message")
+                if isinstance(message, dict):
+                    messages.append(copy.deepcopy(message))
+        elif event.event_type == "model_response":
             message = payload.get("message")
+            if not isinstance(message, dict) and (
+                "content" in payload or "tool_calls" in payload
+            ):
+                message = {
+                    "role": "assistant",
+                    "content": payload.get("content") or "",
+                    "tool_calls": copy.deepcopy(payload.get("tool_calls") or []),
+                }
             if isinstance(message, dict):
                 messages.append(copy.deepcopy(message))
-                if event.event_type == "model_response":
-                    response_indices[event.event_id] = len(messages) - 1
-                    for call in message.get("tool_calls") or []:
-                        call_id = call.get("id")
-                        if call_id:
-                            seen_call_ids.add(str(call_id))
+                response_indices[event.event_id] = len(messages) - 1
+                if event.parent_event_id:
+                    response_indices[event.parent_event_id] = len(messages) - 1
+                for call in message.get("tool_calls") or []:
+                    call_id = call.get("id")
+                    if call_id:
+                        seen_call_ids.add(str(call_id))
         elif event.event_type == "tool_call":
             call_id = str(payload.get("call_id") or "")
             if call_id in seen_call_ids:
@@ -60,6 +89,12 @@ def extract_messages(
             if not call_id:
                 raise DatasetValidationError("tool_call event is missing call_id")
             call = copy.deepcopy(payload.get("call") or {})
+            if not call and payload.get("tool_name"):
+                call = {
+                    "id": call_id,
+                    "name": payload.get("tool_name"),
+                    "arguments": copy.deepcopy(payload.get("arguments") or {}),
+                }
             if not isinstance(call, dict):
                 raise DatasetValidationError("tool_call payload must be an object")
             parent_calls = messages[parent_index].setdefault("tool_calls", [])
@@ -82,15 +117,19 @@ def extract_messages(
                 message.setdefault("tool_call_id", payload.get("call_id"))
                 messages.append(message)
             else:
+                result = payload.get("result", payload)
+                content = (
+                    result
+                    if isinstance(result, str)
+                    else json.dumps(result, ensure_ascii=False, sort_keys=True)
+                )
                 messages.append(
                     {
                         "role": "tool",
                         "tool_call_id": payload.get("call_id"),
-                        "content": json.dumps(
-                            payload.get("result", payload),
-                            ensure_ascii=False,
-                            sort_keys=True,
-                        ),
+                        "name": payload.get("tool_name")
+                        or payload.get("actual_tool_name"),
+                        "content": content,
                     }
                 )
     if not messages:

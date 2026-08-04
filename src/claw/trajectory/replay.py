@@ -194,6 +194,7 @@ class ReplayComparator:
             "permission_decision",
             "checkpoint_created",
             "rollback_completed",
+            "runtime_guidance",
         }:
             return "process"
         if event_type in {"runtime_error", "episode_terminated"}:

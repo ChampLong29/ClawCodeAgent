@@ -1,0 +1,57 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration.v1",
+  "captured_at": "2026-08-04",
+  "status": "passed",
+  "instance_id": "marshmallow-code__marshmallow-1343",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+  "environment": {
+    "python_version": "Python 3.8.20",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata"
+  },
+  "evaluator_fingerprint": {
+    "patch_sha256": "fb93d3650801b4da32dce01c6f7cc72194236aa7445189dd5edfb9d5081d3ecf",
+    "test_patch_sha256": "27c3bdd1020389c54802618a94d3d3b344f638d1542fcd85e898eb876f45c90d",
+    "hints_sha256": "bb1493470d014ccd2d497e493bf23ab08f56a744412485df5049d94f83215faf",
+    "test_ids_hash": "ed176ec2932c378f18795a107f9182afdfa1d7a795dd758dcfc4d74c22bead4a",
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 24
+  },
+  "runs": {
+    "baseline_fail_to_pass": {
+      "returncode": 1,
+      "passed": false,
+      "test_count": 1,
+      "stdout_sha256": "1400a662f6e84c8a02e481b23712fe3319242c5e638dbbb119c8edc36df6ad52",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "baseline_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 24,
+      "stdout_sha256": "df3bd37f41a378573f856f3b0e29b6f9c269c9954d6be576d898d378fed5794d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_fail_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 1,
+      "stdout_sha256": "3218320911a1d20cf4b51e6086b4159802174852555614ab3b2ecf43f44c43ba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 24,
+      "stdout_sha256": "5a1a86f7eaf341d7c37eaae638cbde4b616573f603550a271fc79cfa07115d2e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score.",
+  "compatibility_caveats": [
+    "The selected historical repository advertised Python support through 3.7; this local calibration used Python 3.8.20.",
+    "Docker and the official SWE-bench Harness were not used.",
+    "This evidence validates the evaluator environment and reference transition, not agent rollout quality."
+  ]
+}

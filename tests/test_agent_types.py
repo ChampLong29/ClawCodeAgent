@@ -2,9 +2,20 @@
 
 import unittest
 from claw.agent_types import (
-    ModelConfig, ModelPricing, BudgetConfig, UsageStats,
+    AgentPermissions, ModelConfig, ModelPricing, BudgetConfig, UsageStats,
     ToolCall, AssistantTurn, AgentRunResult,
 )
+
+
+class TestAgentPermissions(unittest.TestCase):
+    def test_workspace_restriction_round_trip(self):
+        permissions = AgentPermissions(
+            allow_write=True,
+            allow_shell=True,
+            restrict_workspace=True,
+        )
+        restored = AgentPermissions.from_dict(permissions.to_dict())
+        self.assertTrue(restored.restrict_workspace)
 
 
 class TestModelPricing(unittest.TestCase):

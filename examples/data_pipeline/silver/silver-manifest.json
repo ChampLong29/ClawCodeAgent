@@ -1,0 +1,23 @@
+{
+  "content_hash": "3077521951dbdcd4af182d8db120a4ef60272ef5d127dd0be621d8e56a98f94d",
+  "dataset_id": "silver_6a0d33976a57930c6350",
+  "generated_at": "2026-08-03T08:20:41.431547+00:00",
+  "generation_commit": "fixture-v1",
+  "leakage_report": {
+    "checked_tasks": 5,
+    "issues": [],
+    "passed": true
+  },
+  "output_file": "silver-records.jsonl",
+  "record_count": 5,
+  "record_ids": [
+    "record_14924b1905579ed4a92a",
+    "record_4f3b4cc8bd56dc26df7c",
+    "record_66ffcbb866fa47353c27",
+    "record_6d444cfea66bc5e4237a",
+    "record_e3dc63f8dad850ee90db"
+  ],
+  "record_schema": "agent_training_record.v1",
+  "schema_version": "silver_dataset_manifest.v1",
+  "source_schema": "agent_trajectory.v2"
+}

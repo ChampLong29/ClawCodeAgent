@@ -27,6 +27,7 @@ EVENT_TYPES = {
     "rollback_completed",
     "workspace_diff",
     "test_result",
+    "runtime_guidance",
     "runtime_error",
     "episode_terminated",
 }

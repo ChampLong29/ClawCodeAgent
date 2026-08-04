@@ -1,0 +1,51 @@
+{
+  "schema_version": "data_centric_upstreams.v1",
+  "captured_at": "2026-08-03",
+  "integration_boundary": "versioned JSON files and subprocess adapters",
+  "environment_strategy": {
+    "claw": "Python >=3.9; schema conversion and export; no framework dependency",
+    "dataflow": "isolated environment for DataFlow operators and storage",
+    "training": "isolated CUDA environment for DataFlex, LLaMAFactory and PyTorch"
+  },
+  "upstreams": {
+    "dataflow": {
+      "repository": "https://github.com/OpenDCAI/DataFlow.git",
+      "commit": "047ae01698b0cdc63556c4ee9560c37ed34884b2",
+      "package": "open-dataflow",
+      "version": "1.0.10",
+      "python": ">=3.7,<4",
+      "cli": "dataflow",
+      "license": "Apache-2.0",
+      "contract": "OperatorABC.run(DataFlowStorage) with dataframe read/write"
+    },
+    "dataflex": {
+      "repository": "https://github.com/OpenDCAI/DataFlex.git",
+      "commit": "3c13e372637ffb6f931d9ee058f7969cee15e468",
+      "package": "dataflex",
+      "version": "1.0.0",
+      "python": ">=3.10",
+      "cli": "dataflex-cli",
+      "license": "Apache-2.0",
+      "llamafactory_dependency": ">=0.9.4 for Python >=3.11",
+      "supported_train_types": [
+        "dynamic_select",
+        "dynamic_mix",
+        "dynamic_weight"
+      ]
+    },
+    "llamafactory": {
+      "minimum_version": "0.9.4",
+      "format": "sharegpt",
+      "message_roles": [
+        "human",
+        "gpt",
+        "function_call",
+        "observation"
+      ],
+      "dataset_columns": {
+        "messages": "conversations",
+        "tools": "tools"
+      }
+    }
+  }
+}

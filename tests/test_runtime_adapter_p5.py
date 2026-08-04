@@ -221,6 +221,7 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
         agent = LocalCodingAgent(
             cwd=str(orchestrator.workspace),
             permissions=AgentPermissions(allow_write=True).to_dict(),
+            completion_reminder_turns=2,
         )
         agent.client = SequencedClient(
             [
@@ -269,6 +270,7 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
         self.assertEqual(event_types.count("model_response"), 2)
         self.assertEqual(event_types.count("tool_call"), 1)
         self.assertEqual(event_types.count("tool_result"), 1)
+        self.assertEqual(event_types.count("runtime_guidance"), 1)
         self.assertEqual(event_types.count("workspace_diff"), 1)
         self.assertEqual(event_types.count("test_result"), 1)
         test_event = next(

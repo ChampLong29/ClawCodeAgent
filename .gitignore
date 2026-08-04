@@ -14,6 +14,7 @@ docs/defense/
 # Python virtual environments
 # ============================================================
 .venv/
+.venv-*/
 venv/
 gomoku/.venv/
 
@@ -51,7 +52,15 @@ benchmarks/swe_bench_lite/repos/
 # ============================================================
 # Non-dev documentation, guides, evidence
 # ============================================================
-docs/
+docs/*
+!docs/architecture/
+docs/architecture/*
+!docs/architecture/data-centric-agent-training-design.md
+!docs/roadmap/
+docs/roadmap/*
+!docs/roadmap/data-centric-training-roadmap.md
+!docs/roadmap/benchmark-pilot.md
+!docs/roadmap/swe-bench-lite-experiment-log.md
 images/
 PROJECT_REPRODUCTION_GUIDE.md
 repro_evidence/
@@ -104,3 +113,8 @@ chatrecord.md
 # SLIME submodule (cloned separately)
 # ============================================================
 slime/
+
+# ============================================================
+# External data/training frameworks (cloned separately)
+# ============================================================
+external/

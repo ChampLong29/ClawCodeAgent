@@ -393,17 +393,38 @@ Benchmark 支持以下组名：
 - 按规模、依赖、许可证、任务类型和失败模式选择少量 Pilot。
 - 保存去除 Gold Patch、Test Patch、Hints 和测试标识的 Agent 输入。
 - 在精确 Base Commit 上准备浅层仓库工作副本并记录快照。
+- 实现 `SweBenchLiteDevAdapter`，分别加载 Agent-safe 输入与评测专用数据；评测侧
+  对外只导出 Patch/Test IDs 的数量和哈希指纹。
+- 实现非官方的 `LocalSweBenchLiteCalibrationRunner`，通过 Git Archive 构造无 Git
+  元数据快照并强制补丁落在隔离工作区。
+- 在 Python 3.8.20 环境完成 `marshmallow-code__marshmallow-1343` 校准：基线
+  FAIL_TO_PASS 失败、24 条 PASS_TO_PASS 通过，参考补丁后两组均通过。版本化
+  证据位于 `configs/integrations/swe-bench-lite-marshmallow-local-calibration.json`。
+- 在独立 Python 3.8.20 环境完成 `pylint-dev__astroid-1196` 校准：基线 2 条
+  FAIL_TO_PASS 失败、24 条 PASS_TO_PASS 通过，参考补丁后两组均通过。版本化
+  证据位于 `configs/integrations/swe-bench-lite-astroid-local-calibration.json`。
+- 接通验证期 Test Patch 临时挂载、候选临时副本评测和真实 Dev Episode Collector。
+- 完成两次 `deepseek-v4-flash` 对照：原始环境版本无修改且测试失败；环境感知
+  Prompt 版本通过 1 条 FAIL_TO_PASS 与 24 条 PASS_TO_PASS，但因 Max turns 未正常
+  终止，仍是失败 Episode。对照证据位于
+  `configs/integrations/swe-bench-lite-marshmallow-deepseek-rollouts.json`。
+- 在 Astroid 上执行一次受控 Rollout 与一次基础设施修复后的重试：首次暴露
+  `runtime_guidance` 未注册到 Trajectory Schema 的问题；修复后重试仍未通过 2 条
+  FAIL_TO_PASS，并在收到收尾提醒后耗尽 30 turns。对照证据位于
+  `configs/integrations/swe-bench-lite-astroid-deepseek-rollouts.json`。
 
-详见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。
+详见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)；
+逐次失败、判断、修复和验证结果见
+[`docs/roadmap/swe-bench-lite-experiment-log.md`](docs/roadmap/swe-bench-lite-experiment-log.md)。
 
 当前未完成：
 
 - 官方 Docker Harness 接入。
-- 对每个历史仓库构建固定依赖镜像。
+- 对 SQLFluff 等其余历史仓库构建固定依赖镜像。
 - FAIL_TO_PASS / PASS_TO_PASS 的正式容器化验证。
-- 将 SWE-bench 实例转换为本项目 `TaskSpec` 和 Episode 的稳定 Adapter。
+- 将已观察到的 Astroid 路径定位、重复环境诊断和提醒后继续调查纳入 Prompt/策略回归。
 
-因此现阶段可以用 Pilot 做阅读、适配设计和少量人工 Rollout，不能发布正式 SWE-bench Lite 成绩。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试；它们的依赖和 Python 版本需要容器隔离。
+因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。Marshmallow 与 Astroid 的本地结果只证明评测环境能观察到预期状态转换；两者均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
 ## 13. 推荐推进顺序
 
@@ -412,9 +433,10 @@ Benchmark 支持以下组名：
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. 有 GPU 后运行最小 LoRA 实验，并立即对固定 Test Suite 跑 Base/Adapter 对比。
-7. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
-8. 证据链稳定后再扩大任务数、Seed 和消融组。
+6. 已在 Marshmallow 与 Astroid 上完成受控 Dev Rollout；下一步从失败轨迹提炼路径定位和验证策略，再换第三种 Issue 做小规模泛化检查。
+7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
+8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
+9. 证据链稳定后再扩大任务数、Seed 和消融组。
 
 ## 14. 实验完成标准
 
@@ -450,3 +472,172 @@ claw train-web --help
 ```
 
 当文档示例和 `--help` 不一致时，以当前代码和测试为准，并在同一提交中修正文档。
+
+## 16. DataFlow、DataFlex 与 LLaMA-Factory 集成路线
+
+这一节描述数据中心化训练链路。当前已完成 Silver 数据契约、确定性 Gold 治理、DataFlow 原生 Operator 与 LlamaFactory 文件导出；5 条固定 Fixture 已在隔离环境完成 DataFlow 原生实跑，2 条真实 Train Episode 已完成原生 LlamaFactory Tokenization，但任务仍偏简单，尚未产生真实 Adapter 或训练效果证据。
+
+当前实现入口：
+
+- `src/claw/data_pipeline/schemas.py`：`agent_training_record.v1`。
+- `src/claw/data_pipeline/silver.py`：Trajectory/Verification → Silver 与确定性 Manifest。
+- `src/claw/data_pipeline/operators.py`：Tool 对齐、泄漏、失败分类、质量评分和平衡策略。
+- `src/claw/data_pipeline/gold.py`：`agent_sft_v1` Gold Pipeline、报告与 Data Card。
+- `data_pipelines/agent_sft_v1.py`：DataFlow `OperatorABC/DataFlowStorage` 原生执行定义。
+- `src/claw/integrations/llamafactory/exporter.py`：ShareGPT Tool-use、`dataset_info.json` 和导出血缘。
+- `configs/integrations/data-centric-upstreams.json`：DataFlow、DataFlex、LLaMAFactory 兼容基线。
+- `examples/data_pipeline/silver/`：5 条可重建的脱敏 Silver Fixture。
+- `configs/integrations/dataflow-agent-sft-v1-smoke.json`：DataFlow 原生 E2E 环境、哈希与结果证据。
+
+### 16.1 职责划分
+
+```text
+Claw
+  生成和验证 Agent 数据，维护任务、轨迹、自动测试和实验血缘
+
+DataFlow
+  对合规 Agent 数据做画像、失败分类、打分、筛选、平衡和格式导出
+
+LLaMA-Factory
+  使用固定 Gold/Raw 数据进行标准 LoRA/QLoRA，提供静态 SFT 基线
+
+DataFlex
+  在 LLaMA-Factory 训练基础上执行动态样本选择、数据混合或重加权
+
+Claw Benchmark
+  在固定 Test Manifest 上进行独立对比
+```
+
+DataFlex 本身构建在 LLaMA-Factory 之上，因此应将二者设计成可比较的训练后端，而不是 `DataFlex -> LLaMA-Factory` 两次串联训练。
+
+### 16.2 数据分层
+
+采用 Bronze/Silver/Gold：
+
+- **Bronze**：不可变 Task、Episode、Trajectory 和 Verification 原始证据。
+- **Silver**：DatasetBuilder 完成 Tool 对齐、泄漏检查、去重和标签 Join 后的规范化记录。
+- **Gold**：DataFlow 完成质量筛选、分布平衡、权重计算和训练格式导出后的数据产品。
+
+DataFlow 不替代 DatasetBuilder。Oracle、隐藏测试、Test Patch、Test Family 和破损 Tool 序列必须在进入 DataFlow 前被拒绝。
+
+### 16.3 训练格式
+
+优先输出 LLaMA-Factory ShareGPT 格式：
+
+| Claw Role | ShareGPT Role |
+|---|---|
+| `system` | `system` |
+| `user` | `human` |
+| Assistant 文本 | `gpt` |
+| Assistant Tool Call | `function_call` |
+| Tool Result | `observation` |
+
+Exporter 必须同时生成：
+
+- ShareGPT JSON/JSONL。
+- `dataset_info.json` 条目。
+- Dataset Manifest 与内容哈希。
+- Data Card。
+- DataFlex 使用的 Domain、Difficulty、Quality Score 和 Sample Weight。
+
+导出后必须做 Chat Template Tokenization Dry-run，确认 Tool Call 与 Observation 没有被截断、重排或训练成错误角色。仓库提供 `tools/run_llamafactory_tokenization_smoke.py` 与固定配置 `configs/training/llamafactory-qwen25-coder-tokenization-smoke.json`；它只加载 tokenizer 和原生 SFT 数据处理器，不加载模型权重。
+
+### 16.4 消融实验
+
+| 组 | 数据 | 训练方式 |
+|---|---|---|
+| Base | 无训练 | 原始模型 |
+| Raw SFT | 合规但未经 DataFlow 筛选的 Silver 数据 | LLaMA-Factory |
+| DataFlow SFT | 去重、筛选和平衡后的 Gold 数据 | LLaMA-Factory |
+| DataFlex SFT | 同一 Gold 候选池和动态策略 | DataFlex |
+
+四组固定 Base Model、Revision、Seed 集合、训练预算、Chat Template 和 Test Manifest。先完成静态 Raw/DataFlow 对比，再只引入一种 DataFlex 策略，避免同时改变多个变量。
+
+### 16.5 数据指标
+
+实验报告除模型指标外还需包含：
+
+- 输入、保留、排除、派生样本数量。
+- 去重率、泄漏率、Tool 对齐失败率。
+- Domain、难度、任务类型和长度分布。
+- 自动测试、Reviewer、质量分和训练权重分布。
+- DataFlow 各 Operator 的输入/输出变化。
+- 数据处理 Token、时间和 API 成本。
+
+模型层继续使用 Claw Benchmark 的成功率、测试、Diff、安全、Turns、Tool Calls、Token、时延和成本指标。
+
+### 16.6 实施顺序
+
+1. 已完成：定义 `agent_training_record.v1` 中间格式。
+2. 已完成：实现 Trajectory/Verification → Silver Converter。
+3. 已完成 ShareGPT Exporter 与真实 LlamaFactory Tokenization Dry-run。
+4. 已完成确定性治理核心、DataFlow Operator、固定 Fixture 隔离环境实跑和真实 Episode 装配入口；待扩充多 Family Train/Dev Episode 小批次。
+5. 运行 Raw SFT 与 DataFlow SFT 的最小 LoRA 对比。
+6. 接入一种 DataFlex 重加权或动态选择策略。
+7. 扩展任务 Family、Seed 和真实仓库 Episode。
+
+详细架构和验收标准见：
+
+- [`docs/architecture/data-centric-agent-training-design.md`](docs/architecture/data-centric-agent-training-design.md)
+- [`docs/roadmap/data-centric-training-roadmap.md`](docs/roadmap/data-centric-training-roadmap.md)
+
+在真实 Adapter、Checkpoint 和独立 Benchmark 报告产生前，对外表述可使用“完成可追溯 Agent 训练数据契约与 LLaMAFactory Tool-use 导出”或“正在搭建数据中心化训练闭环”，不能使用“已通过 DataFlex 提升模型效果”。
+
+### 16.7 从真实 Episode 生成 Silver
+
+使用独立 Collector 采集 Train/Dev Episode。它复用 Episode、RuntimeAdapter 和
+Verifier，但与 BenchmarkRunner 分离并明确拒绝 Test Split：
+
+```powershell
+python tools/collect_training_episodes.py `
+  --task-suite task_suites/manifest.json `
+  --output-root .port_sessions/training-pilot `
+  --generation-commit <git-commit> `
+  --split train `
+  --task-id <train-task-id> `
+  --model deepseek-v4-flash `
+  --max-turns 20
+```
+
+随后只选择已经完成 Verification 并进入 `ARCHIVED` 状态的 Episode：
+
+```powershell
+python tools/build_silver_from_episodes.py `
+  --task-suite task_suites/manifest.json `
+  --episode-dir .port_sessions/<run>/episodes/<episode-1> `
+  --episode-dir .port_sessions/<run>/episodes/<episode-2> `
+  --generation-commit <git-commit> `
+  --output-dir artifacts/silver/real-pilot
+```
+
+装配器会核对 Task、Episode、Trajectory、Verification、模板哈希和任务内容哈希，
+并兼容真实 runtime adapter v2 与旧 Fixture 轨迹格式。`split=test`、跨 Family
+泄漏、未归档 Episode 和不一致的血缘会被拒绝。现有 Benchmark Episode 即使
+成功，也不能直接作为训练样本。
+
+确定性 Gold 治理入口：
+
+```powershell
+python tools/run_agent_sft_governance.py `
+  --silver-records artifacts/silver/real-pilot/silver-records.jsonl `
+  --silver-manifest artifacts/silver/real-pilot/silver-manifest.json `
+  --output-dir artifacts/gold/real-pilot
+```
+
+2026-08-03 至 2026-08-04 已用 `deepseek-v4-flash` 分两次完成 2 个 Train 任务的
+真实小批次：Collection Success 2/2，Silver 2 条，Gold 2 条，排除 0 条、泄漏率 0。
+随后在 WSL2、LlamaFactory 0.9.4 和固定 Qwen2.5-Coder tokenizer revision 下完成
+原生 SFT 预处理，得到 1713/1542 tokens、505/393 个监督 tokens、0 截断。两条任务
+覆盖 CLI/Library 与 Add Feature/Fix Bug，但仍是小型合成任务。该结果仅验证执行、
+血缘、治理和 Tokenization 链路，不用于声称数据规模充分或模型能力提升。脱敏后的
+机器可读证据见 `configs/integrations/dataflow-real-episode-pilot.json` 和
+`configs/integrations/dataflow-real-episode-batch2.json`；原始 Episode
+和训练消息继续保留在忽略提交的 `.port_sessions`。
+
+### 16.8 AgentFlow 延后接入原则
+
+AgentFlow 被记录为可选的分支轨迹探索层，不替代 Claw Verifier，也不阻塞
+DataFlow → LlamaFactory/DataFlex 主线。真实 Silver/Gold 和 Tool-use Tokenization
+门槛已经通过单样本验证，但仍优先扩充多 Family 小批次并建立静态 LoRA 基线；
+之后才启动 1 个任务、2×2 分支树的隔离 Spike。
+详细边界见架构文档第 18 节和路线图 M6。

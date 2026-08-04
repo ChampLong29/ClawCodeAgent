@@ -64,6 +64,19 @@ class TestToolExecution(unittest.TestCase):
         self.assertIn("visible-err", result.error)
         self.assertEqual(result.result["returncode"], 7)
 
+    def test_workspace_restriction_blocks_file_paths_outside_cwd(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = execute_tool(
+                "read_file",
+                {"path": "../outside.txt"},
+                ToolExecutionContext(
+                    cwd=directory,
+                    permissions={"restrict_workspace": True},
+                ),
+            )
+        self.assertFalse(result.ok)
+        self.assertIn("outside the configured workspace", result.error)
+
 
 if __name__ == "__main__":
     unittest.main()

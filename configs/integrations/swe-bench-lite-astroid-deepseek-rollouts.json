@@ -1,0 +1,81 @@
+{
+  "schema_version": "swe_bench_lite_rollout_comparison.v1",
+  "captured_at": "2026-08-04",
+  "status": "completed_no_success",
+  "instance_id": "pylint-dev__astroid-1196",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
+  "generation_commit": "e1a15177412b11edb80efb992eebf50d0b684ee4",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "attempts": [
+    {
+      "collection_id": "episode_collection_faf536f7f2c5360d35bd",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v3",
+      "result_content_hash": "31d4e0dd2de2b119b28766a4ee81004568e6e756f133f8dc6ab257ce3bc3a1c7",
+      "task_content_hash": "569d0d4af6bae2549d76181b84d6c7279460af5b32eed9abe4b88c0192499625",
+      "trajectory_sha256": "7373d62441cc1536db7a6bc79dc1fa67bca18444c4ed0b9351f0076aa5e0a40d",
+      "verification_sha256": "c885de329f9a2c5b5e67f3041391538f662c0f0cb2f4153662c9a2743f555583",
+      "candidate_file_sha256": "10193b5d32d0383f65a401e3aea3769653fe5fb7a349d57fab3f18622da507f4",
+      "valid_model_quality_sample": false,
+      "success": false,
+      "fail_to_pass_passed": false,
+      "pass_to_pass_passed": true,
+      "changed_files": [
+        "astroid/nodes/node_classes.py"
+      ],
+      "termination": "runtime_schema_error",
+      "termination_detail": "unsupported event_type: runtime_guidance",
+      "turns": 27,
+      "tool_calls": 35,
+      "input_tokens": 12586,
+      "output_tokens": 16879,
+      "latency_seconds": 264.35715478198836,
+      "disposition": "infrastructure_regression_case"
+    },
+    {
+      "collection_id": "episode_collection_1546123cea91f1efcb0b",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v3",
+      "result_content_hash": "c657ba8ad3d94f23c063f06a50e849048d54fe37629b3b99128e9885b9e3c109",
+      "task_content_hash": "1f2f1838c3aa7c0146528ed26b0631282a81c569a4bd1f28f5e034ac86c1f6f7",
+      "trajectory_sha256": "39a11c3942c48b208c10c684c8e736a35965409c9cfcbdb5347f7bcf7b82c043",
+      "verification_sha256": "0ba744d98c71379b38a24f9e17a55571795bdd7f8a05ae7a2a027641f5c50f09",
+      "candidate_file_sha256": "4d6004d072b924b132f926d92c62fd64c214d421ffd25fae422dea562dce744e",
+      "valid_model_quality_sample": true,
+      "success": false,
+      "fail_to_pass_passed": false,
+      "pass_to_pass_passed": true,
+      "changed_files": [
+        "astroid/nodes/node_classes.py"
+      ],
+      "completion_reminder_recorded": true,
+      "termination": "max_turns",
+      "turns": 30,
+      "tool_calls": 38,
+      "input_tokens": 16008,
+      "output_tokens": 19157,
+      "latency_seconds": 278.7584780210018,
+      "disposition": "dev_bad_case"
+    }
+  ],
+  "review": {
+    "automated_tests": "Both candidates preserve all 24 PASS_TO_PASS tests but fail the two FAIL_TO_PASS tests.",
+    "diff_scope": "Both attempts change only astroid/nodes/node_classes.py within the allowed source scope.",
+    "infrastructure_note": "The first attempt was interrupted when the new runtime_guidance trace event was rejected by agent_trajectory.v2. The schema and replay category were updated and covered by an end-to-end Runtime Adapter test before retrying.",
+    "process_note": "The retry records the completion reminder but still exhausts all 30 tool-bearing turns. It also spends early calls resolving an incorrect /workspace assumption and later continues investigation after the reminder.",
+    "quality_note": "Neither candidate implements the required dictionary-unpacking inference behavior for the selected regressions."
+  },
+  "data_admission": {
+    "raw_episodes_retained_locally": true,
+    "infrastructure_attempt_training_eligible": false,
+    "retry_dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "fail_to_pass_tests_failed",
+      "termination_noncompliant"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "claim_boundary": "Local Dev Episode evidence only; not an official SWE-bench score and not a successful training example. Runtime changes were uncommitted at capture and are disclosed separately from generation_commit."
+}

@@ -1,0 +1,100 @@
+{
+  "schema_version": "real_episode_data_pilot.v1",
+  "captured_at": "2026-08-03",
+  "status": "passed",
+  "scope": "single_train_episode_contract_pilot",
+  "generation_commit": "e1a15177412b11edb80efb992eebf50d0b684ee4",
+  "collection": {
+    "collection_id": "episode_collection_89cd34f15243838666f3",
+    "model": "deepseek-v4-flash",
+    "prompt_version": "training-pilot-deepseek-v4-flash.v1",
+    "split": "train",
+    "task_ids": [
+      "python-cli-add_feature-01"
+    ],
+    "task_count": 1,
+    "success_count": 1,
+    "test_pass_rate": 1.0,
+    "tool_selection_validity": 1.0,
+    "tool_argument_validity": 1.0,
+    "result_content_hash": "1357c5eb3b2b117c3242c16526398487d7d3f034ac17cc9fd070d0133aeb01fa"
+  },
+  "silver": {
+    "dataset_id": "silver_89d5234c746daf224e41",
+    "record_count": 1,
+    "leakage_passed": true,
+    "workspace_path_leak_hits": 0,
+    "content_hash": "ffe622cadba69c17225dd1cbd06b0c85892e6e68885924929909fbbe97f563a5"
+  },
+  "dataflow": {
+    "version": "1.0.10",
+    "commit": "047ae01698b0cdc63556c4ee9560c37ed34884b2",
+    "step_count": 6,
+    "selected_record_count": 1,
+    "final_step_sha256": "1c2add47773733420b3c996a8b16d57e10c7ad50ce20687c58810249883ffefe"
+  },
+  "gold": {
+    "dataset_id": "gold_b7fe918a415bb1aec62a",
+    "record_count": 1,
+    "excluded_record_count": 0,
+    "leakage_rate": 0.0,
+    "content_hash": "342804c4caa82b4485045770b94ecac34dbcd4020784f2e15b49ba48aa19b315"
+  },
+  "llamafactory_export": {
+    "export_id": "lf_export_627880bf1fe37f84e442",
+    "sample_count": 1,
+    "format": "sharegpt_tool_use",
+    "content_hash": "ed552759197b3c0a6738c337267ee2a56087019b5b0a9b8e3716011c5b0867c6",
+    "dataset_sha256": "7a3b0d7e477f043da24a7c5aa0ed1cc5bd99d980f3ac6f08beb0950b09f9e088",
+    "role_sequence": [
+      "system",
+      "human",
+      "function_call",
+      "observation",
+      "function_call",
+      "observation",
+      "function_call",
+      "observation",
+      "function_call",
+      "observation",
+      "gpt"
+    ],
+    "tokenization_verified": true
+  },
+  "tokenization_smoke": {
+    "status": "passed",
+    "llamafactory": "0.9.4",
+    "model_name_or_path": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "model_revision": "098145f275b49d4517571a8c5d1e7896f68797d8",
+    "template": "qwen",
+    "sample_count": 1,
+    "token_lengths": [
+      1542
+    ],
+    "supervised_token_counts": [
+      393
+    ],
+    "truncated_sample_count": 0,
+    "runtime": {
+      "environment": "WSL2 Ubuntu-26.04",
+      "torch": "2.6.0+cu124",
+      "transformers": "4.56.2",
+      "datasets": "4.0.0",
+      "accelerate": "1.10.1",
+      "peft": "0.17.1",
+      "cuda_device": "NVIDIA GeForce RTX 3060"
+    },
+    "weights_loaded": false,
+    "training_performed": false
+  },
+  "artifact_policy": {
+    "raw_episode_committed": false,
+    "local_root": ".port_sessions/training-pilot-deepseek-v4-flash-live",
+    "contains_training_effect_claim": false
+  },
+  "notes": [
+    "The first sandboxed attempt was preserved separately as an environment failure; this evidence describes the approved live rerun.",
+    "The pilot proves the real Episode-to-tokenized-SFT contract only; one sample is not a training dataset or a model-quality result.",
+    "LlamaFactory native ShareGPT alignment and target-tokenizer preprocessing passed, but no model weights were loaded or trained."
+  ]
+}

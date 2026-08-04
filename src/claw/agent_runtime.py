@@ -73,6 +73,8 @@ class LocalCodingAgent:
     budget: Optional[BudgetConfig] = None
     permissions: Optional[Dict[str, Any]] = None
     api_config_cwd: Optional[str] = None
+    completion_reminder_turns: int = 0
+    completion_critical_turns: int = 0
 
     # Internal state
     session: Optional[AgentSession] = None
@@ -101,6 +103,18 @@ class LocalCodingAgent:
 
     def __post_init__(self):
         """Initialize the agent after construction."""
+        if self.completion_reminder_turns < 0:
+            raise ValueError("completion_reminder_turns must be non-negative")
+        if self.completion_critical_turns < 0:
+            raise ValueError("completion_critical_turns must be non-negative")
+        if (
+            self.completion_reminder_turns > 0
+            and self.completion_critical_turns > self.completion_reminder_turns
+        ):
+            raise ValueError(
+                "completion_critical_turns must not exceed "
+                "completion_reminder_turns"
+            )
         # Use API config to determine provider and client type
         api_config_runtime = APIConfigRuntime(cwd=self.api_config_cwd or self.cwd)
         api_config = api_config_runtime.get_config()
@@ -339,6 +353,8 @@ class LocalCodingAgent:
         is_anthropic = isinstance(self.client, AnthropicClient)
 
         try:
+            completion_reminder_sent = False
+            completion_critical_sent = False
             while self.turns < max_turns:
                 # Check budget
                 allowed, reason = budget.check()
@@ -353,6 +369,55 @@ class LocalCodingAgent:
                 # Compact if needed
                 if should_compact(messages, threshold=AUTOCOMPACT_BUFFER_TOKENS):
                     messages = self._compact_messages(messages)
+
+                remaining_tool_turns = max_turns - self.turns
+                if (
+                    self.completion_reminder_turns > 0
+                    and not completion_reminder_sent
+                    and remaining_tool_turns <= self.completion_reminder_turns
+                ):
+                    reminder = (
+                        "[Runtime budget notice] You have at most "
+                        f"{remaining_tool_turns} additional tool-bearing turns. "
+                        "Stop broad investigation now. Commit to the smallest plausible "
+                        "implementation, use only targeted checks, and reserve time for "
+                        "a final response. Do not start environment or version archaeology "
+                        "unless a concrete command has failed for that reason."
+                    )
+                    messages.append({"role": "user", "content": reminder})
+                    self._trace(
+                        "runtime_guidance",
+                        payload={
+                            "guidance_type": "completion_reminder",
+                            "remaining_tool_turns": remaining_tool_turns,
+                            "configured_threshold": self.completion_reminder_turns,
+                        },
+                    )
+                    completion_reminder_sent = True
+
+                if (
+                    self.completion_critical_turns > 0
+                    and not completion_critical_sent
+                    and remaining_tool_turns <= self.completion_critical_turns
+                ):
+                    critical = (
+                        "[Runtime finalization notice] You have at most "
+                        f"{remaining_tool_turns} additional tool-bearing turns. "
+                        "Do not begin new investigation. Make at most one essential "
+                        "change or run one targeted verification, then return the final "
+                        "response. If the task is incomplete, state that clearly instead "
+                        "of spending the remaining budget on exploration."
+                    )
+                    messages.append({"role": "user", "content": critical})
+                    self._trace(
+                        "runtime_guidance",
+                        payload={
+                            "guidance_type": "completion_critical",
+                            "remaining_tool_turns": remaining_tool_turns,
+                            "configured_threshold": self.completion_critical_turns,
+                        },
+                    )
+                    completion_critical_sent = True
 
                 inference_config = self._model_inference_kwargs()
                 model_request_event_id = self._trace(

@@ -17,6 +17,18 @@ from .runner import (
     BenchmarkRunner,
     ModelAdapter,
 )
+from .swe_bench_lite_adapter import (
+    LocalSweBenchLiteCalibrationRunner,
+    MaterializedSweBenchLiteEpisodeTask,
+    SweBenchLiteCandidateEvaluation,
+    SweBenchLiteAgentTask,
+    SweBenchLiteDevAdapter,
+    SweBenchLiteEpisodeTaskMaterializer,
+    SweBenchLiteEvaluationBundle,
+    SweBenchLiteLocalCalibrationResult,
+    SweBenchLiteTestExecution,
+    evaluate_swe_bench_lite_candidate,
+)
 
 __all__ = [
     "ABLATION_GROUPS",
@@ -27,9 +39,19 @@ __all__ = [
     "BenchmarkRunResult",
     "BenchmarkRunner",
     "LocalAgentBenchmarkAdapter",
+    "LocalSweBenchLiteCalibrationRunner",
+    "MaterializedSweBenchLiteEpisodeTask",
     "ModelAdapter",
+    "SweBenchLiteAgentTask",
+    "SweBenchLiteCandidateEvaluation",
+    "SweBenchLiteDevAdapter",
+    "SweBenchLiteEpisodeTaskMaterializer",
+    "SweBenchLiteEvaluationBundle",
+    "SweBenchLiteLocalCalibrationResult",
+    "SweBenchLiteTestExecution",
     "bad_case_distribution",
     "compute_metrics",
     "cost_summary",
+    "evaluate_swe_bench_lite_candidate",
     "run_local_benchmark",
 ]

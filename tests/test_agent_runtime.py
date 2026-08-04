@@ -1,5 +1,6 @@
 """Tests for agent runtime — session lifecycle, from_session, turn counter."""
 
+import copy
 import unittest
 import tempfile
 import os
@@ -310,6 +311,146 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertEqual(result.stop_reason, "completed")
         self.assertEqual(client.kwargs["temperature"], 0.25)
         self.assertEqual(client.kwargs["max_tokens"], 321)
+
+    def test_completion_reminder_is_injected_once_near_tool_turn_limit(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True, "allow_shell": True},
+            completion_reminder_turns=2,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) == 1:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": "call-1",
+                                "function": {
+                                    "name": "list_dir",
+                                    "arguments": '{"path": "."}',
+                                },
+                            }
+                        ],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=3)
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(len(client.requests), 2)
+        first_messages = client.requests[0]["messages"]
+        second_messages = client.requests[1]["messages"]
+        self.assertFalse(
+            any("Runtime budget notice" in str(item.get("content")) for item in first_messages)
+        )
+        reminders = [
+            item
+            for item in second_messages
+            if "Runtime budget notice" in str(item.get("content"))
+        ]
+        self.assertEqual(len(reminders), 1)
+        self.assertIn("2 additional tool-bearing turns", reminders[0]["content"])
+
+    def test_completion_reminder_threshold_rejects_negative_values(self):
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                completion_reminder_turns=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                completion_critical_turns=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                completion_reminder_turns=2,
+                completion_critical_turns=3,
+            )
+
+    def test_completion_critical_notice_follows_early_warning(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True, "allow_shell": True},
+            completion_reminder_turns=3,
+            completion_critical_turns=1,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) <= 3:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "id": f"call-{len(self.requests)}",
+                                "function": {
+                                    "name": "list_dir",
+                                    "arguments": '{"path": "."}',
+                                },
+                            }
+                        ],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=4)
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(len(client.requests), 4)
+        warning_messages = client.requests[1]["messages"]
+        critical_messages = client.requests[3]["messages"]
+        self.assertTrue(
+            any(
+                "Runtime budget notice" in str(item.get("content"))
+                for item in warning_messages
+            )
+        )
+        self.assertFalse(
+            any(
+                "Runtime finalization notice" in str(item.get("content"))
+                for item in warning_messages
+            )
+        )
+        self.assertEqual(
+            sum(
+                "Runtime finalization notice" in str(item.get("content"))
+                for item in critical_messages
+            ),
+            1,
+        )
 
     def test_create_with_budget(self):
         budget = BudgetConfig(max_total_tokens=100000, max_output_tokens=40000)

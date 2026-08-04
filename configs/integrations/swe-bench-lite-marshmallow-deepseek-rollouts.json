@@ -1,0 +1,73 @@
+{
+  "schema_version": "swe_bench_lite_rollout_comparison.v1",
+  "captured_at": "2026-08-04",
+  "status": "completed_with_process_failure",
+  "instance_id": "marshmallow-code__marshmallow-1343",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+  "generation_commit": "e1a15177412b11edb80efb992eebf50d0b684ee4",
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "rollouts": [
+    {
+      "collection_id": "episode_collection_9d80df9e513da24a3a47",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v1",
+      "result_content_hash": "0cafa8a5f69e65746c98601a3200aac9c7d4a1d99371fa5f1dac9fc4a67ac3fd",
+      "task_content_hash": "6d402f85e9030e68e2f1895ad8034ff6429bd8df494290cc893ec0eb5dc3e7da",
+      "trajectory_sha256": "63b4344736f2950ed55426230da5ab638d3f13d05cfc13e2d3fbdbebbc1e5a36",
+      "verification_sha256": "46ce094e9d325f0cc7e191bd057e12ea94b082369ef0096bd57136ecd6392896",
+      "historical_environment_on_agent_path": false,
+      "success": false,
+      "test_pass_rate": 0.0,
+      "changed_files": [],
+      "termination": "max_turns",
+      "turns": 30,
+      "tool_calls": 39,
+      "input_tokens": 16095,
+      "output_tokens": 6904,
+      "latency_seconds": 126.300215
+    },
+    {
+      "collection_id": "episode_collection_d726e94e04b1354dbecc",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v2",
+      "result_content_hash": "8a5fd847420d89de251eaf5d014d75afe571fbcc1a2baadac9146bb0f924b1f6",
+      "task_content_hash": "472fd034289161d965b00022151f7053767cb95cb19574614502fe0302ecdf43",
+      "trajectory_sha256": "2d84be0aad7b7940eeb6e810d4a106f8fb4a61bc0ac3049fc754d1eaaa74a570",
+      "verification_sha256": "190cdad83937e2b571bdf3a813f6f99ead3b655df2e30974bc2ef147ea17004c",
+      "historical_environment_on_agent_path": true,
+      "success": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_passed": true,
+      "pass_to_pass_passed": true,
+      "changed_files": [
+        "src/marshmallow/schema.py"
+      ],
+      "candidate_diff_sha256": "a99f52042800c0954fb872c9aa3cd4dbc5d56ce5ed3f14b439d61390b7454c05",
+      "candidate_matches_gold_patch": false,
+      "termination": "max_turns",
+      "turns": 20,
+      "tool_calls": 30,
+      "input_tokens": 15119,
+      "output_tokens": 17187,
+      "latency_seconds": 185.863549
+    }
+  ],
+  "review": {
+    "candidate_summary": "Adds an early return when field-validator input data is None.",
+    "automated_tests": "The single FAIL_TO_PASS and all 24 PASS_TO_PASS tests pass.",
+    "diff_scope": "One allowed source file with no evaluator-asset contamination.",
+    "robustness_note": "The candidate is narrower than the reference patch and may not cover a None item inside many=True data; this was not exercised by the selected evaluator IDs.",
+    "process_note": "The candidate was technically correct for the selected tests but did not terminate before the turn limit."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "verification_hard_gate_failed",
+      "termination_noncompliant"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "claim_boundary": "Local Dev Episode evidence only; not an official SWE-bench score and not a successful training example."
+}

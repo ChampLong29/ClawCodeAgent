@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+from claw.agent_runtime import LocalCodingAgent
+from claw.agent_types import AgentPermissions, ModelConfig
+from claw.benchmark.runner import BenchmarkError
+from claw.data_pipeline import (
+    SilverDatasetBuilder,
+    collect_local_training_episodes,
+    load_episode_batch,
+)
+from claw.data_pipeline.swe_bench_collection import (
+    _infer_workspace_import_name,
+    _probe_workspace_import,
+    _workspace_pythonpath,
+)
+from claw.episode import EpisodeManifest, EpisodeState
+from claw.task_suite import TaskSuiteManifest
+
+
+class SequencedCollectionClient:
+    def __init__(self, model, responses):
+        self.model = model
+        self.responses = list(responses)
+
+    def complete(self, **_kwargs):
+        if not self.responses:
+            raise AssertionError("unexpected model call")
+        return self.responses.pop(0)
+
+
+def _write_response(content):
+    return {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "id": "call-collection-write",
+                "function": {
+                    "name": "write_file",
+                    "arguments": json.dumps(
+                        {"path": "challenge.py", "content": content}
+                    ),
+                },
+            }
+        ],
+        "usage": {
+            "input_tokens": 20,
+            "output_tokens": 8,
+            "model_calls": 1,
+            "tool_calls": 1,
+        },
+    }
+
+
+def _final_response():
+    return {
+        "role": "assistant",
+        "content": "Implemented and verified.",
+        "finish_reason": "stop",
+        "usage": {
+            "input_tokens": 12,
+            "output_tokens": 4,
+            "model_calls": 1,
+            "tool_calls": 0,
+        },
+    }
+
+
+class TrainingEpisodeCollectionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.output = Path(self.temporary.name)
+        self.project_root = Path(__file__).resolve().parents[1]
+        self.suite_path = self.project_root / "task_suites" / "manifest.json"
+        self.suite = TaskSuiteManifest.load(self.suite_path)
+        self.task = self.suite.get("python-cli-add_feature-01")
+        self.model = "collection/model@revision"
+        self.oracle = self.suite.resolve_ref(self.task.oracle_ref).joinpath(
+            "challenge.py"
+        ).read_text(encoding="utf-8")
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def _factory(self, cwd, inference_config):
+        agent = LocalCodingAgent(
+            cwd=cwd,
+            model_config=ModelConfig(
+                name=self.model,
+                temperature=inference_config["temperature"],
+                max_tokens=inference_config.get("max_tokens"),
+            ),
+            permissions=AgentPermissions(
+                allow_write=True,
+                allow_shell=True,
+            ).to_dict(),
+        )
+        agent.client = SequencedCollectionClient(
+            self.model,
+            [_write_response(self.oracle), _final_response()],
+        )
+        return agent
+
+    def test_train_collection_materializes_archived_episode_and_silver(self):
+        result = collect_local_training_episodes(
+            manifest_path=self.suite_path,
+            output_root=self.output / "collection",
+            generation_commit="collection-commit",
+            task_ids=[self.task.task_id],
+            model_ref=self.model,
+            max_tokens=512,
+            max_turns=3,
+            prompt_version="collection-prompt.v1",
+            agent_factory=self._factory,
+        )
+
+        self.assertEqual(result.manifest.split, "train")
+        self.assertEqual(result.manifest.task_ids, [self.task.task_id])
+        self.assertEqual(result.manifest.metrics["task_success_rate"], 1.0)
+        self.assertTrue(result.manifest_path.is_file())
+        self.assertTrue(result.results_path.is_file())
+        episode_dir = Path(result.manifest.episode_refs[0])
+        self.assertTrue(episode_dir.name.startswith("training-"))
+        self.assertEqual(
+            EpisodeManifest.load(episode_dir / "episode.json").current_state,
+            EpisodeState.ARCHIVED,
+        )
+
+        records = load_episode_batch([episode_dir], self.suite)
+        silver = SilverDatasetBuilder(
+            generation_commit="collection-commit"
+        ).build(records, output_dir=self.output / "silver")
+        self.assertEqual(silver.manifest.record_count, 1)
+        self.assertEqual(silver.records[0].task["split"], "train")
+
+    def test_test_task_is_rejected_before_agent_creation(self):
+        calls = []
+        with self.assertRaisesRegex(BenchmarkError, "not in the train split"):
+            collect_local_training_episodes(
+                manifest_path=self.suite_path,
+                output_root=self.output / "collection",
+                generation_commit="collection-commit",
+                task_ids=["python-cli-add_feature-07"],
+                model_ref=self.model,
+                agent_factory=lambda *_args: calls.append(True),
+            )
+        self.assertEqual(calls, [])
+
+    def test_collection_api_rejects_test_split(self):
+        with self.assertRaisesRegex(BenchmarkError, "train or dev"):
+            collect_local_training_episodes(
+                manifest_path=self.suite_path,
+                output_root=self.output / "collection",
+                generation_commit="collection-commit",
+                split="test",
+                model_ref=self.model,
+                agent_factory=self._factory,
+        )
+
+
+class SweBenchEnvironmentContractTests(unittest.TestCase):
+    def test_workspace_pythonpath_supports_src_and_root_layouts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "src").mkdir()
+            value = _workspace_pythonpath(str(root), "external-entry")
+            entries = value.split(os.pathsep)
+            self.assertEqual(entries[0], str((root / "src").resolve()))
+            self.assertEqual(entries[1], str(root.resolve()))
+            self.assertEqual(entries[2], "external-entry")
+
+    def test_import_probe_proves_module_comes_from_episode_workspace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "sample_repo"
+            package.mkdir()
+            (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+            environment = dict(os.environ)
+            environment["PYTHONPATH"] = _workspace_pythonpath(str(root))
+            import_name = _infer_workspace_import_name(
+                "owner/sample-repo", str(root)
+            )
+            result = _probe_workspace_import(
+                cwd=str(root),
+                python_executable=Path(sys.executable),
+                import_name=import_name,
+                environment=environment,
+            )
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(result["import_name"], "sample_repo")
+            self.assertEqual(result["module_file"], "sample_repo/__init__.py")
+
+    def test_import_probe_rejects_module_from_another_checkout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "workspace"
+            workspace.mkdir()
+            external = root / "external"
+            package = external / "sample_repo"
+            package.mkdir(parents=True)
+            (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+            environment = dict(os.environ)
+            environment["PYTHONPATH"] = str(external)
+            with self.assertRaisesRegex(
+                BenchmarkError, "does not import the Episode workspace"
+            ):
+                _probe_workspace_import(
+                    cwd=str(workspace),
+                    python_executable=Path(sys.executable),
+                    import_name="sample_repo",
+                    environment=environment,
+                )
+
+
+if __name__ == "__main__":
+    unittest.main()

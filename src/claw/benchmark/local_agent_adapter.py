@@ -46,6 +46,7 @@ class LocalAgentBenchmarkAdapter:
         input_token_price: float = 0.0,
         output_token_price: float = 0.0,
         require_model_match: bool = True,
+        episode_prefix: str = "benchmark",
     ):
         for name, value in (
             ("model_ref", model_ref),
@@ -58,6 +59,8 @@ class LocalAgentBenchmarkAdapter:
                 raise BenchmarkError(f"{name} must not be empty")
         if input_token_price < 0 or output_token_price < 0:
             raise BenchmarkError("token prices must be non-negative")
+        if not str(episode_prefix).strip():
+            raise BenchmarkError("episode_prefix must not be empty")
         self.episodes_root = Path(episodes_root).resolve()
         self.project_root = Path(project_root or Path.cwd()).resolve()
         self.agent_factory = agent_factory
@@ -76,6 +79,7 @@ class LocalAgentBenchmarkAdapter:
         self.input_token_price = input_token_price
         self.output_token_price = output_token_price
         self.require_model_match = require_model_match
+        self.episode_prefix = str(episode_prefix)
 
     def run(
         self,
@@ -85,6 +89,14 @@ class LocalAgentBenchmarkAdapter:
         task.validate()
         if task.split != "test":
             raise BenchmarkError("local benchmark adapter requires a test task")
+        return self._run_verified_episode(task, inference_config)
+
+    def _run_verified_episode(
+        self,
+        task: TaskSpec,
+        inference_config: Dict[str, Any],
+    ) -> BenchmarkEpisodeResult:
+        """Run a validated task; callers must enforce their own split boundary."""
         if not isinstance(inference_config, dict):
             raise BenchmarkError("inference_config must be an object")
         max_turns = int(inference_config.get("max_turns", 100))
@@ -93,7 +105,7 @@ class LocalAgentBenchmarkAdapter:
         self._validate_template_ref(task.template_ref)
 
         started = time.monotonic()
-        episode_id = f"benchmark-{uuid.uuid4().hex[:20]}"
+        episode_id = f"{self.episode_prefix}-{uuid.uuid4().hex[:20]}"
         orchestrator = EpisodeOrchestrator(
             self.episodes_root,
             project_root=self.project_root,

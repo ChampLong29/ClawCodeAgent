@@ -97,6 +97,7 @@ class AgentPermissions:
     """Agent permissions configuration."""
     allow_write: bool = False
     allow_shell: bool = False
+    restrict_workspace: bool = False
     allowed_tools: Optional[List[str]] = None
     denied_tools: Optional[List[str]] = None
 
@@ -104,6 +105,7 @@ class AgentPermissions:
         return {
             "allow_write": self.allow_write,
             "allow_shell": self.allow_shell,
+            "restrict_workspace": self.restrict_workspace,
             "allowed_tools": self.allowed_tools,
             "denied_tools": self.denied_tools,
         }
@@ -113,6 +115,7 @@ class AgentPermissions:
         return cls(
             allow_write=data.get("allow_write", False),
             allow_shell=data.get("allow_shell", False),
+            restrict_workspace=data.get("restrict_workspace", False),
             allowed_tools=data.get("allowed_tools"),
             denied_tools=data.get("denied_tools"),
         )

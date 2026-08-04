@@ -290,9 +290,20 @@ def _resolve_cwd_path(path: str, kwargs: Dict[str, Any]) -> str:
     Python process's getcwd().
     """
     cwd = kwargs.get("_cwd")
-    if cwd and not os.path.isabs(path):
-        return os.path.join(cwd, path)
-    return path
+    resolved = os.path.join(cwd, path) if cwd and not os.path.isabs(path) else path
+    permissions = kwargs.get("permissions") or {}
+    if cwd and permissions.get("restrict_workspace", False):
+        workspace = os.path.realpath(os.path.abspath(cwd))
+        candidate = os.path.realpath(os.path.abspath(resolved))
+        try:
+            inside_workspace = os.path.commonpath([workspace, candidate]) == workspace
+        except ValueError:
+            inside_workspace = False
+        if not inside_workspace:
+            raise PermissionError(
+                f"Path is outside the configured workspace: {path}"
+            )
+    return resolved
 
 
 def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = None, **kwargs) -> Dict[str, Any]:

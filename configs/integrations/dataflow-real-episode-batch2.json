@@ -1,0 +1,107 @@
+{
+  "schema_version": "real_episode_data_batch.v1",
+  "captured_at": "2026-08-04",
+  "status": "passed",
+  "scope": "two_train_episode_contract_batch",
+  "generation_commit": "e1a15177412b11edb80efb992eebf50d0b684ee4",
+  "source_collections": [
+    {
+      "collection_id": "episode_collection_89cd34f15243838666f3",
+      "result_content_hash": "1357c5eb3b2b117c3242c16526398487d7d3f034ac17cc9fd070d0133aeb01fa",
+      "prompt_version": "training-pilot-deepseek-v4-flash.v1"
+    },
+    {
+      "collection_id": "episode_collection_fb381e1f6554c2ef8c0a",
+      "result_content_hash": "b288e33c86bc24bdafe925b3d40fb84e2088625c036118923d9b23ba600f37fa",
+      "prompt_version": "training-pilot-deepseek-v4-flash.batch2.v1"
+    }
+  ],
+  "collection_summary": {
+    "model": "deepseek-v4-flash",
+    "split": "train",
+    "task_ids": [
+      "python-cli-add_feature-01",
+      "python-library-fix_bug-04"
+    ],
+    "domains": [
+      "python-cli",
+      "python-library"
+    ],
+    "task_types": [
+      "add_feature",
+      "fix_bug"
+    ],
+    "difficulty_counts": {
+      "easy": 1,
+      "medium": 1
+    },
+    "task_count": 2,
+    "success_count": 2,
+    "test_pass_rate": 1.0,
+    "tool_selection_validity": 1.0,
+    "tool_argument_validity": 1.0,
+    "total_tokens": 4150,
+    "total_turns": 10,
+    "total_tool_calls": 12
+  },
+  "silver": {
+    "dataset_id": "silver_0e8371aa71c501a2c2a7",
+    "record_count": 2,
+    "leakage_passed": true,
+    "workspace_path_leak_hits": 0,
+    "content_hash": "701d9e2cf05e0f9397f83616edb716c10cf6ee5301be116b5683b7028babbfbc"
+  },
+  "dataflow": {
+    "version": "1.0.10",
+    "commit": "047ae01698b0cdc63556c4ee9560c37ed34884b2",
+    "step_count": 6,
+    "selected_record_count": 2,
+    "final_step_sha256": "542eece724e8b7001905737b11a30571373d7a8357bf7f5c6ef1e60ce4059177"
+  },
+  "gold": {
+    "dataset_id": "gold_29039787183e9fcf7cc9",
+    "record_count": 2,
+    "excluded_record_count": 0,
+    "leakage_rate": 0.0,
+    "content_hash": "d2e3f0e99ba4080ebcdfdd14dc4c245d1f0e2a853d8ca74dc63d90dd1b4f5e38"
+  },
+  "llamafactory_export": {
+    "export_id": "lf_export_d3afa3dfac20e98a9fb7",
+    "sample_count": 2,
+    "format": "sharegpt_tool_use",
+    "content_hash": "dc6d0f138d813e86069f3bc471fc01bfd8ade5cfd3492ade4dc8af64850ba54c",
+    "dataset_sha256": "48d9fcba84e92bbdd9e546bdc42a7e6313a9f287b1764163349d994b85a61c8e",
+    "role_alternation_valid": true,
+    "tokenization_verified": true
+  },
+  "tokenization_smoke": {
+    "status": "passed",
+    "llamafactory": "0.9.4",
+    "model_name_or_path": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+    "model_revision": "098145f275b49d4517571a8c5d1e7896f68797d8",
+    "template": "qwen",
+    "sample_count": 2,
+    "token_lengths": [
+      1713,
+      1542
+    ],
+    "supervised_token_counts": [
+      505,
+      393
+    ],
+    "truncated_sample_count": 0,
+    "weights_loaded": false,
+    "training_performed": false
+  },
+  "artifact_policy": {
+    "raw_episodes_committed": false,
+    "local_root": ".port_sessions/training-pilot-deepseek-v4-flash-combined2-20260804",
+    "contains_training_effect_claim": false
+  },
+  "notes": [
+    "The second collection encountered one transient HTTP 503 and succeeded through the runtime retry policy.",
+    "The two tasks cover two domains and two task types, but both remain small synthetic tasks.",
+    "This batch validates deterministic multi-Episode assembly and native tokenization; it is not sufficient for LoRA or model-quality claims.",
+    "One SWE-bench Lite Dev historical environment is locally calibrated, but agent Episode integration and official Docker Harness evaluation remain pending."
+  ]
+}

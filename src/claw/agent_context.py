@@ -150,6 +150,9 @@ def format_context_for_prompt(context: Dict[str, Any]) -> str:
     """Format context dict as a string for inclusion in prompts."""
     lines = ["[Environment Context]"]
 
+    if context.get("cwd"):
+        lines.append(f"Working directory: {context['cwd']}")
+
     if context.get("git", {}).get("branch"):
         branch = context["git"]["branch"]
         dirty = context["git"].get("dirty", False)

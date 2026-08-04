@@ -7,7 +7,7 @@ Claw Code Agent 是一个用 Python 实现的本地编码智能体运行时。�
 - 作为可直接使用的本地 Coding Agent，通过 CLI、REPL、TUI、Web 和外部平台桥接完成代码任务。
 - 作为可研究、可复现的 Agent 训练与评测底座，保存完整轨迹、验证证据、版本和成本信息。
 
-> 当前状态：核心 Agent、Lifecycle/DevFlow、会话与上下文管理、插件/MCP、训练 Rollout、版本化任务集、可审计 Benchmark 均已有实现。SWE-bench Lite 目前完成了固定版本数据快照和少量任务筛选，尚未接入官方容器化 Harness，因此不能把筛选结果等同于正式 SWE-bench 分数。
+> 当前状态：核心 Agent、Lifecycle/DevFlow、会话与上下文管理、插件/MCP、训练 Rollout、版本化任务集、可审计 Benchmark 均已有实现。SWE-bench Lite 已完成固定版本数据快照、少量任务筛选、安全加载边界、2 条不同历史仓库校准和首组真实 Dev Episode 对照；尚未接入官方容器化 Harness，因此不能把本地结果等同于正式 SWE-bench 分数。
 
 ## 快速开始
 
@@ -104,6 +104,28 @@ python -m claw.main agent "分析这个仓库" --cwd . --stream
 
 训练和评测的完整边界与命令见 [`TRAINING_GUIDE.md`](TRAINING_GUIDE.md)。
 
+### 数据中心化训练路线（M0/M1 推进中）
+
+当前正在将现有可审计链路扩展为：
+
+```text
+Claw Episode / Trajectory / Verification
+  -> DatasetBuilder（Agent 语义、泄漏与 Tool 对齐准入）
+  -> DataFlow（画像、分类、打分、筛选、平衡与导出）
+  -> LLaMA-Factory 静态 SFT / DataFlex 动态数据训练
+  -> Claw 独立 Benchmark 与 ExperimentRegistry
+```
+
+DataFlex 构建在 LLaMA-Factory 之上，因此两者是“静态训练基线”和“动态数据策略”两条可比训练路径，而不是先后重复训练。规划采用 Bronze/Silver/Gold 数据分层，并比较 Base、Raw SFT、DataFlow SFT 和 DataFlex SFT 四组结果。
+
+详细设计与实施边界见：
+
+- [`docs/architecture/data-centric-agent-training-design.md`](docs/architecture/data-centric-agent-training-design.md)
+- [`docs/roadmap/data-centric-training-roadmap.md`](docs/roadmap/data-centric-training-roadmap.md)
+- [`docs/roadmap/swe-bench-lite-experiment-log.md`](docs/roadmap/swe-bench-lite-experiment-log.md)
+
+当前已固定 DataFlow/DataFlex/LlamaFactory 上游版本，完成 `agent_training_record.v1`、Silver/Gold Manifest、确定性质量治理 Pipeline、DataFlow 原生 Operator，以及 LlamaFactory ShareGPT Tool-use Exporter。5 条固定脱敏 Fixture 已在隔离的 DataFlow 1.0.10 CPU 环境完成六步原生 E2E；专用 Train/Dev Episode Collector 与 Archived Episode → Silver 装配入口也已落地，并兼容 runtime adapter v2 轨迹。当前已使用 `deepseek-v4-flash` 完成 2 个简单 Train Episode → Silver → Gold 小批次，以及 Marshmallow、Astroid 两种真实仓库 Dev Issue Rollout。Marshmallow 最好候选通过选定测试但耗尽 turns；Astroid 有一次 Schema 基础设施中断和一次有效重试，重试未修复 2 条 FAIL_TO_PASS 且再次耗尽 turns。WSL2 的 LlamaFactory 0.9.4 已对两条简单 Gold 样本完成原生 SFT 预处理。现有结果证明数据契约、真实仓库评测和失败轨迹采集链路可运行，不代表已有训练效果提升；最小 LoRA、更多真实 Train 数据和 DataFlex 动态训练仍未完成，AgentFlow 继续作为 Deferred 研究项。
+
 ## 架构概览
 
 ```text
@@ -161,6 +183,8 @@ task_suites/
 benchmarks/swe_bench_lite/  固定版本数据、筛选结果和仓库快照元数据
 tests/                      单元与集成测试
 tools/                      任务集生成、验证和外部基准筛选脚本
+docs/architecture/          版本化架构设计
+docs/roadmap/               版本化实施路线图
 ```
 
 ## 常用命令
@@ -262,7 +286,7 @@ python tools/validate_task_suite.py --manifest task_suites/manifest.json
 python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 ```
 
-SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。本仓库只提交原始数据快照、选择结果和仓库快照元数据；`benchmarks/swe_bench_lite/repos/` 下的工作副本被忽略。
+SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。Marshmallow 与 Astroid 两个不同语义类型的任务均观察到预期基线/参考状态并完成受控 `deepseek-v4-flash` Rollout。Marshmallow 最好候选通过全部 25 条选定测试但未正常终止；Astroid 首次因新增轨迹事件未注册而中断，修复并重试后仍未通过 2 条 FAIL_TO_PASS，且耗尽 30 turns。两者都只保留作 Dev Bad Case，更多历史依赖环境和正式 Docker Harness 仍待实现。
 
 ## 会话与上下文
 
@@ -313,9 +337,10 @@ python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 
 - `task_suites/manifest.json` 是确定性 smoke suite；用于验证机制，不用于证明模型在真实仓库上的能力。
 - Medium Pilot 当前只有两条任务，适合校准 Rollout 和 Reviewer，不足以形成统计显著结论。
-- SWE-bench Lite 已完成小样本筛选和固定 Commit 快照，但正式执行仍需官方 Docker Harness、依赖镜像和隔离环境。
+- SWE-bench Lite 已完成两个不同历史仓库的本地校准和受控 Agent Rollout；当前没有符合测试与终止双重硬门槛的成功样本，正式成绩仍需更多 Rollout 和官方 Docker Harness。
 - PEFT SFT 后端已有可审计实现，但真实 GPU 训练结果必须以运行产物和校验后的 Checkpoint 为准；Dry-run 只验证协议与证据链。
 - Reviewer 可以由独立 Agent 执行，但最终指标必须与可复现测试证据分开记录，避免主观评分替代自动验证。
+- DataFlow/DataFlex 已完成上游版本基线，稳定数据契约、确定性治理 Operator、Gold 证据和 LlamaFactory ShareGPT Tool-use 导出已落地；固定 Fixture、2 条简单 Train Episode 和首组真实仓库 Dev Bad Case 均已形成证据。下一步先修正 Agent 的终止效率并扩充真实 Train 数据，再运行最小 Raw/DataFlow LoRA 对照。
 
 ## License
 

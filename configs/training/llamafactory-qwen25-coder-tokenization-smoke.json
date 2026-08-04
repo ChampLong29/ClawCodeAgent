@@ -1,0 +1,11 @@
+{
+  "schema_version": "llamafactory_tokenization_smoke_config.v1",
+  "llamafactory_version": "0.9.4",
+  "model_name_or_path": "Qwen/Qwen2.5-Coder-1.5B-Instruct",
+  "model_revision": "098145f275b49d4517571a8c5d1e7896f68797d8",
+  "template": "qwen",
+  "dataset_name": "claw_agent_gold_sft",
+  "cutoff_len": 8192,
+  "max_samples": 2,
+  "preprocessing_num_workers": 1
+}

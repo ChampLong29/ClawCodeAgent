@@ -1,0 +1,67 @@
+{
+  "schema_version": "swe_bench_lite_runtime_remediation.v1",
+  "captured_at": "2026-08-04",
+  "status": "verified",
+  "source_evidence": [
+    "configs/integrations/swe-bench-lite-marshmallow-deepseek-rollouts.json",
+    "configs/integrations/swe-bench-lite-astroid-deepseek-rollouts.json"
+  ],
+  "observed_failures": [
+    "working_directory_was_collected_but_not_rendered_into_prompt",
+    "pythonpath_only_declared_src_layout",
+    "editable_install_metadata_triggered_environment_overdiagnosis",
+    "single_completion_notice_arrived_too_late",
+    "runtime_guidance_was_initially_missing_from_trajectory_schema"
+  ],
+  "implemented_changes": [
+    "render_exact_working_directory",
+    "restrict_benchmark_file_tools_to_workspace",
+    "support_src_and_root_python_layouts",
+    "fail_closed_workspace_import_preflight",
+    "persist_local_environment_contract",
+    "add_early_and_critical_completion_guidance",
+    "register_runtime_guidance_in_trajectory_and_replay"
+  ],
+  "verification": {
+    "targeted_tests": {
+      "passed": 59,
+      "failed": 0
+    },
+    "environment_contract_tests": {
+      "passed": 3,
+      "failed": 0,
+      "includes_external_checkout_rejection": true
+    },
+    "historical_environment_probes": [
+      {
+        "instance_family": "pylint-dev/astroid",
+        "python_version": "3.8.20",
+        "module_file": "astroid/__init__.py",
+        "status": "passed"
+      },
+      {
+        "instance_family": "marshmallow-code/marshmallow",
+        "python_version": "3.8.20",
+        "module_file": "src/marshmallow/__init__.py",
+        "status": "passed"
+      }
+    ],
+    "full_regression": {
+      "status": "passed",
+      "passed": 506,
+      "failed": 0,
+      "duration_seconds": 108.131,
+      "non_blocking_warnings": [
+        "existing ResourceWarning from bare open() calls in test_training_pipeline_e2e.py"
+      ]
+    }
+  },
+  "remaining_limits": [
+    "structured_file_tools_are_workspace_restricted_but_shell_path_semantics_are_not_fully_parsed",
+    "historical_editable_metadata_remains_in_existing_local_venvs_but_import_preflight_fails_closed",
+    "no_post_remediation_paid_rollout_has_been_run",
+    "completion_guidance_effectiveness_requires_generalization_on_a_different_issue"
+  ],
+  "contains_training_effect_claim": false,
+  "claim_boundary": "Runtime and environment remediation evidence only; not an official SWE-bench score and not evidence of model improvement."
+}
