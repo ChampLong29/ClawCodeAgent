@@ -69,9 +69,40 @@ PILOT = {
             "safe replacement, cleanup, and rollback behavior."
         ),
     },
+    "pydicom__pydicom-1139": {
+        "role": "python data-model protocol",
+        "rationale": (
+            "Pure-Python iteration and containment behavior with three focused "
+            "FAIL_TO_PASS tests; promoted after the initial three-issue pilot."
+        ),
+    },
+    "pvlib__pvlib-python-1707": {
+        "role": "scientific numerical boundary",
+        "rationale": (
+            "Focused one-file incidence-angle regression with one target test and "
+            "30 regression tests; adds a fifth repository family while keeping the "
+            "scientific dependency surface bounded."
+        ),
+    },
+    "pydicom__pydicom-1413": {
+        "role": "within-family contract generalization",
+        "rationale": (
+            "A second, non-overlapping pydicom issue checks whether the runtime's "
+            "post-edit contract notice generalizes from scientific return types to "
+            "bytes-versus-MultiValue semantics without introducing a new repository."
+        ),
+    },
+    "pylint-dev__astroid-1333": {
+        "role": "path-resolution generalization",
+        "rationale": (
+            "A second Astroid issue exercises namespace-package path ordering "
+            "with 46 PASS_TO_PASS tests and provides a fresh repository path for "
+            "validating implementation-scoped post-edit guidance."
+        ),
+    },
 }
 
-FALLBACK = "pydicom__pydicom-1139"
+FALLBACK = None
 
 
 def _sha256(path: Path) -> str:
@@ -172,7 +203,7 @@ def build_catalog(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 "scores": scores,
                 "total_score": sum(scores.values()),
                 "selected": row["instance_id"] in PILOT,
-                "fallback": row["instance_id"] == FALLBACK,
+                "fallback": bool(FALLBACK and row["instance_id"] == FALLBACK),
             }
         )
     return sorted(catalog, key=lambda item: item["instance_id"])
@@ -190,7 +221,8 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         raise ValueError("expected exactly 23 SWE-bench Lite dev rows")
     catalog = build_catalog(rows)
     by_id = {item["instance_id"]: item for item in catalog}
-    missing = sorted((set(PILOT) | {FALLBACK}) - set(by_id))
+    required = set(PILOT) | ({FALLBACK} if FALLBACK else set())
+    missing = sorted(required - set(by_id))
     if missing:
         raise ValueError(f"selected instances are missing: {missing}")
 
@@ -217,8 +249,10 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         "dataset_revision": metadata["sha"],
         "split": "dev",
         "policy": {
-            "max_instances": 3,
-            "one_instance_per_repository": True,
+            "max_instances": 7,
+            "one_instance_per_repository": False,
+            "minimum_distinct_repositories": 5,
+            "maximum_instances_per_repository": 2,
             "selection_dimensions": [
                 "environment weight",
                 "problem statement completeness",
@@ -243,15 +277,13 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
             }
             for instance_id in PILOT
         ],
-        "fallback": {
-            **by_id[FALLBACK],
-            "rationale": (
-                "Pure-Python data-model task reserved if the SQLFluff image or "
-                "test environment proves too expensive."
-            ),
-        },
-        "deferred_environment_classes": ["scientific", "heavy-vtk"],
+        "deferred_environment_classes": ["heavy-vtk"],
     }
+    if FALLBACK:
+        selection["fallback"] = {
+            **by_id[FALLBACK],
+            "rationale": "Reserved fallback outside the active pilot.",
+        }
     raw_by_id = {row["instance_id"]: row for row in rows}
     agent_inputs = {
         "schema_version": SCHEMA_VERSION,

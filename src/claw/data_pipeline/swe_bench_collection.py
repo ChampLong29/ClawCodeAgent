@@ -29,7 +29,7 @@ from .collection import (
 )
 
 
-ENVIRONMENT_CONTRACT_SCHEMA_VERSION = "swe_bench_environment_contract.v1"
+ENVIRONMENT_CONTRACT_SCHEMA_VERSION = "swe_bench_environment_contract.v2"
 
 
 def _workspace_pythonpath(cwd: str, existing: str = "") -> str:
@@ -51,10 +51,19 @@ def _infer_workspace_import_name(repo: str, cwd: str) -> Optional[str]:
     candidate = repo.rsplit("/", 1)[-1].replace("-", "_").strip()
     if not candidate:
         return None
+    candidates = [candidate]
+    # Repositories commonly use a language suffix that is not part of the
+    # import package (for example ``pvlib-python`` imports as ``pvlib``).
+    for suffix in ("_python", "_py"):
+        if candidate.endswith(suffix) and len(candidate) > len(suffix):
+            candidates.append(candidate[: -len(suffix)])
     workspace = Path(cwd)
     for root in (workspace / "src", workspace):
-        if (root / candidate).is_dir() or (root / f"{candidate}.py").is_file():
-            return candidate
+        for import_name in candidates:
+            if (root / import_name).is_dir() or (
+                root / f"{import_name}.py"
+            ).is_file():
+                return import_name
     return None
 
 
@@ -64,25 +73,28 @@ def _probe_workspace_import(
     python_executable: Path,
     import_name: Optional[str],
     environment: Dict[str, str],
+    required_modules: Sequence[str] = ("pytest",),
 ) -> Dict[str, Any]:
-    """Fail closed when the configured interpreter imports another checkout."""
+    """Fail closed when workspace imports or evaluator dependencies are invalid."""
     if import_name is None:
-        return {
-            "schema_version": ENVIRONMENT_CONTRACT_SCHEMA_VERSION,
-            "status": "skipped",
-            "reason": "primary_import_name_not_inferred",
-        }
+        raise BenchmarkError(
+            "primary workspace import name could not be inferred"
+        )
     script = (
         "import importlib,json,pathlib,sys;"
         "root=pathlib.Path(sys.argv[2]).resolve();"
         "module=importlib.import_module(sys.argv[1]);"
         "origin=pathlib.Path(module.__file__).resolve();"
         "relative=origin.relative_to(root);"
+        "required={name:getattr(importlib.import_module(name),'__version__','unknown') "
+        "for name in sys.argv[3:]};"
         "print(json.dumps({'python_version':sys.version.split()[0],"
-        "'import_name':sys.argv[1],'module_file':relative.as_posix()}))"
+        "'import_name':sys.argv[1],'module_file':relative.as_posix(),"
+        "'required_modules':required}))"
     )
+    modules = [str(item).strip() for item in required_modules if str(item).strip()]
     completed = subprocess.run(
-        [str(python_executable), "-c", script, import_name, cwd],
+        [str(python_executable), "-c", script, import_name, cwd, *modules],
         cwd=cwd,
         env=environment,
         text=True,
@@ -94,7 +106,8 @@ def _probe_workspace_import(
     )
     if completed.returncode != 0:
         raise BenchmarkError(
-            "historical Python environment does not import the Episode workspace: "
+            "historical Python environment does not import the Episode workspace "
+            "or required evaluator modules: "
             + (completed.stderr.strip() or completed.stdout.strip())[:500]
         )
     payload = json.loads(completed.stdout)
@@ -104,9 +117,11 @@ def _probe_workspace_import(
         "python_version": payload["python_version"],
         "import_name": payload["import_name"],
         "module_file": payload["module_file"],
+        "required_modules": payload["required_modules"],
         "pythonpath_layouts": ["src", "root"],
         "claim_boundary": (
-            "Import-path compatibility preflight only; not a task-quality result."
+            "Import-path and evaluator-dependency preflight only; not a "
+            "task-quality result."
         ),
     }
 
@@ -126,6 +141,9 @@ def collect_swe_bench_lite_dev_episode(
     max_turns: int = 50,
     completion_reminder_turns: int = 8,
     completion_critical_turns: int = 3,
+    implementation_deadline_turns: int = 12,
+    implementation_escalation_turns: int = 4,
+    post_edit_contract_guidance: bool = True,
     timeout_seconds: float = 300.0,
     runtime_version: str = "local-agent-runtime.v1",
     prompt_version: str = "swe-bench-lite-dev.v1",
@@ -150,6 +168,15 @@ def collect_swe_bench_lite_dev_episode(
         raise BenchmarkError("completion_reminder_turns must be non-negative")
     if completion_critical_turns < 0:
         raise BenchmarkError("completion_critical_turns must be non-negative")
+    if implementation_deadline_turns < 0:
+        raise BenchmarkError("implementation_deadline_turns must be non-negative")
+    if implementation_escalation_turns < 0:
+        raise BenchmarkError("implementation_escalation_turns must be non-negative")
+    if implementation_escalation_turns > 0 and implementation_deadline_turns <= 0:
+        raise BenchmarkError(
+            "implementation_escalation_turns requires a positive "
+            "implementation_deadline_turns"
+        )
     if (
         completion_reminder_turns > 0
         and completion_critical_turns > completion_reminder_turns
@@ -192,6 +219,10 @@ def collect_swe_bench_lite_dev_episode(
         "max_turns": max_turns,
         "completion_reminder_turns": completion_reminder_turns,
         "completion_critical_turns": completion_critical_turns,
+        "implementation_deadline_turns": implementation_deadline_turns,
+        "implementation_escalation_turns": implementation_escalation_turns,
+        "post_edit_contract_guidance": post_edit_contract_guidance,
+        "implementation_path_patterns": patterns,
     }
     if max_tokens is not None:
         decoding_config["max_tokens"] = max_tokens
@@ -222,6 +253,18 @@ def collect_swe_bench_lite_dev_episode(
                 ),
                 completion_critical_turns=int(
                     inference_config.get("completion_critical_turns", 0)
+                ),
+                implementation_deadline_turns=int(
+                    inference_config.get("implementation_deadline_turns", 0)
+                ),
+                implementation_escalation_turns=int(
+                    inference_config.get("implementation_escalation_turns", 0)
+                ),
+                post_edit_contract_guidance=bool(
+                    inference_config.get("post_edit_contract_guidance", False)
+                ),
+                implementation_path_patterns=tuple(
+                    inference_config.get("implementation_path_patterns", ())
                 ),
             )
 

@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -12,6 +14,7 @@ from claw.benchmark.swe_bench_lite_adapter import (
     SweBenchLiteLocalCalibrationResult,
     SweBenchLiteTestExecution,
     SweBenchLiteDevAdapter,
+    _normalize_pytest_node_ids,
     evaluate_swe_bench_lite_candidate,
 )
 
@@ -24,15 +27,53 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
     def setUp(self):
         self.adapter = SweBenchLiteDevAdapter(BENCHMARK_ROOT)
 
+    def test_truncated_parameter_node_id_expands_to_full_function(self):
+        normalized, changes = _normalize_pytest_node_ids(
+            [
+                "test/example_test.py::test_plain",
+                "test/example_test.py::test_case[incomplete:",
+                "test/example_test.py::test_case[incomplete:",
+                "test/example_test.py::test_other[complete]",
+            ]
+        )
+        self.assertEqual(changes, 2)
+        self.assertEqual(
+            normalized,
+            [
+                "test/example_test.py::test_plain",
+                "test/example_test.py::test_case",
+                "test/example_test.py::test_other[complete]",
+            ],
+        )
+
     def test_agent_tasks_match_selected_snapshots_without_private_fields(self):
         tasks = self.adapter.load_agent_tasks()
-        self.assertEqual(len(tasks), 3)
+        selection = json.loads(
+            (BENCHMARK_ROOT / "pilot-selection.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(len(tasks), len(selection["selected"]))
         for task in tasks:
             payload = task.to_agent_payload()
             self.assertFalse(FORBIDDEN_AGENT_FIELDS.intersection(payload))
             self.assertEqual(len(task.base_commit), 40)
             self.assertEqual(len(task.dataset_revision), 40)
             self.assertTrue(task.workspace_path.is_dir())
+
+    def test_evaluator_script_imports_claw_outside_project_cwd(self):
+        script = ROOT / "tools" / "evaluate_swe_bench_lite_candidate.py"
+        environment = dict(os.environ)
+        environment.pop("PYTHONPATH", None)
+        with tempfile.TemporaryDirectory() as directory:
+            completed = subprocess.run(
+                [sys.executable, str(script), "--help"],
+                cwd=directory,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--asset", completed.stdout)
 
     def test_private_patch_content_never_appears_in_agent_payload(self):
         for task in self.adapter.load_agent_tasks():
@@ -204,6 +245,204 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
         )
         self.assertFalse(evidence["contains_training_effect_claim"])
         self.assertIn("not an official SWE-bench score", evidence["claim_boundary"])
+
+    def test_marshmallow_remediation_evidence_keeps_process_gate_separate(self):
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-marshmallow-remediation-rollouts.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["status"], "completed_without_compliant_success")
+        self.assertTrue(evidence["generation_worktree_dirty"])
+        self.assertFalse(evidence["official_swebench_harness"])
+        attempts = evidence["attempts"]
+        self.assertFalse(attempts[0]["valid_model_quality_sample"])
+        self.assertEqual(attempts[0]["failure"], "configured_python_missing_pytest")
+        self.assertEqual(attempts[1]["test_pass_rate"], 1.0)
+        self.assertEqual(attempts[1]["termination"], "api_transport_failure")
+        self.assertTrue(attempts[2]["valid_model_quality_sample"])
+        self.assertEqual(attempts[2]["test_pass_rate"], 1.0)
+        self.assertEqual(attempts[2]["termination"], "max_turns")
+        self.assertFalse(evidence["data_admission"]["gold_sft_eligible"])
+        self.assertIn("not an official SWE-bench score", evidence["claim_boundary"])
+
+    def test_sqlfluff_calibration_records_conservative_node_id_policy(self):
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-sqlfluff-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["status"], "passed")
+        self.assertFalse(evidence["environment"]["official_swebench_harness"])
+        self.assertEqual(
+            evidence["node_id_policy"]["coverage_effect"],
+            "conservative_superset",
+        )
+        self.assertEqual(
+            evidence["node_id_policy"]["normalized_pass_to_pass_ids"], 1
+        )
+        self.assertFalse(evidence["runs"]["baseline_fail_to_pass"]["passed"])
+        self.assertTrue(evidence["runs"]["reference_fail_to_pass"]["passed"])
+        self.assertIn("not an official SWE-bench score", evidence["claim_boundary"])
+
+    def test_sqlfluff_rollout_separates_original_and_supplemental_evaluation(self):
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-sqlfluff-deepseek-rollout.json"
+            ).read_text(encoding="utf-8")
+        )
+        prepare_failure, rollout = evidence["attempts"]
+        self.assertEqual(prepare_failure["model_calls"], 0)
+        self.assertTrue(rollout["valid_model_quality_sample"])
+        self.assertEqual(rollout["changed_files"], [])
+        self.assertEqual(rollout["termination"], "max_turns")
+        self.assertEqual(
+            rollout["original_verification"]["status"], "evaluation_error"
+        )
+        supplemental = rollout["supplemental_offline_evaluation"]
+        self.assertFalse(supplemental["fail_to_pass_passed"])
+        self.assertTrue(supplemental["pass_to_pass_passed"])
+        self.assertFalse(evidence["data_admission"]["gold_sft_eligible"])
+
+    def test_pydicom_deadline_evidence_preserves_infrastructure_failure(self):
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pydicom-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        rollout = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pydicom-deadline-rollout.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            calibration["status"], "passed_after_environment_remediation"
+        )
+        self.assertFalse(calibration["runs"]["baseline_fail_to_pass"]["passed"])
+        self.assertTrue(calibration["runs"]["reference_pass_to_pass"]["passed"])
+        self.assertTrue(rollout["original_verification"]["preserved"])
+        self.assertFalse(
+            rollout["supplemental_offline_evaluation"]["fail_to_pass_passed"]
+        )
+        self.assertFalse(rollout["policy_assessment"]["effectiveness_verified"])
+        self.assertFalse(rollout["data_admission"]["gold_sft_eligible"])
+
+    def test_pvlib_escalation_evidence_separates_timing_and_quality(self):
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pvlib-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        rollout = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pvlib-escalation-rollout.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            calibration["status"], "passed_after_environment_remediation"
+        )
+        self.assertFalse(calibration["runs"]["baseline_fail_to_pass"]["passed"])
+        self.assertTrue(calibration["runs"]["reference_pass_to_pass"]["passed"])
+        self.assertEqual(
+            rollout["behavior_diagnostics"]["implementation_escalation_turn"], 12
+        )
+        self.assertEqual(
+            rollout["behavior_diagnostics"]["first_direct_mutation_turn"], 13
+        )
+        self.assertTrue(
+            rollout["policy_assessment"]["edit_on_next_model_turn_after_escalation"]
+        )
+        self.assertFalse(rollout["policy_assessment"]["effectiveness_verified"])
+        self.assertFalse(rollout["verification"]["pass_to_pass_passed"])
+        self.assertFalse(rollout["data_admission"]["gold_sft_eligible"])
+
+    def test_pydicom_1413_evidence_preserves_both_failure_classes(self):
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pydicom-1413-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        rollout = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pydicom-1413-post-edit-rollouts.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(calibration["status"], "passed")
+        self.assertEqual(
+            calibration["runs"]["reference_pass_to_pass"]["test_count"], 301
+        )
+        self.assertEqual(
+            rollout["attempts"][0]["classification"], "infrastructure_failure"
+        )
+        self.assertEqual(
+            rollout["attempts"][1]["classification"], "valid_model_bad_case"
+        )
+        self.assertFalse(rollout["attempts"][1]["target_source_changed"])
+        self.assertFalse(rollout["data_admission"]["gold_sft_eligible"])
+        self.assertIn("not an official SWE-bench score", rollout["claim_boundary"])
+
+    def test_astroid_1333_evidence_keeps_runtime_stop_failure_explicit(self):
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-astroid-1333-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        rollout = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-astroid-1333-path-scoped-rollout.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            calibration["status"], "passed_after_environment_reconstruction"
+        )
+        self.assertEqual(
+            calibration["runs"]["reference_pass_to_pass"]["test_count"], 46
+        )
+        self.assertEqual(
+            rollout["observed_behavior"]["final_provider_finish_reason"],
+            "max_tokens",
+        )
+        self.assertIsNone(
+            rollout["observed_behavior"]["post_edit_contract_guidance_turn"]
+        )
+        self.assertTrue(
+            rollout["infrastructure_failure"]["original_episode_preserved"]
+        )
+        self.assertFalse(rollout["infrastructure_failure"]["rerun_performed"])
+        self.assertFalse(rollout["data_admission"]["gold_sft_eligible"])
 
     def test_episode_materialization_keeps_private_assets_out_of_agent_payload(self):
         task = {

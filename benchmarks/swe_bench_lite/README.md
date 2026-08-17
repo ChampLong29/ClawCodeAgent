@@ -13,11 +13,11 @@ not contain the 300-instance test split.
 - `raw/dataset-metadata.json`: dataset revision metadata.
 - `snapshot.json`: source URLs, revision, row count, and local SHA-256 hashes.
 - `dev-catalog.json`: patch-free screening metrics for all 23 dev instances.
-- `pilot-selection.json`: three selected instances plus one fallback.
+- `pilot-selection.json`: seven selected Dev instances across five repositories.
 - `pilot-agent-inputs.json`: sanitized Agent inputs containing issue text and
   base revision, with all gold, tests, hints, and evaluation test IDs removed.
 - `repo-snapshots.json`: exact checked-out HEADs, tracked sizes, clean-state
-  checks, and upstream license hashes for the three selected repositories.
+  checks, and upstream license hashes for the seven pinned task snapshots.
 - `repos/`: ignored shallow checkouts pinned to selected base commits.
 - `../../configs/integrations/swe-bench-lite-marshmallow-local-calibration.json`:
   versioned hashes and return codes from the first local evaluator calibration.
@@ -36,14 +36,24 @@ Selected pilot:
 1. `marshmallow-code__marshmallow-1343` — real-issue calibration.
 2. `pylint-dev__astroid-1196` — semantic inference and exception behavior.
 3. `sqlfluff__sqlfluff-1763` — filesystem safety under encoding failures.
+4. `pydicom__pydicom-1139` — Python iteration and containment protocol behavior;
+   promoted from the original fallback for fresh Deadline-Guidance validation.
+5. `pvlib__pvlib-python-1707` — scientific numerical boundary behavior for
+   incidence angles, selected for Deadline-plus-Escalation validation.
+6. `pydicom__pydicom-1413` — within-family bytes-versus-MultiValue contract
+   generalization for path-scoped Post-edit Notice validation.
+7. `pylint-dev__astroid-1333` — namespace-package path resolution with 46
+   regression tests and a fresh path-scoped guidance observation.
 
-Fallback: `pydicom__pydicom-1139`.
-
-The local calibration runner has verified two distinct tasks under isolated
-Python 3.8.20 environments. For `marshmallow-code__marshmallow-1343`, the
+The local calibration runner has verified seven tasks from five repositories under isolated
+historical environments. For `marshmallow-code__marshmallow-1343`, the
 baseline fails one FAIL_TO_PASS test and passes all 24 PASS_TO_PASS tests. For
 `pylint-dev__astroid-1196`, the baseline fails two FAIL_TO_PASS tests and passes
-all 24 PASS_TO_PASS tests. Both reference patches pass both groups. Calibration
+all 24 PASS_TO_PASS tests. SQLFluff and pydicom add filesystem-safety and Python
+protocol coverage; pvlib adds a pinned NumPy/Pandas/SciPy environment and 30
+PASS_TO_PASS tests. The second pydicom task adds 301 PASS_TO_PASS tests for
+bytes/container semantics; the second Astroid task adds 46 path-resolution
+regressions. All seven reference patches pass both groups. Calibration
 builds exact Git Archive snapshots, applies evaluator patches outside the agent
 boundary, and stores only hashes and return codes as versioned evidence.
 
@@ -57,7 +67,7 @@ python tools/calibrate_swe_bench_lite.py \
 
 This is a local compatibility calibration, not an agent score. Docker was
 unavailable, so official Harness execution and the remaining historical
-environments are still pending.
+heavy VTK environments are still pending.
 
 The first two real `deepseek-v4-flash` Dev Episodes are also recorded. The
 unguided run made no change and failed the regression test. The environment-aware

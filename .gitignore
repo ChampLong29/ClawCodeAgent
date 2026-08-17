@@ -59,7 +59,9 @@ docs/architecture/*
 !docs/roadmap/
 docs/roadmap/*
 !docs/roadmap/data-centric-training-roadmap.md
+!docs/roadmap/budget-constrained-agent-posttraining-roadmap.md
 !docs/roadmap/benchmark-pilot.md
+!docs/roadmap/interview-evidence-summary.md
 !docs/roadmap/swe-bench-lite-experiment-log.md
 images/
 PROJECT_REPRODUCTION_GUIDE.md

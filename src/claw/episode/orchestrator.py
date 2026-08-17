@@ -15,9 +15,11 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 from ..agent_session import AgentSession
 from ..experiment.schemas import TaskSpec
 from .checkpoint import (
+    CheckpointIntegrityError,
     CheckpointManager,
     CheckpointSnapshot,
     initialize_git,
+    validate_workspace_symlinks,
     workspace_hash,
 )
 from .state import EpisodeManifest, EpisodeState, EpisodeStateError
@@ -110,7 +112,16 @@ class EpisodeOrchestrator:
             template = template.resolve()
             if not template.is_dir():
                 raise FileNotFoundError(f"task template not found: {template}")
-            shutil.copytree(template, self.workspace, dirs_exist_ok=True)
+            try:
+                validate_workspace_symlinks(template)
+            except CheckpointIntegrityError as exc:
+                raise InitialValidationError(str(exc)) from exc
+            shutil.copytree(
+                template,
+                self.workspace,
+                dirs_exist_ok=True,
+                symlinks=True,
+            )
 
             actual_template_hash = workspace_hash(self.workspace)
             if verify_template_hash and actual_template_hash != task.template_hash:

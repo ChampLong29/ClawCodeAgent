@@ -5,6 +5,11 @@ from .migration import (
     TrajectoryMigrator,
     rollout_result_to_trajectory,
 )
+from .diagnostics import (
+    DIAGNOSTICS_SCHEMA_VERSION,
+    RolloutBehaviorDiagnostics,
+    analyze_rollout_behavior,
+)
 from .recorder import TrajectoryRecorder
 from .replay import ReplayComparator, ReplayDiff, TraceReplayEngine, TraceReplayResult
 from .schema import (
@@ -17,6 +22,8 @@ from .schema import (
 
 __all__ = [
     "TRAJECTORY_SCHEMA_VERSION",
+    "DIAGNOSTICS_SCHEMA_VERSION",
+    "RolloutBehaviorDiagnostics",
     "Termination",
     "Trajectory",
     "TrajectoryEvent",
@@ -29,4 +36,5 @@ __all__ = [
     "TraceReplayEngine",
     "TraceReplayResult",
     "rollout_result_to_trajectory",
+    "analyze_rollout_behavior",
 ]

@@ -403,15 +403,97 @@ Benchmark 支持以下组名：
 - 在独立 Python 3.8.20 环境完成 `pylint-dev__astroid-1196` 校准：基线 2 条
   FAIL_TO_PASS 失败、24 条 PASS_TO_PASS 通过，参考补丁后两组均通过。版本化
   证据位于 `configs/integrations/swe-bench-lite-astroid-local-calibration.json`。
+- 完成 `sqlfluff__sqlfluff-1763` 的第三类本地校准：固定 Python 3.8 环境、非
+  editable 插件元数据和保守 Node ID 规范化后，3 条 FAIL_TO_PASS 在基线失败、
+  参考补丁后通过，PASS_TO_PASS 保持通过。该证据只表示环境具备 Rollout
+  准入条件，位于
+  `configs/integrations/swe-bench-lite-sqlfluff-local-calibration.json`。
 - 接通验证期 Test Patch 临时挂载、候选临时副本评测和真实 Dev Episode Collector。
 - 完成两次 `deepseek-v4-flash` 对照：原始环境版本无修改且测试失败；环境感知
   Prompt 版本通过 1 条 FAIL_TO_PASS 与 24 条 PASS_TO_PASS，但因 Max turns 未正常
   终止，仍是失败 Episode。对照证据位于
   `configs/integrations/swe-bench-lite-marshmallow-deepseek-rollouts.json`。
+- 完成修复后的 Marshmallow 三次受控尝试：首次暴露环境预检未检查 pytest，第二次
+  候选通过全部选定测试但 API 连接中断，补充依赖预检和传输重试后，最终候选仍
+  通过全部选定测试但耗尽 turns。三次均未通过终止硬门槛，只保留作 Dev Bad Case；
+  证据位于
+  `configs/integrations/swe-bench-lite-marshmallow-remediation-rollouts.json`。
 - 在 Astroid 上执行一次受控 Rollout 与一次基础设施修复后的重试：首次暴露
   `runtime_guidance` 未注册到 Trajectory Schema 的问题；修复后重试仍未通过 2 条
   FAIL_TO_PASS，并在收到收尾提醒后耗尽 30 turns。对照证据位于
   `configs/integrations/swe-bench-lite-astroid-deepseek-rollouts.json`。
+- SQLFluff 泛化 Rollout 的首次准备因自引用 Fixture 链接失败，未调用模型；安全
+  保留链接并拒绝越界链接后，第二次尝试使用完 30 turns 但未形成源码修改。修复
+  候选评测复制后离线复评确认 PASS_TO_PASS 通过、3 条 FAIL_TO_PASS 仍失败。
+  该结果只作为路径定位与实现时机 Bad Case，见
+  `configs/integrations/swe-bench-lite-sqlfluff-deepseek-rollout.json`。
+- 新增 `rollout_behavior_diagnostics.v3`：旧 Trajectory 可确定性重算目标路径首次
+  出现、首次直接编辑、编辑前探索比例和收尾提醒后的工具调用。Marshmallow 在第 4
+  轮定位、第 13 轮编辑；SQLFluff 第 5 轮已定位但 30 轮内未编辑。证据位于
+  `configs/integrations/swe-bench-lite-rollout-behavior-diagnostics.json`。
+
+离线分析已有轨迹：
+
+```powershell
+$env:PYTHONPATH = "src"
+python tools/analyze_rollout_behavior.py `
+  .port_sessions/<run>/episodes/<episode>/trajectory.json `
+  --target-path src/package/implementation.py
+```
+
+采集新 Episode 时可显式固定策略阈值：
+
+```powershell
+python tools/collect_swe_bench_lite_episode.py <其余参数> `
+  --implementation-deadline-turns 12 `
+  --implementation-escalation-turns 4 `
+  --completion-reminder-turns 8 `
+  --completion-critical-turns 3
+```
+
+新生成的 Benchmark/Training Episode 会把同一投影写入 Episode Result 的
+`behavior_diagnostics`，聚合报告包含直接编辑率、目标路径定位率、平均首次定位/
+编辑轮次、编辑前探索比例和 Critical 后调用数。SWE-bench Collector 默认在连续
+12 个工具轮次仍无成功显式文件编辑时注入 Implementation Deadline；若再经过 4 个
+工具轮次仍未成功编辑，则注入一次 Implementation Escalation。成功编辑会抑制升级
+提示，进入 Completion Reminder 区间后也不会叠加注入。首次成功修改允许提交的实现路径后还会注入
+一次 Post-edit Contract Notice，要求用目标测试与相关回归检查值、异常、scalar/collection、
+容器与返回类型、shape、ordering、null 和 metadata 等兼容契约；可用
+`--no-post-edit-contract-guidance` 关闭。这些都是运行时提示而非工具拦截，也不是已经
+证明的模型改进。
+
+pydicom 新鲜 Dev Episode 已实际触发首级策略：第 3 轮定位目标、第 8 轮收到 Deadline、
+第 19 轮才编辑，第 22 轮正常终止。补充评测中 38 条 PASS_TO_PASS 通过但
+FAIL_TO_PASS 仍失败。由于没有同任务控制组，且编辑仍明显延迟，该结果只能证明
+策略被执行，不能证明策略改善模型。原始 Verifier 同时暴露了 Evaluator 对相对
+`PYTHONPATH` 的依赖；工具现已基于自身路径加载 Claw，原始失败证据仍保留。
+
+随后在第五个 Family `pvlib__pvlib-python-1707` 上验证二级策略。固定 Python 3.8、
+NumPy/Pandas/SciPy 与 `pytest-mock` 后，基线目标测试失败且 30 条回归通过，Oracle 后
+两组均通过。Episode 第 1 轮定位目标，第 8/12 轮收到 Deadline/Escalation，第 13 轮
+编辑并在第 19 轮正常终止；但 `numpy.where` 把 `pandas.Series` 返回值转换为 ndarray，
+导致目标和回归硬门槛均失败。因此只能记录“Escalation 后下一轮编辑”的时序信号，
+不能声称策略有效。机器证据位于
+`configs/integrations/swe-bench-lite-pvlib-escalation-rollout.json`。
+
+第六条 `pydicom__pydicom-1413` 用作同仓跨任务契约泛化。Oracle 校准满足“基线 3 条
+FAIL_TO_PASS 失败、301 条 PASS_TO_PASS 通过，参考补丁后两组通过”。首次 Rollout 在
+第 13 次模型请求达到默认 4096 输出 Token 上限，只有思考块而没有正文或工具调用；客户端
+丢失上游 `max_tokens` 原因并误记为 completed。客户端现保留 Finish Reason，运行时将这种
+响应标记为 stopped。基础设施修复后的 8192 上限复验定位了 `pydicom/dataelem.py`，但只
+反复编辑 `repro_ol.py`，最终耗尽 24 turns，目标测试失败、301 条回归通过且 Diff Scope
+失败。该过程还证明原 Post-edit Notice 会被临时脚本误触发；Collector 现把 Oracle 路径
+传给 Runtime，临时脚本写入既不算实现进展，也不会触发契约提示。两次失败均保留，且不再
+第三次运行同题。机器证据位于
+`configs/integrations/swe-bench-lite-pydicom-1413-post-edit-rollouts.json`。
+
+第七条 `pylint-dev__astroid-1333` 覆盖命名空间包路径解析。独立 Python 3.8.20
+环境校准达到基线 1 条目标失败/46 条回归通过、Oracle 后两组通过。受控 Rollout 第 6 轮
+定位 `astroid/modutils.py`，第 8/12 轮收到 Deadline/Escalation，却未发生源码编辑；最终
+模型用满 8192 输出 Token 生成思考块。路径限定正确地没有被 `/tmp` 复现命令误触发。
+Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` 尚未列入 Trajectory v2
+事件集合，原 Episode 因此被基础设施错误污染。该事件现已注册，且 RuntimeAdapter 集成测试
+验证其终止为 cancelled 并正常进入 VERIFYING；原 Episode 保持不变，不再付费重跑同题。
 
 详见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)；
 逐次失败、判断、修复和验证结果见
@@ -422,7 +504,9 @@ Benchmark 支持以下组名：
 - 官方 Docker Harness 接入。
 - 对 SQLFluff 等其余历史仓库构建固定依赖镜像。
 - FAIL_TO_PASS / PASS_TO_PASS 的正式容器化验证。
-- 将已观察到的 Astroid 路径定位、重复环境诊断和提醒后继续调查纳入 Prompt/策略回归。
+- pvlib 已完成二级 Escalation 新鲜验证，但实现破坏 Series 返回类型；pydicom-1413 的
+  新鲜复验只编辑临时脚本并耗尽预算。路径限定的 Post-edit Contract Notice 已完成契约
+  测试，下一步必须换不同 Issue 验证，不能继续对同题调参。
 
 因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。Marshmallow 与 Astroid 的本地结果只证明评测环境能观察到预期状态转换；两者均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
@@ -433,7 +517,7 @@ Benchmark 支持以下组名：
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. 已在 Marshmallow 与 Astroid 上完成受控 Dev Rollout；下一步从失败轨迹提炼路径定位和验证策略，再换第三种 Issue 做小规模泛化检查。
+6. 已完成五仓库七任务受控 Dev 验证；pydicom-1413 与 Astroid-1333 分别暴露临时脚本误触发和 `runtime_stop` Schema 缺口，均已修复。连续两题仍没有允许路径内编辑，下一步应先限制长思考或增加动作预算策略，再选择新 Issue，而不是直接放量。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。
@@ -575,6 +659,17 @@ Exporter 必须同时生成：
 5. 运行 Raw SFT 与 DataFlow SFT 的最小 LoRA 对比。
 6. 接入一种 DataFlex 重加权或动态选择策略。
 7. 扩展任务 Family、Seed 和真实仓库 Episode。
+
+当前执行顺序固定为：Marshmallow 修复重跑、SQLFluff/pydicom 泛化检查和行为诊断
+均已完成；接下来先强化并验证定位后收敛 Guidance，随后生成
+20–50 条、至少 5 个 Family 的首批
+Train/Dev Episode，冻结 Raw/DataFlow 两套数据版本，并运行 Base、Raw SFT、
+DataFlow SFT 的最小 LoRA 对照。只有静态对照和独立 Benchmark 形成可重建报告后，
+才接入 DataFlex 单一动态策略；数据质量 Dashboard 随联合报告建设，AgentFlow
+继续延后到静态主线稳定之后。
+
+每一步都必须记录失败现象、原因判断、修复措施、重跑结果和证据引用。自动测试、
+正常终止、Reviewer 判断和训练效果使用独立字段，不能互相替代。
 
 详细架构和验收标准见：
 

@@ -165,6 +165,12 @@ Important packages:
 
 Do not conflate the lightweight rollout JSONL with the V2 experiment record. The former is useful for exploration; the latter provides task/version/data/training/benchmark lineage.
 
+Trajectory v2 remains the immutable event source. Derive path-localization and edit-timing
+signals with `claw.trajectory.analyze_rollout_behavior()` or
+`tools/analyze_rollout_behavior.py`; do not rewrite historical trajectory events to add
+diagnostics. `direct_mutation` means an observed explicit file-edit tool, not proof that Shell
+commands had no side effects.
+
 ## Repository Layout
 
 ```text
@@ -209,8 +215,12 @@ When changing tool execution:
 - Preserve stdout, stderr, return code, timeout, and error detail in `ToolResult`.
 - Keep model-visible schemas and handler arguments synchronized.
 - Count one model-requested tool call exactly once in trajectories and metrics.
+- Preserve provider finish reasons. A token-limited response without a tool call is a stopped run, and its `runtime_stop` fact must remain valid in Trajectory v2.
 - Apply blocked tools and aliases before dispatch.
 - Keep permission checks intact.
+- Keep optional implementation-deadline, escalation, and post-edit contract
+  guidance traceable as `runtime_guidance`; guidance is not a tool-policy bypass
+  or proof of model improvement.
 
 ### Configuration discovery
 
@@ -244,6 +254,7 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Initial checks must fail before the solution and final checks must pass after the Oracle is applied.
 - Hidden test assets are available only during verification and must be removed before Agent execution.
 - Benchmark Diff allowlists default to paths represented by the task Oracle; explicit `--allow-path` replaces that default.
+- SWE collection uses the same allowlist as its implementation-progress boundary: scratch-file edits must not suppress implementation guidance or trigger post-edit contract guidance.
 - Generators must be deterministic.
 
 ## Training and Evidence Invariants

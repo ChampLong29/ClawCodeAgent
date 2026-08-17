@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, AsyncIterator
+from typing import Any, Dict, List, Optional, AsyncIterator, Sequence
 
 from .agent_types import (
     AgentPermissions,
@@ -56,6 +57,7 @@ from .skill_runtime import SkillRuntime
 # Auto-retry configuration
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 1.5  # seconds
+_DIRECT_MUTATION_TOOLS = {"write_file", "edit_file"}
 
 
 @dataclass
@@ -75,6 +77,10 @@ class LocalCodingAgent:
     api_config_cwd: Optional[str] = None
     completion_reminder_turns: int = 0
     completion_critical_turns: int = 0
+    implementation_deadline_turns: int = 0
+    implementation_escalation_turns: int = 0
+    post_edit_contract_guidance: bool = False
+    implementation_path_patterns: Sequence[str] = ()
 
     # Internal state
     session: Optional[AgentSession] = None
@@ -107,6 +113,24 @@ class LocalCodingAgent:
             raise ValueError("completion_reminder_turns must be non-negative")
         if self.completion_critical_turns < 0:
             raise ValueError("completion_critical_turns must be non-negative")
+        if self.implementation_deadline_turns < 0:
+            raise ValueError("implementation_deadline_turns must be non-negative")
+        if self.implementation_escalation_turns < 0:
+            raise ValueError("implementation_escalation_turns must be non-negative")
+        if (
+            self.implementation_escalation_turns > 0
+            and self.implementation_deadline_turns <= 0
+        ):
+            raise ValueError(
+                "implementation_escalation_turns requires a positive "
+                "implementation_deadline_turns"
+            )
+        self.implementation_path_patterns = tuple(
+            str(pattern).replace("\\", "/")
+            for pattern in self.implementation_path_patterns
+            if str(pattern).strip()
+        )
+
         if (
             self.completion_reminder_turns > 0
             and self.completion_critical_turns > self.completion_reminder_turns
@@ -235,6 +259,18 @@ class LocalCodingAgent:
         # Ensure sessions directory exists
         os.makedirs(os.path.join(self.cwd, ".port_sessions", "agent"), exist_ok=True)
 
+    def _is_implementation_path(self, path: Any) -> bool:
+        """Return whether a direct edit targets a configured implementation path."""
+        if not self.implementation_path_patterns:
+            return True
+        normalized = str(path or "").replace("\\", "/")
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return any(
+            fnmatch.fnmatchcase(normalized, pattern)
+            for pattern in self.implementation_path_patterns
+        )
+
     @classmethod
     def from_session(
         cls,
@@ -355,6 +391,12 @@ class LocalCodingAgent:
         try:
             completion_reminder_sent = False
             completion_critical_sent = False
+            implementation_deadline_sent = False
+            implementation_escalation_sent = False
+            post_edit_contract_guidance_sent = False
+            post_edit_contract_guidance_pending = False
+            first_direct_mutation_turn: Optional[int] = None
+            direct_mutation_succeeded = False
             while self.turns < max_turns:
                 # Check budget
                 allowed, reason = budget.check()
@@ -371,6 +413,99 @@ class LocalCodingAgent:
                     messages = self._compact_messages(messages)
 
                 remaining_tool_turns = max_turns - self.turns
+                if (
+                    self.post_edit_contract_guidance
+                    and post_edit_contract_guidance_pending
+                    and not post_edit_contract_guidance_sent
+                ):
+                    contract_guidance = (
+                        "[Runtime post-edit contract notice] A direct file edit "
+                        "succeeded. Before finalizing or broadening the change, run "
+                        "the smallest focused verification that covers the reported "
+                        "behavior and one relevant existing regression. Check not only "
+                        "values and exceptions, but also compatibility contracts such "
+                        "as scalar versus collection inputs, container and return "
+                        "types, shape, ordering, null handling, and metadata when they "
+                        "apply. If any check fails, read the failure and repair the "
+                        "implementation before returning a final response."
+                    )
+                    messages.append({"role": "user", "content": contract_guidance})
+                    self._trace(
+                        "runtime_guidance",
+                        payload={
+                            "guidance_type": "post_edit_contract",
+                            "first_direct_mutation_turn": first_direct_mutation_turn,
+                            "remaining_tool_turns": remaining_tool_turns,
+                        },
+                    )
+                    post_edit_contract_guidance_sent = True
+                    post_edit_contract_guidance_pending = False
+                if (
+                    self.implementation_deadline_turns > 0
+                    and not implementation_deadline_sent
+                    and not direct_mutation_succeeded
+                    and self.turns >= self.implementation_deadline_turns
+                    and (
+                        self.completion_reminder_turns <= 0
+                        or remaining_tool_turns > self.completion_reminder_turns
+                    )
+                ):
+                    deadline = (
+                        "[Runtime implementation notice] You have used "
+                        f"{self.turns} tool-bearing turns without a successful "
+                        "direct file edit. If the likely implementation path is known, "
+                        "stop expanding the search and make the smallest defensible "
+                        "change now, followed by a targeted test. If it is not known, "
+                        "use the next turn only to state and test one concrete hypothesis."
+                    )
+                    messages.append({"role": "user", "content": deadline})
+                    self._trace(
+                        "runtime_guidance",
+                        payload={
+                            "guidance_type": "implementation_deadline",
+                            "tool_turns_without_direct_mutation": self.turns,
+                            "configured_threshold": self.implementation_deadline_turns,
+                            "remaining_tool_turns": remaining_tool_turns,
+                        },
+                    )
+                    implementation_deadline_sent = True
+                if (
+                    implementation_deadline_sent
+                    and self.implementation_escalation_turns > 0
+                    and not implementation_escalation_sent
+                    and not direct_mutation_succeeded
+                    and self.turns
+                    >= (
+                        self.implementation_deadline_turns
+                        + self.implementation_escalation_turns
+                    )
+                    and (
+                        self.completion_reminder_turns <= 0
+                        or remaining_tool_turns > self.completion_reminder_turns
+                    )
+                ):
+                    escalation = (
+                        "[Runtime implementation escalation] The earlier "
+                        "implementation deadline was not followed and no successful "
+                        "direct file edit has been observed. Do not call read, search, "
+                        "outline, or environment-inspection tools again. In the next "
+                        "tool-bearing response, either make the smallest defensible "
+                        "direct edit based on current evidence, or run exactly one "
+                        "focused reproducer that distinguishes two concrete "
+                        "implementation choices and then edit immediately."
+                    )
+                    messages.append({"role": "user", "content": escalation})
+                    self._trace(
+                        "runtime_guidance",
+                        payload={
+                            "guidance_type": "implementation_escalation",
+                            "tool_turns_without_direct_mutation": self.turns,
+                            "configured_delay": self.implementation_escalation_turns,
+                            "deadline_threshold": self.implementation_deadline_turns,
+                            "remaining_tool_turns": remaining_tool_turns,
+                        },
+                    )
+                    implementation_escalation_sent = True
                 if (
                     self.completion_reminder_turns > 0
                     and not completion_reminder_sent
@@ -533,6 +668,29 @@ class LocalCodingAgent:
                     )
 
                 messages.append(response)
+
+                finish_reason = str(response.get("finish_reason") or "").lower()
+                if not tool_calls and finish_reason in {"length", "max_tokens"}:
+                    detail = (
+                        "Model response reached its per-request token limit before "
+                        "producing a complete response."
+                    )
+                    self._trace(
+                        "runtime_stop",
+                        payload={
+                            "reason": "model_output_truncated",
+                            "finish_reason": finish_reason,
+                            "content_present": bool(content),
+                        },
+                        parent_event_id=model_request_event_id,
+                    )
+                    self.session.stop_reason = "stopped"
+                    return AgentRunResult(
+                        stop_reason="stopped",
+                        final_message=None if stream else (content or None),
+                        error=detail,
+                        usage=self.usage,
+                    )
 
                 # Execute tool calls
                 if tool_calls:
@@ -730,6 +888,15 @@ class LocalCodingAgent:
                             payload=result_payload,
                             parent_event_id=tool_call_event_id,
                         )
+                        if (
+                            result.ok
+                            and actual_tool_name in _DIRECT_MUTATION_TOOLS
+                            and self._is_implementation_path(args.get("path"))
+                        ):
+                            if not direct_mutation_succeeded:
+                                first_direct_mutation_turn = self.turns + 1
+                                post_edit_contract_guidance_pending = True
+                            direct_mutation_succeeded = True
 
                         # Add tool message
                         self.session.add_tool_message(
@@ -812,9 +979,9 @@ class LocalCodingAgent:
         return "runtime"
 
     def _retry_call(self, call_fn, *args, **kwargs) -> Any:
-        """Call a function with exponential backoff retry on HTTP errors.
+        """Call a function with exponential backoff retry on API transport errors.
 
-        Retries on: HTTP 429 (rate limit), 503 (service unavailable), 5xx errors.
+        Retries on HTTP 429/5xx and transient connection/timeout failures.
         """
         import sys
 
@@ -824,14 +991,39 @@ class LocalCodingAgent:
                 return call_fn(*args, **kwargs)
             except OpenAICompatError as e:
                 last_error = e
-                if e.status_code and (e.status_code == 429 or e.status_code == 503 or e.status_code >= 500):
+                retryable = bool(
+                    e.status_code
+                    and (
+                        e.status_code == 429
+                        or e.status_code == 503
+                        or e.status_code >= 500
+                    )
+                ) or (
+                    e.status_code is None
+                    and str(e).startswith("Connection error:")
+                )
+                if retryable:
                     if attempt < MAX_RETRIES - 1:
                         delay = RETRY_BACKOFF_BASE ** (attempt + 1)
-                        print(f"  \033[33m⚠ API error (HTTP {e.status_code}), retrying in {delay:.1f}s... (attempt {attempt + 1}/{MAX_RETRIES})\033[0m", file=sys.stderr)
+                        detail = (
+                            f"HTTP {e.status_code}"
+                            if e.status_code is not None
+                            else "connection failure"
+                        )
+                        print(f"  \033[33m⚠ API error ({detail}), retrying in {delay:.1f}s... (attempt {attempt + 1}/{MAX_RETRIES})\033[0m", file=sys.stderr)
                         time.sleep(delay)
                         continue
                 # Non-retryable error — print for visibility
                 print(f"  \033[31m✖ API error: {e}\033[0m", file=sys.stderr)
+                raise
+            except (ConnectionError, TimeoutError) as e:
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_BACKOFF_BASE ** (attempt + 1)
+                    print(f"  \033[33m⚠ API transport error, retrying in {delay:.1f}s... (attempt {attempt + 1}/{MAX_RETRIES})\033[0m", file=sys.stderr)
+                    time.sleep(delay)
+                    continue
+                print(f"  \033[31m✖ API transport error: {e}\033[0m", file=sys.stderr)
                 raise
             except Exception as e:
                 print(f"  \033[31m✖ Unexpected error in API call: {e}\033[0m", file=sys.stderr)

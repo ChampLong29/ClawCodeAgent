@@ -1,0 +1,69 @@
+{
+  "schema_version": "swe_bench_lite_path_scoped_rollout.v1",
+  "captured_at": "2026-08-12",
+  "status": "infrastructure_contaminated_model_observation",
+  "instance_id": "pylint-dev__astroid-1333",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "collection_id": "episode_collection_bd4a5152ee81a8b3e917",
+  "episode_id": "training-309ed49ed50f440da680",
+  "trajectory_sha256": "dd3c09975388898a1cd5b98158a815ad3a5e50dfbec7764cdb950dc00c8577c3",
+  "verification_sha256": "6f07f6e49f20e6a52ad673597dd2aa127fcc1b40e19d0e2de423f60a9a634b4e",
+  "episode_sha256": "25a8843cdc5ff13183d6562086bdb5a946d36bffa5f91cb5cdad06f09950e45b",
+  "collection_manifest_sha256": "9fc72f7ce8ae3e42a4407b5719d1521ac231e720233cd43b33ad34749438112f",
+  "runtime_policy": {
+    "max_tokens": 8192,
+    "max_turns": 24,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 4,
+    "completion_reminder_turns": 6,
+    "completion_critical_turns": 2,
+    "post_edit_contract_guidance": true,
+    "implementation_path_patterns": ["astroid/modutils.py"]
+  },
+  "observed_behavior": {
+    "model_turns": 14,
+    "tool_calls": 17,
+    "input_tokens": 8946,
+    "output_tokens": 16828,
+    "first_target_path_turn": 6,
+    "implementation_deadline_turn": 8,
+    "implementation_escalation_turn": 12,
+    "first_direct_mutation_turn": null,
+    "post_edit_contract_guidance_turn": null,
+    "changed_files": [],
+    "final_provider_finish_reason": "max_tokens",
+    "final_response_output_tokens": 8192,
+    "interpretation": "The model localized and reproduced the issue but never edited the allowed implementation path. Path-scoped guidance was not falsely triggered by /tmp reproduction commands."
+  },
+  "verification": {
+    "fail_to_pass_passed": false,
+    "pass_to_pass_passed": true,
+    "diff_scope_passed": true,
+    "termination_compliance_passed": false
+  },
+  "infrastructure_failure": {
+    "original_episode_preserved": true,
+    "reason": "The runtime correctly detected max_tokens and attempted to record runtime_stop, but agent_trajectory.v2 had not registered that event type; the recorder raised unsupported event_type and changed termination to failed.",
+    "remediation": "Register runtime_stop in the trajectory schema and replay termination category.",
+    "verification": "A RuntimeAdapter integration test now records runtime_stop, preserves model_output_truncated, terminates as cancelled, and reaches VERIFYING without a schema error.",
+    "rerun_performed": false,
+    "rerun_reason": "The no-edit observation and path-scoped non-trigger are already visible; avoid another paid call for the same model behavior after a deterministic recorder fix."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_bad_case_eligible": false,
+    "gold_sft_eligible": false,
+    "exclusion_reasons": [
+      "trajectory_termination_infrastructure_error",
+      "no_target_source_change",
+      "fail_to_pass_failed",
+      "model_output_truncated"
+    ]
+  },
+  "next_action": "Do not rerun Astroid-1333. Before another paid rollout, add a bounded-thinking or action-forcing experiment design so reasoning tokens cannot repeatedly consume the complete response budget.",
+  "claim_boundary": "Infrastructure-contaminated local Dev observation only; not an official SWE-bench score, a valid policy-effect estimate, or evidence of model improvement."
+}

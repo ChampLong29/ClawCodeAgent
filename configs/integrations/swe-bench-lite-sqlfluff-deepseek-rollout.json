@@ -1,0 +1,80 @@
+{
+  "schema_version": "swe_bench_lite_rollout_comparison.v1",
+  "captured_at": "2026-08-12",
+  "status": "completed_with_model_failure",
+  "instance_id": "sqlfluff__sqlfluff-1763",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "attempts": [
+    {
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.sqlfluff-v1",
+      "valid_model_quality_sample": false,
+      "termination": "episode_prepare_failure",
+      "failure": "copytree_followed_self_referential_fixture_symlink",
+      "model_calls": 0
+    },
+    {
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.sqlfluff-v2",
+      "collection_id": "episode_collection_adcbc3410687c583a99c",
+      "result_content_hash": "03a4bbe69a85635145dbf34df02923eee661f496191e65d4a683267c589a7b7b",
+      "trajectory_sha256": "ec32eb49815fd5fed34c8ec57c9eb9ff2af4450750140a5f0a5379aaef5b62f9",
+      "verification_sha256": "b1b9a783d607ad3db212eb422b292d52239604249ac752e90cf05ba295ea742f",
+      "environment_contract": "swe_bench_environment_contract.v2",
+      "python_version": "3.8.20",
+      "pytest_version": "8.3.5",
+      "environment_preflight_passed": true,
+      "valid_model_quality_sample": true,
+      "success": false,
+      "changed_files": [],
+      "turns": 30,
+      "tool_calls": 41,
+      "input_tokens": 18945,
+      "output_tokens": 9667,
+      "termination": "max_turns",
+      "completion_guidance": [
+        "completion_reminder",
+        "completion_critical"
+      ],
+      "original_verification": {
+        "status": "evaluation_error",
+        "reason": "candidate_temp_copy_followed_self_referential_fixture_symlink"
+      },
+      "supplemental_offline_evaluation": {
+        "status": "failed",
+        "fail_to_pass_passed": false,
+        "pass_to_pass_passed": true,
+        "fail_to_pass_count": 3,
+        "pass_to_pass_count": 63,
+        "normalized_pass_to_pass_ids": 1,
+        "candidate_unchanged_from_baseline": true
+      }
+    }
+  ],
+  "implemented_followups": [
+    "preserve_safe_relative_symlinks_during_episode_and_evaluator_copy",
+    "reject_absolute_or_lexically_escaping_workspace_symlinks",
+    "verify_symlink_security_tests_on_wsl"
+  ],
+  "review": {
+    "path_localization": "The model spent most turns investigating CLI encoding, formatter, dbt, and output paths.",
+    "implementation": "No source modification was produced within the 30-turn budget.",
+    "process": "Both completion notices were recorded, but the model continued investigating until max turns.",
+    "automated_tests": "Supplemental offline evaluation confirms the unchanged candidate keeps PASS_TO_PASS green and FAIL_TO_PASS failing."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "no_source_change",
+      "fail_to_pass_failed",
+      "termination_noncompliant"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "next_action": "extract_path_localization_and_implementation_timing_signals_before_scaling_real_episode_collection",
+  "claim_boundary": "Local Dev Episode and supplemental evaluation evidence only; not an official SWE-bench score and not evidence of model improvement."
+}

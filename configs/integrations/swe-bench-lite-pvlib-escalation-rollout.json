@@ -1,0 +1,85 @@
+{
+  "schema_version": "swe_bench_lite_escalation_rollout.v1",
+  "captured_at": "2026-08-12",
+  "status": "completed_with_test_failure",
+  "instance_id": "pvlib__pvlib-python-1707",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.pvlib-escalation-v1",
+  "official_swebench_harness": false,
+  "collection_id": "episode_collection_b3bd0c640b0213000df6",
+  "episode_id": "training-1edb912b52274deaaf14",
+  "trajectory_sha256": "e4f45bf020589ef4be3aee075aa789588f447ceb8d26a3c42d6fb9af3e9a23d9",
+  "verification_sha256": "0cc0824ab0e2319238f8c11581e6d567a5cb377aa968db6e87a588015deb283a",
+  "episode_result_sha256": "9ab53a21170a00ddb7976d83dfce487db8138ff60c7aa8a890af59096dbbdb02",
+  "runtime_policy": {
+    "max_turns": 24,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 4,
+    "completion_reminder_turns": 6,
+    "completion_critical_turns": 2
+  },
+  "result": {
+    "success": false,
+    "termination": "completed",
+    "turns": 19,
+    "tool_calls": 19,
+    "input_tokens": 10176,
+    "output_tokens": 8313,
+    "changed_files": ["pvlib/iam.py"],
+    "candidate_change": "Set |aoi| >= 90 outputs to zero with numpy.where."
+  },
+  "behavior_diagnostics": {
+    "schema_version": "rollout_behavior_diagnostics.v2",
+    "first_target_path_turn": 1,
+    "implementation_deadline_turn": 8,
+    "implementation_escalation_turn": 12,
+    "first_direct_mutation_turn": 13,
+    "target_to_mutation_turn_lag": 12,
+    "tool_calls_before_first_mutation": 13,
+    "investigation_without_edit_ratio": 0.6842105263157895,
+    "completion_reminder_turn": 18,
+    "completion_critical_turn": null,
+    "terminated_without_direct_mutation": false
+  },
+  "verification": {
+    "status": "failed",
+    "fail_to_pass_passed": false,
+    "pass_to_pass_passed": false,
+    "supplemental_reproduction_matches_original": true,
+    "failure_reason": "numpy.where converted a pandas Series input to ndarray, breaking the existing Series return-type contract; the new target test contains the same Series assertion."
+  },
+  "environment_contract": {
+    "original_status": "skipped",
+    "original_reason": "The generic repository-slug inference treated pvlib-python as pvlib_python and did not find the actual pvlib import package.",
+    "remediation": "Strip common _python/_py repository suffixes during workspace import inference and fail closed when no package can be inferred.",
+    "post_fix_probe": {
+      "status": "passed",
+      "python_version": "3.8.20",
+      "pytest_version": "7.4.4",
+      "import_name": "pvlib",
+      "module_file": "pvlib/__init__.py"
+    },
+    "original_episode_evidence_preserved": true
+  },
+  "policy_assessment": {
+    "deadline_observed": true,
+    "escalation_observed": true,
+    "edit_on_next_model_turn_after_escalation": true,
+    "normal_termination_observed": true,
+    "effectiveness_verified": false,
+    "reason": "One uncontrolled Dev Episode shows temporal alignment but cannot establish causality, and the resulting implementation failed both target and regression hard gates."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": ["fail_to_pass_failed", "pass_to_pass_failed"],
+    "contains_training_effect_claim": false
+  },
+  "next_action": "Keep the escalation timing as a promising but unverified process signal; improve candidate self-checking for container and pandas return-type contracts before multi-Family collection.",
+  "implemented_followup": "The SWE-bench Collector now defaults to a one-time post-edit contract notice covering focused target/regression checks and container/return-type compatibility; this follow-up is contract-tested but not yet model-validated.",
+  "claim_boundary": "Local Dev Episode only; not an official SWE-bench score and not evidence of model or policy improvement."
+}

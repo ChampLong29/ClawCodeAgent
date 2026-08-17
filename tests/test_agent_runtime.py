@@ -1,13 +1,16 @@
 """Tests for agent runtime — session lifecycle, from_session, turn counter."""
 
 import copy
+import json
 import unittest
 import tempfile
 import os
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from claw.agent_runtime import LocalCodingAgent
 from claw.agent_session import AgentSession
 from claw.agent_types import ModelConfig, BudgetConfig
+from claw.openai_compat import OpenAICompatError
 from claw.session_store import save_agent_session, load_agent_session, list_sessions
 
 
@@ -312,6 +315,30 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertEqual(client.kwargs["temperature"], 0.25)
         self.assertEqual(client.kwargs["max_tokens"], 321)
 
+    def test_token_limited_empty_response_is_not_completed(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model", max_tokens=4096),
+        )
+
+        class TokenLimitedClient:
+            model = "benchmark-model"
+
+            def complete(self, **kwargs):
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "finish_reason": "max_tokens",
+                    "usage": {"output_tokens": 4096},
+                }
+
+        agent.client = TokenLimitedClient()
+        result = agent.run(prompt="fix it", max_turns=3)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertIn("token limit", result.error)
+        self.assertEqual(agent.session.stop_reason, "stopped")
+
     def test_completion_reminder_is_injected_once_near_tool_turn_limit(self):
         agent = LocalCodingAgent(
             cwd=self.tempdir,
@@ -382,9 +409,327 @@ class TestAgentConfiguration(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalCodingAgent(
                 cwd=self.tempdir,
+                implementation_deadline_turns=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_escalation_turns=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_escalation_turns=1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
                 completion_reminder_turns=2,
                 completion_critical_turns=3,
             )
+
+    def test_implementation_deadline_stops_repeating_broad_search(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) == 1:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "inspect-1",
+                            "function": {
+                                "name": "list_dir",
+                                "arguments": '{"path": "."}',
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=3)
+
+        self.assertEqual(result.stop_reason, "completed")
+        notices = [
+            item
+            for item in client.requests[1]["messages"]
+            if "Runtime implementation notice" in str(item.get("content"))
+        ]
+        self.assertEqual(len(notices), 1)
+        self.assertIn("1 tool-bearing turns", notices[0]["content"])
+
+    def test_implementation_escalation_follows_ignored_deadline_once(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=2,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) <= 4:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": f"inspect-{len(self.requests)}",
+                            "function": {
+                                "name": "list_dir",
+                                "arguments": '{"path": "."}',
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=6)
+
+        self.assertEqual(result.stop_reason, "completed")
+        escalations = [
+            item
+            for item in client.requests[-1]["messages"]
+            if "Runtime implementation escalation" in str(item.get("content"))
+        ]
+        self.assertEqual(len(escalations), 1)
+        self.assertFalse(
+            any(
+                "Runtime implementation escalation" in str(item.get("content"))
+                for item in client.requests[2]["messages"]
+            )
+        )
+        self.assertTrue(
+            any(
+                "Runtime implementation escalation" in str(item.get("content"))
+                for item in client.requests[3]["messages"]
+            )
+        )
+        self.assertEqual(len(client.requests), 5)
+
+    def test_successful_edit_suppresses_implementation_escalation(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) == 1:
+                    tool_name = "list_dir"
+                    arguments = '{"path": "."}'
+                elif len(self.requests) == 2:
+                    tool_name = "write_file"
+                    arguments = '{"path": "fixed.py", "content": "VALUE = 1\\n"}'
+                else:
+                    return {
+                        "role": "assistant",
+                        "content": "done",
+                        "finish_reason": "stop",
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{len(self.requests)}",
+                        "function": {
+                            "name": tool_name,
+                            "arguments": arguments,
+                        },
+                    }],
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertTrue((Path(self.tempdir) / "fixed.py").is_file())
+        self.assertFalse(
+            any(
+                "Runtime implementation escalation" in str(item.get("content"))
+                for request in client.requests
+                for item in request["messages"]
+            )
+        )
+
+    def test_successful_edit_triggers_one_post_edit_contract_notice(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            post_edit_contract_guidance=True,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) == 1:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "edit-1",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": (
+                                    '{"path": "fixed.py", '
+                                    '"content": "VALUE = 1\\n"}'
+                                ),
+                            },
+                        }],
+                        "usage": {},
+                    }
+                if len(self.requests) == 2:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "inspect-1",
+                            "function": {
+                                "name": "list_dir",
+                                "arguments": '{"path": "."}',
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=4)
+
+        self.assertEqual(result.stop_reason, "completed")
+        notices = [
+            item
+            for item in client.requests[1]["messages"]
+            if "Runtime post-edit contract notice" in str(item.get("content"))
+        ]
+        self.assertEqual(len(notices), 1)
+        final_notices = [
+            item
+            for item in client.requests[2]["messages"]
+            if "Runtime post-edit contract notice" in str(item.get("content"))
+        ]
+        self.assertEqual(len(final_notices), 1)
+        self.assertIn("container and return types", notices[0]["content"])
+
+    def test_scratch_edit_does_not_trigger_implementation_contract_notice(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            post_edit_contract_guidance=True,
+            implementation_path_patterns=("package/source.py",),
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                path = "repro.py" if len(self.requests) == 1 else "package/source.py"
+                if len(self.requests) <= 2:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": f"edit-{len(self.requests)}",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": json.dumps(
+                                    {"path": path, "content": "VALUE = 1\n"}
+                                ),
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=4)
+
+        self.assertEqual(result.stop_reason, "completed")
+        scratch_request = client.requests[1]["messages"]
+        self.assertFalse(
+            any(
+                "Runtime post-edit contract notice" in str(item.get("content"))
+                for item in scratch_request
+            )
+        )
+        implementation_request = client.requests[2]["messages"]
+        self.assertTrue(
+            any(
+                "Runtime post-edit contract notice" in str(item.get("content"))
+                for item in implementation_request
+            )
+        )
 
     def test_completion_critical_notice_follows_early_warning(self):
         agent = LocalCodingAgent(
@@ -469,6 +814,38 @@ class TestAgentConfiguration(unittest.TestCase):
         agent.session = AgentSession(session_id="state-test")
         state = agent.get_state()
         self.assertEqual(state["session_id"], "state-test")
+
+
+class TestAgentAPIRetry(unittest.TestCase):
+    def test_retries_connection_reset_without_replaying_tools(self):
+        agent = object.__new__(LocalCodingAgent)
+        calls = []
+
+        def request():
+            calls.append(True)
+            if len(calls) == 1:
+                raise ConnectionResetError("remote closed connection")
+            return {"role": "assistant", "content": "done"}
+
+        with patch("claw.agent_runtime.time.sleep") as sleep:
+            result = agent._retry_call(request)
+        self.assertEqual(result["content"], "done")
+        self.assertEqual(len(calls), 2)
+        sleep.assert_called_once()
+
+    def test_retries_wrapped_connection_error(self):
+        agent = object.__new__(LocalCodingAgent)
+        calls = []
+
+        def request():
+            calls.append(True)
+            if len(calls) == 1:
+                raise OpenAICompatError("Connection error: reset")
+            return "done"
+
+        with patch("claw.agent_runtime.time.sleep"):
+            self.assertEqual(agent._retry_call(request), "done")
+        self.assertEqual(len(calls), 2)
 
 
 if __name__ == "__main__":

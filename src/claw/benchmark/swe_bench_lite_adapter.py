@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ..episode.checkpoint import workspace_hash
+from ..episode.checkpoint import validate_workspace_symlinks, workspace_hash
 from ..experiment.schemas import canonical_hash
 from ..experiment.schemas import TaskSpec
 
@@ -173,6 +173,7 @@ class SweBenchLiteTestExecution:
     duration_seconds: float
     stdout_sha256: str
     stderr_sha256: str
+    normalized_node_ids: int = 0
 
     @property
     def passed(self) -> bool:
@@ -184,10 +185,31 @@ class SweBenchLiteTestExecution:
             "returncode": self.returncode,
             "passed": self.passed,
             "test_count": self.test_count,
+            "normalized_node_ids": self.normalized_node_ids,
             "duration_seconds": round(self.duration_seconds, 6),
             "stdout_sha256": self.stdout_sha256,
             "stderr_sha256": self.stderr_sha256,
         }
+
+
+def _normalize_pytest_node_ids(test_ids: List[str]) -> tuple[List[str], int]:
+    """Conservatively expand visibly truncated parameter IDs to the test function.
+
+    Some historical SWE-bench rows contain a parameterized pytest node ID with an
+    opening ``[`` but no closing ``]``.  Pytest rejects the entire invocation with
+    exit code 4. Running the full test function is a conservative superset of the
+    intended parameter case and avoids silently dropping regression coverage.
+    """
+    normalized: List[str] = []
+    changes = 0
+    for node_id in test_ids:
+        candidate = node_id
+        if "[" in candidate and "]" not in candidate.rsplit("::", 1)[-1]:
+            candidate = candidate.split("[", 1)[0]
+            changes += 1
+        if candidate not in normalized:
+            normalized.append(candidate)
+    return normalized, changes
 
 
 @dataclass(frozen=True)
@@ -400,9 +422,10 @@ class LocalSweBenchLiteCalibrationRunner:
                 if item and item not in python_paths
             )
         environment["PYTHONPATH"] = os.pathsep.join(python_paths)
+        normalized_ids, normalization_count = _normalize_pytest_node_ids(test_ids)
         started = time.monotonic()
         completed = subprocess.run(
-            [str(python_executable), "-m", "pytest", "-q", *test_ids],
+            [str(python_executable), "-m", "pytest", "-q", *normalized_ids],
             cwd=str(workspace),
             env=environment,
             text=True,
@@ -419,6 +442,7 @@ class LocalSweBenchLiteCalibrationRunner:
             duration_seconds=time.monotonic() - started,
             stdout_sha256=_sha256_text(completed.stdout),
             stderr_sha256=_sha256_text(completed.stderr),
+            normalized_node_ids=normalization_count,
         )
 
     def calibrate_reference(
@@ -546,7 +570,8 @@ def evaluate_swe_bench_lite_candidate(
             }
             return [name for name in names if name in blocked]
 
-        shutil.copytree(source, evaluation_root, ignore=ignore)
+        validate_workspace_symlinks(source)
+        shutil.copytree(source, evaluation_root, ignore=ignore, symlinks=True)
         runner._apply_patch(evaluation_root, test_patch, label="test patch")
         ftp = runner._run_tests(
             evaluation_root,

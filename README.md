@@ -104,7 +104,7 @@ python -m claw.main agent "分析这个仓库" --cwd . --stream
 
 训练和评测的完整边界与命令见 [`TRAINING_GUIDE.md`](TRAINING_GUIDE.md)。
 
-### 数据中心化训练路线（M0/M1 推进中）
+### 低成本 Agent 后训练路线
 
 当前正在将现有可审计链路扩展为：
 
@@ -112,19 +112,21 @@ python -m claw.main agent "分析这个仓库" --cwd . --stream
 Claw Episode / Trajectory / Verification
   -> DatasetBuilder（Agent 语义、泄漏与 Tool 对齐准入）
   -> DataFlow（画像、分类、打分、筛选、平衡与导出）
-  -> LLaMA-Factory 静态 SFT / DataFlex 动态数据训练
+  -> LLaMA-Factory 静态 SFT
+  -> Patch-level GRPO/RLVR 方法验证
   -> Claw 独立 Benchmark 与 ExperimentRegistry
 ```
 
-DataFlex 构建在 LLaMA-Factory 之上，因此两者是“静态训练基线”和“动态数据策略”两条可比训练路径，而不是先后重复训练。规划采用 Bronze/Silver/Gold 数据分层，并比较 Base、Raw SFT、DataFlow SFT 和 DataFlex SFT 四组结果。
+当前主线优先建立可负担、可复建的 Base、Curated SFT 与 SFT+GRPO 对照：以许可清晰的公开 Coding Agent Trajectory 补充数据规模，以少量 Claw 自采 Episode 验证端到端生产能力，并将个人云资源总预算限制在 1,500 元以内。DataFlex 动态选样后移到静态 SFT 与 RLVR 基线稳定之后，不作为当前闭环的前置条件。
 
 详细设计与实施边界见：
 
 - [`docs/architecture/data-centric-agent-training-design.md`](docs/architecture/data-centric-agent-training-design.md)
 - [`docs/roadmap/data-centric-training-roadmap.md`](docs/roadmap/data-centric-training-roadmap.md)
+- [`docs/roadmap/budget-constrained-agent-posttraining-roadmap.md`](docs/roadmap/budget-constrained-agent-posttraining-roadmap.md)
 - [`docs/roadmap/swe-bench-lite-experiment-log.md`](docs/roadmap/swe-bench-lite-experiment-log.md)
 
-当前已固定 DataFlow/DataFlex/LlamaFactory 上游版本，完成 `agent_training_record.v1`、Silver/Gold Manifest、确定性质量治理 Pipeline、DataFlow 原生 Operator，以及 LlamaFactory ShareGPT Tool-use Exporter。5 条固定脱敏 Fixture 已在隔离的 DataFlow 1.0.10 CPU 环境完成六步原生 E2E；专用 Train/Dev Episode Collector 与 Archived Episode → Silver 装配入口也已落地，并兼容 runtime adapter v2 轨迹。当前已使用 `deepseek-v4-flash` 完成 2 个简单 Train Episode → Silver → Gold 小批次，以及 Marshmallow、Astroid 两种真实仓库 Dev Issue Rollout。Marshmallow 最好候选通过选定测试但耗尽 turns；Astroid 有一次 Schema 基础设施中断和一次有效重试，重试未修复 2 条 FAIL_TO_PASS 且再次耗尽 turns。WSL2 的 LlamaFactory 0.9.4 已对两条简单 Gold 样本完成原生 SFT 预处理。现有结果证明数据契约、真实仓库评测和失败轨迹采集链路可运行，不代表已有训练效果提升；最小 LoRA、更多真实 Train 数据和 DataFlex 动态训练仍未完成，AgentFlow 继续作为 Deferred 研究项。
+当前已固定 DataFlow/DataFlex/LlamaFactory 上游版本，完成 `agent_training_record.v1`、Silver/Gold Manifest、确定性质量治理 Pipeline、DataFlow 原生 Operator，以及 LlamaFactory ShareGPT Tool-use Exporter。5 条固定脱敏 Fixture 已在隔离的 DataFlow 1.0.10 CPU 环境完成六步原生 E2E；专用 Train/Dev Episode Collector 与 Archived Episode → Silver 装配入口也已落地，并兼容 runtime adapter v2 轨迹。当前已使用 `deepseek-v4-flash` 完成 2 个简单 Train Episode → Silver → Gold 小批次，以及多种真实仓库 Dev Issue Rollout；WSL2 的 LlamaFactory 0.9.4 已完成原生 SFT 预处理。现有结果证明数据契约、真实仓库评测和失败轨迹采集链路可运行，不代表已有训练效果提升。下一步按低成本路线接入公开轨迹、扩充少量 Claw 自采数据、完成 1.5B LoRA 与小规模独立 Benchmark，再验证 0.5B Patch-level GRPO；DataFlex 和完整交互式 Agent RL 延后。
 
 ## 架构概览
 
@@ -286,7 +288,7 @@ python tools/validate_task_suite.py --manifest task_suites/manifest.json
 python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 ```
 
-SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。Marshmallow 与 Astroid 两个不同语义类型的任务均观察到预期基线/参考状态并完成受控 `deepseek-v4-flash` Rollout。Marshmallow 最好候选通过全部 25 条选定测试但未正常终止；Astroid 首次因新增轨迹事件未注册而中断，修复并重试后仍未通过 2 条 FAIL_TO_PASS，且耗尽 30 turns。两者都只保留作 Dev Bad Case，更多历史依赖环境和正式 Docker Harness 仍待实现。
+SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 7 个任务、覆盖 Marshmallow、Astroid、SQLFluff、pydicom 和 pvlib 5 个仓库。pydicom-1413 复验只编辑临时脚本并耗尽 24 轮，因此 Post-edit Contract Notice 已改为只由 Oracle 路径内的实现编辑触发。新的 Astroid-1333 路径解析任务完成 1 目标/46 回归的 Oracle 校准；模型定位并复现问题，但未编辑源码，最终长思考耗尽 8192 输出 Token。该运行还暴露 `runtime_stop` 未注册到 Trajectory v2，现已修复并由 RuntimeAdapter 集成测试覆盖，原 Episode 不改写、不付费重跑。所有历史 Episode 仅保留作 Dev Bad Case 或基础设施样本；没有模型增点结论，正式 Docker Harness 仍待实现。
 
 ## 会话与上下文
 

@@ -26,6 +26,30 @@ class CheckpointIntegrityError(RuntimeError):
     """Raised when restored files do not match a committed checkpoint."""
 
 
+def validate_workspace_symlinks(root: Union[str, os.PathLike[str]]) -> None:
+    """Reject links that lexically escape a workspace before preserving them."""
+    base = os.path.abspath(str(root))
+    for current, directories, filenames in os.walk(base, followlinks=False):
+        for name in [*directories, *filenames]:
+            candidate = Path(current) / name
+            if not candidate.is_symlink():
+                continue
+            target = os.readlink(candidate)
+            if os.path.isabs(target):
+                raise CheckpointIntegrityError(
+                    f"workspace symlink must be relative: {candidate}"
+                )
+            lexical_target = os.path.abspath(os.path.join(current, target))
+            try:
+                inside = os.path.commonpath([base, lexical_target]) == base
+            except ValueError:
+                inside = False
+            if not inside:
+                raise CheckpointIntegrityError(
+                    f"workspace symlink escapes root: {candidate}"
+                )
+
+
 def workspace_hash(
     root: Union[str, os.PathLike[str]],
     *,

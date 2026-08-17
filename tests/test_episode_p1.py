@@ -103,6 +103,59 @@ class EpisodeTestCase(unittest.TestCase):
 
 
 class TestEpisodeStateMachine(EpisodeTestCase):
+    def test_prepare_preserves_safe_directory_symlink_without_following_loop(self):
+        link = self.template / "loop"
+        try:
+            os.symlink(".", link, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"symlink creation is unavailable: {exc}")
+        task = self.make_task()
+        task.template_hash = workspace_hash(self.template)
+        task.content_hash = task.compute_content_hash()
+        orchestrator = EpisodeOrchestrator(
+            self.episodes,
+            project_root=self.root,
+            environment_allowlist=["PATH"],
+        )
+        manifest = orchestrator.prepare(
+            task,
+            episode_id="ep_symlink",
+            runtime_config_ref="runtime-config.v1",
+            model_config_ref="model-config.v1",
+            prompt_version="prompt.v1",
+            tool_version="tools.v1",
+        )
+        copied = orchestrator.workspace / "loop"
+        self.assertEqual(manifest.current_state, EpisodeState.READY)
+        self.assertTrue(copied.is_symlink())
+        self.assertEqual(os.readlink(copied), ".")
+
+    def test_prepare_rejects_symlink_that_escapes_template(self):
+        external = self.root / "external.txt"
+        external.write_text("secret\n", encoding="utf-8")
+        link = self.template / "external-link"
+        try:
+            os.symlink("../external.txt", link)
+        except OSError as exc:
+            self.skipTest(f"symlink creation is unavailable: {exc}")
+        task = self.make_task()
+        task.template_hash = workspace_hash(self.template)
+        task.content_hash = task.compute_content_hash()
+        orchestrator = EpisodeOrchestrator(
+            self.episodes,
+            project_root=self.root,
+            environment_allowlist=["PATH"],
+        )
+        with self.assertRaisesRegex(InitialValidationError, "escapes root"):
+            orchestrator.prepare(
+                task,
+                episode_id="ep_escape",
+                runtime_config_ref="runtime-config.v1",
+                model_config_ref="model-config.v1",
+                prompt_version="prompt.v1",
+                tool_version="tools.v1",
+            )
+
     def test_prepare_creates_ready_reproducible_episode(self):
         orchestrator, manifest = self.prepare()
         self.assertEqual(manifest.current_state, EpisodeState.READY)

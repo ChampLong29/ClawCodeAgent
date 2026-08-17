@@ -157,7 +157,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "regression: iam.physical returns nan for aoi > 90° when n = 1",
       "total_score": 21,
@@ -196,7 +196,7 @@
       "environment_class": "moderate",
       "environment_setup_commit": "9d69811e539774f296c2f289839147e741251716",
       "fail_to_pass_count": 3,
-      "fallback": true,
+      "fallback": false,
       "instance_id": "pydicom__pydicom-1139",
       "license": "MIT",
       "pass_to_pass_count": 38,
@@ -211,7 +211,7 @@
         "problem_statement": 5,
         "regression_tests": 5
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "Make PersonName3 iterable",
       "total_score": 24,
@@ -265,7 +265,7 @@
         "problem_statement": 5,
         "regression_tests": 5
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "Error : a bytes-like object is required, not 'MultiValue'",
       "total_score": 24,
@@ -400,7 +400,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "astroid 2.9.1 breaks pylint with missing __init__.py: F0010: error while code parsing: Unable to load file __init__.py",
       "total_score": 23,

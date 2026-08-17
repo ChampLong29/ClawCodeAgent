@@ -197,7 +197,7 @@ class ReplayComparator:
             "runtime_guidance",
         }:
             return "process"
-        if event_type in {"runtime_error", "episode_terminated"}:
+        if event_type in {"runtime_stop", "runtime_error", "episode_terminated"}:
             return "termination"
         return "event"
 

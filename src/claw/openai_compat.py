@@ -96,6 +96,7 @@ class OpenAICompatClient:
                 result = {
                     "role": message.get("role", "assistant"),
                     "content": message.get("content", ""),
+                    "finish_reason": choice.get("finish_reason"),
                 }
 
                 # Handle tool_calls
@@ -460,6 +461,7 @@ class AnthropicClient:
                 result = {
                     "role": "assistant",
                     "content": content_text,
+                    "finish_reason": data.get("stop_reason"),
                 }
 
                 if tool_calls:

@@ -1,5 +1,5 @@
 {
-  "acquisition": "git fetch --depth 1 --filter=blob:none origin <base_commit>",
+  "acquisition": "per-instance shallow fetch of the exact base_commit; repository metadata below is authoritative",
   "instances": [
     {
       "clean": true,
@@ -30,6 +30,46 @@
       "license_sha256": "6d1e394d2e68a47106733103e9ed87c9d1573d9b7a43f5d05989424fce6dae39",
       "tracked_bytes": 4051276,
       "tracked_files": 1810
+    },
+    {
+      "clean": true,
+      "head": "b9fb05c177b685bf683f7f57b2d57374eb7d882d",
+      "instance_id": "pydicom__pydicom-1139",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
+      "tracked_bytes": 10073366,
+      "tracked_files": 394
+    },
+    {
+      "clean": true,
+      "head": "40e9e978c170bdde4eeee1547729417665dbc34c",
+      "instance_id": "pvlib__pvlib-python-1707",
+      "license": "BSD-3-Clause",
+      "license_path": "LICENSE",
+      "license_sha256": "a02e12ddaada3cf0d5dbdd8affdd577c2eec640758a95842a304f7513b8c0be4",
+      "tracked_bytes": 71049386,
+      "tracked_files": 356
+    },
+    {
+      "clean": true,
+      "head": "f909c76e31f759246cec3708dadd173c5d6e84b1",
+      "instance_id": "pydicom__pydicom-1413",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
+      "tracked_bytes": 9395851,
+      "tracked_files": 473
+    },
+    {
+      "clean": true,
+      "head": "d2a5b3c7b1e203fec3c7ca73c30eb1785d3d4d0a",
+      "instance_id": "pylint-dev__astroid-1333",
+      "license": "LGPL-2.1-or-later",
+      "license_path": "LICENSE",
+      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
+      "tracked_bytes": 2057387,
+      "tracked_files": 250
     }
   ],
   "schema_version": "swe_bench_repo_snapshots.v1"

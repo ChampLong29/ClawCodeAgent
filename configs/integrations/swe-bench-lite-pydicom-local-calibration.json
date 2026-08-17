@@ -1,0 +1,38 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_summary.v1",
+  "captured_at": "2026-08-12",
+  "status": "passed_after_environment_remediation",
+  "instance_id": "pydicom__pydicom-1139",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "b9fb05c177b685bf683f7f57b2d57374eb7d882d",
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "5.4.3",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata"
+  },
+  "failed_attempt": {
+    "pytest_version": "8.3.5",
+    "status": "environment_incompatible",
+    "baseline_fail_to_pass_returncode": 1,
+    "baseline_pass_to_pass_returncode": 1,
+    "reference_fail_to_pass_returncode": 0,
+    "reference_pass_to_pass_returncode": 1,
+    "reason": "Two historical PASS_TO_PASS tests use setup()/teardown() xUnit hooks that pytest 8 did not invoke; 36 of 38 PASS_TO_PASS tests passed during diagnosis."
+  },
+  "remediation": "Pin pytest 5.4.3 in the isolated pydicom Python 3.8 environment; do not modify or remove historical regression tests.",
+  "evaluator_fingerprint": {
+    "fail_to_pass_count": 3,
+    "pass_to_pass_count": 38,
+    "patch_sha256": "061145e48f902830c6246266cbab0cdb8d42814dcd7a4694baebb03450cb8caa",
+    "test_patch_sha256": "a0b3a44cc384776bef4c081ad2738ca932c6abe0702a31c5168dc1e3e0e11693",
+    "test_ids_hash": "a5868f89d71011f809e9662161fc91b7b827cc63c9c814f485c06437cffc13d9"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {"passed": false, "returncode": 1, "test_count": 3},
+    "baseline_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 38},
+    "reference_fail_to_pass": {"passed": true, "returncode": 0, "test_count": 3},
+    "reference_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 38}
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score and not a model-quality result."
+}

@@ -357,6 +357,43 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
             orchestrator.manifest.current_state, EpisodeState.VERIFYING
         )
 
+    def test_token_limited_response_records_explicit_runtime_stop(self):
+        task, orchestrator = self.prepare_episode("episode-token-limit")
+        adapter = self.make_adapter(orchestrator, task)
+        agent = LocalCodingAgent(
+            cwd=str(orchestrator.workspace),
+            permissions=AgentPermissions(allow_write=True).to_dict(),
+        )
+        agent.client = SequencedClient([{
+            "role": "assistant",
+            "content": "",
+            "finish_reason": "max_tokens",
+            "usage": {
+                "input_tokens": 8,
+                "output_tokens": 4096,
+                "model_calls": 1,
+                "tool_calls": 0,
+            },
+        }])
+
+        result = adapter.run(agent, task.prompt, max_turns=2)
+        trajectory = adapter.recorder.trajectory
+        stop_event = next(
+            event for event in trajectory.events
+            if event.event_type == "runtime_stop"
+        )
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertEqual(
+            adapter.recorder.resolve_payload(stop_event)["reason"],
+            "model_output_truncated",
+        )
+        self.assertEqual(trajectory.header.termination.reason, "cancelled")
+        self.assertIn("token limit", trajectory.header.termination.detail)
+        self.assertEqual(
+            orchestrator.manifest.current_state, EpisodeState.VERIFYING
+        )
+
     def test_permission_denial_is_preserved_without_shell_side_effect(self):
         task, orchestrator = self.prepare_episode("episode-permission")
         adapter = self.make_adapter(orchestrator, task)

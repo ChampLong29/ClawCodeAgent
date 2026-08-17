@@ -33,6 +33,7 @@ class BenchmarkEpisodeResult:
     verification_ref: Optional[str] = None
     trajectory_ref: Optional[str] = None
     error: Optional[str] = None
+    behavior_diagnostics: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         for name in ("task_id", "family_id", "domain", "difficulty"):
@@ -134,6 +135,61 @@ def _aggregate(results: List[BenchmarkEpisodeResult]) -> Dict[str, Any]:
         "average_token_cost": costs["average_cost"],
         "average_latency_seconds": costs["average_latency_seconds"],
         "bad_case_distribution": bad_case_distribution(results),
+        "behavior_diagnostics": _aggregate_behavior_diagnostics(results),
+    }
+
+
+def _aggregate_behavior_diagnostics(
+    results: List[BenchmarkEpisodeResult],
+) -> Dict[str, Any]:
+    diagnostics = [result.behavior_diagnostics for result in results]
+    diagnostics = [item for item in diagnostics if item]
+    if not diagnostics:
+        return {"sample_count": 0}
+
+    def average(name: str) -> Optional[float]:
+        values = [item.get(name) for item in diagnostics]
+        observed = [value for value in values if isinstance(value, (int, float))]
+        return sum(observed) / len(observed) if observed else None
+
+    count = len(diagnostics)
+    return {
+        "sample_count": count,
+        "direct_mutation_rate": sum(
+            not bool(item.get("terminated_without_direct_mutation", False))
+            for item in diagnostics
+        )
+        / count,
+        "target_path_localization_rate": sum(
+            item.get("first_target_path_turn") is not None for item in diagnostics
+        )
+        / count,
+        "average_first_target_path_turn": average("first_target_path_turn"),
+        "average_first_direct_mutation_turn": average(
+            "first_direct_mutation_turn"
+        ),
+        "average_investigation_without_edit_ratio": average(
+            "investigation_without_edit_ratio"
+        ),
+        "average_tool_calls_after_completion_critical": average(
+            "tool_calls_after_completion_critical"
+        ),
+        "implementation_escalation_rate": sum(
+            item.get("implementation_escalation_turn") is not None
+            for item in diagnostics
+        )
+        / count,
+        "average_implementation_escalation_turn": average(
+            "implementation_escalation_turn"
+        ),
+        "post_edit_contract_guidance_rate": sum(
+            item.get("post_edit_contract_guidance_turn") is not None
+            for item in diagnostics
+        )
+        / count,
+        "average_post_edit_contract_guidance_turn": average(
+            "post_edit_contract_guidance_turn"
+        ),
     }
 
 

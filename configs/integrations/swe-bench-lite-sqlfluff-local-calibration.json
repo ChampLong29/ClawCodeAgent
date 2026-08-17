@@ -1,0 +1,71 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration.v1",
+  "captured_at": "2026-08-12",
+  "status": "passed",
+  "instance_id": "sqlfluff__sqlfluff-1763",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "a10057635e5b2559293a676486f0b730981f037a",
+  "environment": {
+    "python_version": "Python 3.8.20",
+    "pytest_version": "8.3.5",
+    "setuptools_version": "75.3.2",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "project_install": "non_editable_base_commit_metadata_with_episode_workspace_on_pythonpath"
+  },
+  "evaluator_fingerprint": {
+    "patch_sha256": "cd92d07e1002ae1df3c209f792bc06e2c20153f281d8070dae6970ecacba22ba",
+    "test_patch_sha256": "3ff5cbd53715e190a3704b925b71e52d495a50efa64ccd4c2487128f173865c5",
+    "hints_sha256": "5ea28211e9547e14403ae2be20554b049e66e20c80efbe2580aee5ab5702627d",
+    "test_ids_hash": "9d1a05d92b0d966cb333d72395c3880204a0ce796f5fb7e7603ecbad80e0d8a8",
+    "fail_to_pass_count": 3,
+    "pass_to_pass_count": 63
+  },
+  "node_id_policy": {
+    "strategy": "expand_visibly_unclosed_parameter_id_to_full_test_function",
+    "normalized_pass_to_pass_ids": 1,
+    "reason": "one historical node id ends with an unmatched parameter bracket",
+    "coverage_effect": "conservative_superset"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {
+      "returncode": 1,
+      "passed": false,
+      "test_count": 3,
+      "stdout_sha256": "17dac3e877dd1ea8065e5bc212c1e922f6d65f16ac620edd76d367a0c1e5d0c9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "baseline_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 63,
+      "normalized_node_ids": 1,
+      "stdout_sha256": "15e5dbe996c570427d07c0fe1fbfdcfaaf9d6788eeac428b1505f963ed1551ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_fail_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 3,
+      "stdout_sha256": "ef07a48de855a1452de637fc9ebc3600a19aea5385bc21a390e0d156412d920e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "reference_pass_to_pass": {
+      "returncode": 0,
+      "passed": true,
+      "test_count": 63,
+      "normalized_node_ids": 1,
+      "stdout_sha256": "00b341ae792d9b5c691e57c1c3171477daa76492afb5759b19ce2114b5a48131",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "allowed_source_paths": [
+    "src/sqlfluff/core/linter/linted_file.py"
+  ],
+  "failed_setup_attempts": [
+    "full_dev_requirements_unsatisfiable_because_types_pkg_resources_was_yanked",
+    "source_only_pythonpath_missing_sqlfluff_plugin_entrypoint_metadata",
+    "raw_parameterized_node_id_caused_pytest_usage_error"
+  ],
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score and not an Agent result."
+}

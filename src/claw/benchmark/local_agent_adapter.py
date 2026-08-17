@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..episode import EpisodeOrchestrator, RuntimeAdapter
 from ..experiment.schemas import TaskSpec, canonical_hash
+from ..trajectory import analyze_rollout_behavior
 from ..verification import (
     VerificationContext,
     VerificationPolicy,
@@ -272,6 +273,11 @@ class LocalAgentBenchmarkAdapter:
             verification_ref=verification_ref,
             trajectory_ref=str(runtime_adapter.recorder.path),
             error=run_result.error,
+            behavior_diagnostics=analyze_rollout_behavior(
+                trajectory,
+                target_path_patterns=list(self.allowed_paths_resolver(task)),
+                payload_resolver=runtime_adapter.recorder.resolve_payload,
+            ).to_dict(),
         )
 
     def _validate_template_ref(self, reference: str) -> None:

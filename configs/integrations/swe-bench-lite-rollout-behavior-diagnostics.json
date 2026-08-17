@@ -1,0 +1,67 @@
+{
+  "schema_version": "swe_bench_lite_rollout_behavior_comparison.v1",
+  "captured_at": "2026-08-12",
+  "status": "implemented_and_recomputed",
+  "diagnostics_schema_version": "rollout_behavior_diagnostics.v3",
+  "official_swebench_harness": false,
+  "samples": [
+    {
+      "instance_id": "marshmallow-code__marshmallow-1343",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v6",
+      "target_path_patterns": [
+        "src/marshmallow/schema.py"
+      ],
+      "model_turns": 20,
+      "tool_calls": 26,
+      "direct_mutation_calls": 1,
+      "path_inspection_calls": 11,
+      "failed_tool_calls": 3,
+      "first_target_path_turn": 4,
+      "first_direct_mutation_turn": 13,
+      "target_to_mutation_turn_lag": 9,
+      "tool_calls_before_first_mutation": 18,
+      "investigation_without_edit_ratio": 0.6923076923076923,
+      "target_path_inspection_calls": 5,
+      "off_target_path_inspection_calls": 5,
+      "completion_reminder_turn": 12,
+      "completion_critical_turn": 17,
+      "implementation_deadline_turn": null,
+      "implementation_escalation_turn": null,
+      "post_edit_contract_guidance_turn": null,
+      "tool_calls_after_completion_critical": 3,
+      "terminated_without_direct_mutation": false
+    },
+    {
+      "instance_id": "sqlfluff__sqlfluff-1763",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.sqlfluff-v2",
+      "target_path_patterns": [
+        "src/sqlfluff/core/linter/linted_file.py"
+      ],
+      "model_turns": 30,
+      "tool_calls": 41,
+      "direct_mutation_calls": 0,
+      "path_inspection_calls": 21,
+      "failed_tool_calls": 1,
+      "first_target_path_turn": 5,
+      "first_direct_mutation_turn": null,
+      "target_to_mutation_turn_lag": null,
+      "tool_calls_before_first_mutation": 41,
+      "investigation_without_edit_ratio": 1.0,
+      "target_path_inspection_calls": 5,
+      "off_target_path_inspection_calls": 15,
+      "completion_reminder_turn": 20,
+      "completion_critical_turn": 26,
+      "implementation_deadline_turn": null,
+      "implementation_escalation_turn": null,
+      "post_edit_contract_guidance_turn": null,
+      "tool_calls_after_completion_critical": 6,
+      "terminated_without_direct_mutation": true
+    }
+  ],
+  "interpretation": {
+    "supported": "Both samples reached the expected implementation path early; the observed bottleneck is delayed or absent transition from localization to direct editing.",
+    "not_supported": "Two Dev samples do not establish a general model-quality conclusion or training improvement.",
+    "next_runtime_change": "Post-edit contract guidance is contract-tested after pvlib exposed a Series-to-ndarray regression; validate it on a fresh Dev issue before scaling."
+  },
+  "claim_boundary": "Deterministic projection of local Dev trajectories only; direct_mutation covers explicit edit tools and does not prove that shell commands had no side effects."
+}

@@ -1,0 +1,90 @@
+{
+  "schema_version": "swe_bench_lite_deadline_rollout.v1",
+  "captured_at": "2026-08-12",
+  "status": "completed_with_model_and_original_evaluator_failure",
+  "instance_id": "pydicom__pydicom-1139",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.pydicom-deadline-v1",
+  "official_swebench_harness": false,
+  "collection_id": "episode_collection_2c76d42357f3a4d77bbe",
+  "episode_id": "training-b9ba6ae32f1d46cc9298",
+  "trajectory_sha256": "2749177c056d1ea78ac1f2d3cc0dc095c81d3d61ed4f2243cb5be5cdf4c301eb",
+  "verification_sha256": "79e6d20c5a9b1f85fc758f8aba7356ad79becaba268380e0285368d5ea15cbed",
+  "episode_result_sha256": "234b7a1d75b1752eee5939175bdb5122f00814072b5e37a0a700898fd39eed6e",
+  "workspace_hash": "4751cd0adb9378babee3cfa0987b172a98fd5728ed48cab6cf82a464b790d970",
+  "environment_contract": {
+    "schema_version": "swe_bench_environment_contract.v2",
+    "status": "passed",
+    "python_version": "3.8.20",
+    "pytest_version": "5.4.3"
+  },
+  "runtime_policy": {
+    "max_turns": 24,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 0,
+    "completion_reminder_turns": 6,
+    "completion_critical_turns": 2
+  },
+  "result": {
+    "success": false,
+    "termination": "completed",
+    "turns": 22,
+    "tool_calls": 23,
+    "input_tokens": 10153,
+    "output_tokens": 3409,
+    "changed_files": ["pydicom/valuerep.py"],
+    "candidate_change": "Added PersonName.__iter__ returning iter(str(self))."
+  },
+  "behavior_diagnostics": {
+    "first_target_path_turn": 3,
+    "implementation_deadline_turn": 8,
+    "implementation_escalation_turn": null,
+    "first_direct_mutation_turn": 19,
+    "target_to_mutation_turn_lag": 16,
+    "tool_calls_before_first_mutation": 20,
+    "investigation_without_edit_ratio": 0.8695652173913043,
+    "completion_reminder_turn": 18,
+    "completion_critical_turn": null,
+    "terminated_without_direct_mutation": false
+  },
+  "original_verification": {
+    "status": "evaluation_error_misclassified_as_test_failure",
+    "reason": "The versioned evaluator script was launched from the Episode cwd with relative PYTHONPATH=src and could not import claw.",
+    "preserved": true
+  },
+  "evaluator_remediation": {
+    "change": "Bootstrap the Claw src path relative to tools/evaluate_swe_bench_lite_candidate.py.",
+    "regression_test": "Invoke evaluator --help from a temporary cwd with PYTHONPATH removed."
+  },
+  "supplemental_offline_evaluation": {
+    "status": "failed",
+    "fail_to_pass_passed": false,
+    "fail_to_pass_count": 3,
+    "pass_to_pass_passed": true,
+    "pass_to_pass_count": 38,
+    "candidate_workspace_mutated": false,
+    "interpretation": "The implementation supports ordinary iteration and containment but does not implement the full hidden next()/iterator-state contract."
+  },
+  "policy_assessment": {
+    "implementation_deadline_observed": true,
+    "normal_termination_observed": true,
+    "effectiveness_verified": false,
+    "reason": "The model still delayed editing for 11 model turns after the deadline, and no same-task control establishes causality."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "fail_to_pass_failed",
+      "original_verification_contains_infrastructure_error"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "implemented_followup": "A delayed implementation-escalation notice is now contract-tested and defaults to four tool-bearing turns after an ignored deadline; no additional paid rollout has yet evaluated effectiveness.",
+  "next_action": "validate the deadline-plus-escalation policy on a different fresh issue rather than rerunning pydicom immediately, then decide whether to scale collection",
+  "claim_boundary": "Local Dev Episode and supplemental evaluation only; not an official SWE-bench score and not evidence of model improvement."
+}

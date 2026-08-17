@@ -1,6 +1,13 @@
 # 数据中心化 Agent 训练实施路线图
 
-状态：Planned
+状态：**进行中**。个人预算下的当前执行顺序以
+[`budget-constrained-agent-posttraining-roadmap.md`](budget-constrained-agent-posttraining-roadmap.md)
+为准；本文件保留完整 DataFlow/DataFlex 扩展路线。M1 已完成，M2 已形成 Fixture、真实小批次和历史仓库
+Dev Rollout 证据；路径定位/首次编辑诊断、无编辑 Deadline 和延迟 Escalation Guidance 已实现，
+当前主线已完成 pydicom Deadline 与 pvlib Escalation 新鲜 Episode；pvlib 在二级提示后
+下一轮编辑并正常终止，但候选破坏 Series 返回类型并失败目标/回归测试。Post-edit Contract Notice
+已实现并通过确定性测试，因此先做新鲜验证，再扩充多 Family 数据并建立
+Raw/DataFlow 静态 LoRA 对照。
 依赖设计：[数据中心化 Agent 训练集成架构设计](../architecture/data-centric-agent-training-design.md)
 
 ## 总目标
@@ -59,7 +66,7 @@ Claw Rollout
 
 ## M2：DataFlow 确定性治理 Pipeline
 
-状态：**Fixture E2E、真实两样本 Contract Batch、历史仓库校准与首组真实 Dev Rollout 已完成**。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode；环境感知 Rollout 的代码通过全部 25 条选定测试，但因 Max turns 未通过硬门槛，只保留为 Bad Case。下一步修正终止效率、扩展真实 Train/Dev Issue，再补官方容器 Harness。
+状态：**Fixture E2E、真实两样本 Contract Batch、五仓库七任务 Dev 验证已完成**。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode；Bad Case 已投影路径定位、首次编辑、编辑前探索和 Guidance 后调用指标。pvlib 候选测试失败；pydicom-1413 暴露临时脚本误触发实现提示，Astroid-1333 又显示长思考耗尽单轮输出且暴露 `runtime_stop` Schema 缺口。缺口已修复，但都不能作为有效性或增点结论；下一步先设计有界思考/动作预算，再换新 Issue 验证路径限定的 Post-edit Contract Notice。
 
 目标：先实现无需 LLM 的可复现数据治理。
 
@@ -114,7 +121,7 @@ tokenizer revision 已在 LlamaFactory 0.9.4 中成功处理 2 条 Gold Tool-use
 - ExperimentRegistry 标记真实 `training_verified=true`。
 - 报告能区分“增加数据”和“治理数据”的效果。
 
-## M4：DataFlex 动态训练
+## M4：DataFlex 动态训练（Deferred）
 
 目标：在不改变候选数据池的前提下验证动态数据策略。
 
@@ -191,6 +198,38 @@ P3  LLM Refiner 与多策略动态训练
 Deferred  AgentFlow 分支轨迹探索（M2/M3 门槛后）
 ```
 
+## 当前推荐执行序列
+
+以下顺序是当前主线的执行真源。除非前一步暴露必须先修复的阻塞问题，否则不并行
+引入新的训练框架或复杂策略。
+
+1. **已完成——Marshmallow 修复后 Rollout**：固定历史环境后候选通过选定测试，
+   但仍因连接中断或 Max turns 未通过正常终止硬门槛，失败轨迹已保存。
+2. **已完成——第三至第五种真实 Issue 与行为诊断**：SQLFluff、pydicom、pvlib 已完成校准
+   和有效 Rollout；确定性投影显示样本都较早到达目标路径，但从定位转入实现过晚
+   或完全没有发生。Implementation Deadline 在 pydicom 第 8 轮触发，但模型仍到
+   第 19 轮才编辑；pvlib 在 Escalation 后下一轮编辑但测试失败，策略尚未验证有效。
+3. **首批多 Family 训练数据**：先生成 20–50 条 Train/Dev Episode，覆盖至少
+   5 个 Family；pydicom-1413 已证明临时复现脚本不能作为实现编辑信号，路径限定已完成，
+   放量前需换一个新 Issue 验证编辑后的容器/返回类型契约提示，
+   同时保留成功、失败和不同轨迹长度的样本。Test Episode 禁止进入训练数据。
+4. **冻结 Raw/DataFlow 数据版本**：从同一 Silver 候选池生成 Raw 和 Gold 数据，
+   固定 Manifest、去重/泄漏报告、Operator 统计和 Tokenization 证据。
+5. **最小静态 LoRA 对照**：固定 Base Model Revision、Chat Template、训练预算、
+   Seed 和 Test Manifest，运行 Base、Raw SFT、DataFlow SFT 三组。
+6. **独立 Benchmark 与联合报告**：扩充 Medium Test，并在条件允许时接入官方
+   SWE-bench Docker Harness；报告数据指标、模型指标、成本和失败 Slice。
+7. **DataFlex 单策略实验**：静态基线稳定后，只引入一种基于质量分的重加权或
+   动态选择策略，保持候选池和训练预算不变。
+8. **数据质量 Dashboard**：展示 Silver → Gold 血缘、排除原因、分布、成本以及
+   Base/Raw/DataFlow/DataFlex 对比。
+9. **AgentFlow Spike**：完成静态训练与 Benchmark 基线后，再执行 1 个中等任务、
+   `branching_factor=2`、`depth=2` 的隔离分支实验。
+
+阶段性完成定义是获得一份可重建的 Base/Raw/DataFlow 对照报告，而不是仅生成
+Adapter 或通过数据 Dry-run。在真实 Adapter、Checkpoint 和独立 Benchmark 报告
+同时存在前，项目仍只可表述为“数据与训练闭环正在搭建”。
+
 ## 每个里程碑的证据等级
 
 | 里程碑 | 可对外描述 |
@@ -214,6 +253,6 @@ Deferred  AgentFlow 分支轨迹探索（M2/M3 门槛后）
 3. 已实现 ShareGPT Tool-use Exporter，并固化 5 条 Fixture。
 4. 已编写 Test Split、Tool 顺序和确定性测试；待补充跨 Family 泄漏 Fixture。
 5. 已用真实 Episode 构建 Silver/Gold，并完成 LlamaFactory 数据加载与 Tokenization Dry-run；下一步扩充 Train/Dev 小批次，不立即宣称训练效果。
-6. 已完成 SWE-bench Lite 历史环境校准和首组真实仓库 Dev Episode；最佳候选测试通过但流程失败，不进入 Gold。下一步扩展不同 Issue，并把终止合规作为独立质量门槛。
+6. 已完成 SWE-bench Lite 五仓库七任务校准、Dev Episode 和行为诊断 v3；当前候选均不满足 Gold 硬门槛。路径限定提示与 `runtime_stop` 已完成确定性/集成验证，但连续两题没有实现路径编辑；先加入有界思考或动作预算实验，再扩充多 Family Episode。
 
 这一步不需要 GPU，但可以验证最关键的数据契约，为后续 DataFlow 和真实训练消除最大的不确定性。

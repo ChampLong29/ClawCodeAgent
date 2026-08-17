@@ -1,0 +1,29 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_summary.v1",
+  "captured_at": "2026-08-12",
+  "status": "passed_after_environment_reconstruction",
+  "instance_id": "pylint-dev__astroid-1333",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "d2a5b3c7b1e203fec3c7ca73c30eb1785d3d4d0a",
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "7.4.4",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "reconstruction": "A dedicated ignored venv was created because the earlier Astroid calibration environment was not retained; only runtime dependencies and pytest were installed, with no editable repository install."
+  },
+  "evaluator_fingerprint": {
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 46,
+    "patch_sha256": "5fff5c7724916e209e469cebe38220915e91bcea4a56d943ab4c6595ee271e58",
+    "test_patch_sha256": "7e436bfb2ef939f3f2d0b2ca945ae8d0eabbfa5d59356aa3d31fc90a667c78eb",
+    "test_ids_hash": "6dacbdec5e447a796d8b092663b0030b3f951943c50ea1337909d5eb91fd8095"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {"passed": false, "returncode": 1, "test_count": 1},
+    "baseline_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 46},
+    "reference_fail_to_pass": {"passed": true, "returncode": 0, "test_count": 1},
+    "reference_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 46}
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score and not a model-quality result."
+}

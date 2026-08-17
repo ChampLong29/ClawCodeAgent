@@ -1,0 +1,92 @@
+{
+  "schema_version": "swe_bench_lite_post_edit_rollouts.v1",
+  "captured_at": "2026-08-12",
+  "status": "completed_with_two_preserved_failures",
+  "instance_id": "pydicom__pydicom-1413",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "runtime_policy": {
+    "max_turns": 24,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 4,
+    "completion_reminder_turns": 6,
+    "completion_critical_turns": 2,
+    "post_edit_contract_guidance": true,
+    "allowed_paths": ["pydicom/dataelem.py"]
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "classification": "infrastructure_failure",
+      "collection_id": "episode_collection_993fc0ecf58302266e0a",
+      "episode_id": "training-3c68b13463b7409fb52b",
+      "max_tokens": 4096,
+      "turns": 13,
+      "tool_calls": 16,
+      "total_tokens": 13884,
+      "trajectory_sha256": "a9d266cef03884fe48c92dac92a52032726d60735f3b3e7c7c2ae0275225694a",
+      "verification_sha256": "ba4183d428072ba4427755a736107ef26f6fb4fa8b2507340dd5537080250231",
+      "episode_sha256": "5db84efb4aec0b422684acd181999d5356f7fc18e9edb3892ce08e98df19389a",
+      "collection_manifest_sha256": "89da180378f0638962ca05146793203a5733f12488797dcf2ed36a40108714bc",
+      "observed": "The thirteenth response consumed exactly 4096 output tokens in a thinking block and returned no content or tool call.",
+      "original_record": "The client discarded the provider stop reason and the runtime incorrectly recorded completed; the immutable Episode remains unchanged.",
+      "remediation": "Preserve provider finish reasons and classify length/max_tokens responses without tool calls as stopped rather than completed."
+    },
+    {
+      "attempt": 2,
+      "classification": "valid_model_bad_case",
+      "collection_id": "episode_collection_3d5e41637901676bc70f",
+      "episode_id": "training-9c6b266325114d6e85d2",
+      "max_tokens": 8192,
+      "turns": 24,
+      "tool_calls": 25,
+      "input_tokens": 11579,
+      "output_tokens": 5396,
+      "trajectory_sha256": "0b258e5f77e23db4a7e5aee3d6b5c514d4c8c5f9968e6ffe5da36e6c11bc6a51",
+      "verification_sha256": "b31d3c244ea05dc87e590bcd4cbdff465a2a785420dfaf3cd0152dc0a060dbfa",
+      "episode_sha256": "ff3221b6974f39f2bfaf296300e58bbd337d10a7fec5999a9d9b7a18f42651ad",
+      "collection_manifest_sha256": "487498424d7c13fe46de220bd931e3f0203ff06862f37d9748d156a669362b92",
+      "behavior_diagnostics": {
+        "first_target_path_turn": 3,
+        "implementation_deadline_turn": 8,
+        "implementation_escalation_turn": 12,
+        "first_direct_mutation_turn": 14,
+        "post_edit_contract_guidance_turn": 14,
+        "completion_reminder_turn": 18,
+        "completion_critical_turn": 22,
+        "tool_calls_after_completion_critical": 2
+      },
+      "changed_files": ["repro_ol.py"],
+      "target_source_changed": false,
+      "verification": {
+        "fail_to_pass_passed": false,
+        "pass_to_pass_passed": true,
+        "diff_scope_passed": false,
+        "termination_compliance_passed": false
+      },
+      "observed": "The model localized pydicom/dataelem.py but repeatedly edited only a scratch reproduction script, exhausted 24 turns, and never implemented the source fix.",
+      "post_edit_notice_assessment": "The notice was triggered by the first scratch-file write, so this run does not validate implementation-post-edit contract checking."
+    }
+  ],
+  "implemented_followup": {
+    "provider_finish_reason": "OpenAI-compatible and Anthropic-compatible non-streaming clients now preserve finish reasons; token-limited no-tool responses stop explicitly.",
+    "path_scoped_notice": "SWE collection now passes Oracle-derived implementation path patterns, so scratch-file writes neither satisfy implementation progress nor trigger the post-edit contract notice.",
+    "verification": "Focused deterministic runtime, collection, and SWE adapter tests pass."
+  },
+  "data_admission": {
+    "raw_episodes_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "no_target_source_change",
+      "fail_to_pass_failed",
+      "diff_scope_failed",
+      "turn_budget_exhausted"
+    ]
+  },
+  "next_action": "Validate path-scoped implementation progress on a different fresh issue; do not run pydicom-1413 a third time.",
+  "claim_boundary": "Local Dev Episodes only; not an official SWE-bench score and not evidence of model or policy improvement."
+}

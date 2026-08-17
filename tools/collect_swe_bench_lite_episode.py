@@ -23,6 +23,14 @@ def main() -> int:
     parser.add_argument("--max-turns", type=int, default=50)
     parser.add_argument("--completion-reminder-turns", type=int, default=8)
     parser.add_argument("--completion-critical-turns", type=int, default=3)
+    parser.add_argument("--implementation-deadline-turns", type=int, default=12)
+    parser.add_argument("--implementation-escalation-turns", type=int, default=4)
+    parser.add_argument(
+        "--no-post-edit-contract-guidance",
+        action="store_false",
+        dest="post_edit_contract_guidance",
+        help="Disable the one-time post-edit compatibility verification notice.",
+    )
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--allow-path", action="append", required=True)
     parser.add_argument(
@@ -46,6 +54,9 @@ def main() -> int:
         max_turns=args.max_turns,
         completion_reminder_turns=args.completion_reminder_turns,
         completion_critical_turns=args.completion_critical_turns,
+        implementation_deadline_turns=args.implementation_deadline_turns,
+        implementation_escalation_turns=args.implementation_escalation_turns,
+        post_edit_contract_guidance=args.post_edit_contract_guidance,
         timeout_seconds=args.timeout,
         prompt_version=args.prompt_version,
         allowed_path_patterns=args.allow_path,
@@ -61,6 +72,7 @@ def main() -> int:
                 "turns": episode.turns,
                 "tool_calls": episode.tool_calls,
                 "total_tokens": episode.input_tokens + episode.output_tokens,
+                "behavior_diagnostics": episode.behavior_diagnostics,
                 "manifest": str(result.manifest_path),
             },
             ensure_ascii=False,

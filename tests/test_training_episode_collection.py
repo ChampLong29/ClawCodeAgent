@@ -16,6 +16,7 @@ from claw.data_pipeline import (
     load_episode_batch,
 )
 from claw.data_pipeline.swe_bench_collection import (
+    collect_swe_bench_lite_dev_episode,
     _infer_workspace_import_name,
     _probe_workspace_import,
     _workspace_pythonpath,
@@ -166,6 +167,35 @@ class TrainingEpisodeCollectionTests(unittest.TestCase):
 
 
 class SweBenchEnvironmentContractTests(unittest.TestCase):
+    def test_import_probe_fails_closed_without_inferred_package(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError, "import name could not be inferred"
+            ):
+                _probe_workspace_import(
+                    cwd=temporary,
+                    python_executable=Path(sys.executable),
+                    import_name=None,
+                    environment=dict(os.environ),
+                )
+
+    def test_collection_rejects_escalation_without_deadline(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError, "requires a positive implementation_deadline_turns"
+            ):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    implementation_deadline_turns=0,
+                    implementation_escalation_turns=1,
+                    allowed_path_patterns=("target.py",),
+                )
+
     def test_workspace_pythonpath_supports_src_and_root_layouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -175,6 +205,15 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
             self.assertEqual(entries[0], str((root / "src").resolve()))
             self.assertEqual(entries[1], str(root.resolve()))
             self.assertEqual(entries[2], "external-entry")
+
+    def test_import_inference_strips_python_repository_suffix(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "pvlib").mkdir()
+            self.assertEqual(
+                _infer_workspace_import_name("pvlib/pvlib-python", str(root)),
+                "pvlib",
+            )
 
     def test_import_probe_proves_module_comes_from_episode_workspace(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -192,10 +231,31 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
                 python_executable=Path(sys.executable),
                 import_name=import_name,
                 environment=environment,
+                required_modules=("json",),
             )
             self.assertEqual(result["status"], "passed")
             self.assertEqual(result["import_name"], "sample_repo")
             self.assertEqual(result["module_file"], "sample_repo/__init__.py")
+            self.assertIn("json", result["required_modules"])
+
+    def test_import_probe_rejects_missing_evaluator_dependency(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "sample_repo"
+            package.mkdir()
+            (package / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+            environment = dict(os.environ)
+            environment["PYTHONPATH"] = _workspace_pythonpath(str(root))
+            with self.assertRaisesRegex(
+                BenchmarkError, "required evaluator modules"
+            ):
+                _probe_workspace_import(
+                    cwd=str(root),
+                    python_executable=Path(sys.executable),
+                    import_name="sample_repo",
+                    environment=environment,
+                    required_modules=("claw_missing_evaluator_dependency",),
+                )
 
     def test_import_probe_rejects_module_from_another_checkout(self):
         with tempfile.TemporaryDirectory() as temporary:

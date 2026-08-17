@@ -1,0 +1,57 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_summary.v1",
+  "captured_at": "2026-08-12",
+  "status": "passed_after_environment_remediation",
+  "instance_id": "pvlib__pvlib-python-1707",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "40e9e978c170bdde4eeee1547729417665dbc34c",
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "7.4.4",
+    "numpy_version": "1.24.4",
+    "pandas_version": "1.5.3",
+    "scipy_version": "1.10.1",
+    "pytest_mock_version": "3.14.0",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata"
+  },
+  "acquisition_attempts": [
+    {
+      "method": "windows_git_exact_shallow_fetch",
+      "status": "failed",
+      "reason": "Schannel SEC_E_INVALID_TOKEN during TLS initialization"
+    },
+    {
+      "method": "wsl_git_exact_shallow_fetch",
+      "status": "failed",
+      "reason": "GnuTLS unexpected TLS packet"
+    },
+    {
+      "method": "wsl_git_http_1_1_exact_shallow_fetch",
+      "status": "passed"
+    }
+  ],
+  "failed_calibration": {
+    "status": "environment_incomplete",
+    "baseline_fail_to_pass_passed": false,
+    "baseline_pass_to_pass_passed": false,
+    "reference_fail_to_pass_passed": true,
+    "reference_pass_to_pass_passed": false,
+    "reason": "The versioned PASS_TO_PASS set requires the mocker fixture, but pytest-mock was absent; 30 of 31 tests in pvlib/tests/test_iam.py passed during diagnosis."
+  },
+  "remediation": "Install pinned pytest-mock 3.14.0 in the isolated environment; do not change historical tests.",
+  "evaluator_fingerprint": {
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 30,
+    "patch_sha256": "e59ef7e4f9d4b98262066347448800074334e4a27810c65b1686e0e10f2e4917",
+    "test_patch_sha256": "59a9961413ff1def45a927b3939cee682daead885984a753715238a0de9dd1f2",
+    "test_ids_hash": "1a39d5bcd2d23a8380861064327047a3d5821b235465d818c4510734439df9b4"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {"passed": false, "returncode": 1, "test_count": 1},
+    "baseline_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 30},
+    "reference_fail_to_pass": {"passed": true, "returncode": 0, "test_count": 1},
+    "reference_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 30}
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score and not a model-quality result."
+}

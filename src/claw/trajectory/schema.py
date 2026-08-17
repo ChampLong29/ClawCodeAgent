@@ -28,6 +28,7 @@ EVENT_TYPES = {
     "workspace_diff",
     "test_result",
     "runtime_guidance",
+    "runtime_stop",
     "runtime_error",
     "episode_terminated",
 }

@@ -1,0 +1,106 @@
+{
+  "schema_version": "swe_bench_lite_remediation_rollouts.v1",
+  "captured_at": "2026-08-12",
+  "status": "completed_without_compliant_success",
+  "instance_id": "marshmallow-code__marshmallow-1343",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3f92c0897b3cd69734e82ac7e24de676cc53c8b5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "attempts": [
+    {
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v4",
+      "collection_id": "episode_collection_ecee38da3d923422bc6a",
+      "result_content_hash": "f8a9bdec581bb971620946c535e6efd28b301e4203408f4a5667e816fe2aed64",
+      "trajectory_sha256": "5dfe7cf4055147185a598adbb3a18503df500e537fe9580063bbfea6e2344389",
+      "verification_sha256": "d46ebd620decd2a65d07d05b163760f1e7d424e60a775e65173dd9a570f47355",
+      "environment_contract": "swe_bench_environment_contract.v1",
+      "environment_preflight_passed": true,
+      "evaluator_dependency_preflighted": false,
+      "valid_model_quality_sample": false,
+      "success": false,
+      "test_pass_rate": 0.0,
+      "turns": 20,
+      "tool_calls": 24,
+      "input_tokens": 13942,
+      "output_tokens": 8820,
+      "termination": "max_turns",
+      "failure": "configured_python_missing_pytest",
+      "completion_guidance": [
+        "completion_reminder",
+        "completion_critical"
+      ]
+    },
+    {
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v5",
+      "collection_id": "episode_collection_dfa986f792f857922255",
+      "result_content_hash": "86ce33ca33a2c4456cbb506caf30562dfcead2b1e9a891a712daed243a4d88e8",
+      "trajectory_sha256": "23d8c91a6f24fc51ca8bb45a2174f7de2f0efeff25ad2c049d00181506dffebb",
+      "verification_sha256": "0f3b4441c3a6f32b73bc46d94b1f08ff8a301dcdc29510e0b7583267b8311be3",
+      "environment_contract": "swe_bench_environment_contract.v2",
+      "python_version": "3.8.20",
+      "pytest_version": "8.3.5",
+      "environment_preflight_passed": true,
+      "valid_model_quality_sample": false,
+      "success": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_passed": true,
+      "pass_to_pass_passed": true,
+      "turns": 15,
+      "tool_calls": 19,
+      "input_tokens": 8112,
+      "output_tokens": 7756,
+      "termination": "api_transport_failure",
+      "failure": "remote_end_closed_connection_without_response",
+      "completion_guidance": [
+        "completion_reminder"
+      ]
+    },
+    {
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v6",
+      "collection_id": "episode_collection_2c69726e104b0a907aa0",
+      "result_content_hash": "1c0a64bfa964334cf35875d6e35f440c09020ffc51431fa0ac6c8f29a44a1ef6",
+      "trajectory_sha256": "673eca62db41fd09f82b192dcf2b67dc1dfcc25cafc451279251b303005ebaa5",
+      "verification_sha256": "61db2affc9f182b112289d7740a7a35064733cb84c7e6a79d0d9b75bf8f4766b",
+      "environment_contract": "swe_bench_environment_contract.v2",
+      "python_version": "3.8.20",
+      "pytest_version": "8.3.5",
+      "environment_preflight_passed": true,
+      "valid_model_quality_sample": true,
+      "success": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_passed": true,
+      "pass_to_pass_passed": true,
+      "changed_files": [
+        "src/marshmallow/schema.py"
+      ],
+      "workspace_hash": "7f1deb335cd001fe5ba8b01dc002c5532e61691eecee52096e1f59ba96b3dff4",
+      "turns": 20,
+      "tool_calls": 26,
+      "input_tokens": 7654,
+      "output_tokens": 4448,
+      "termination": "max_turns",
+      "completion_guidance": [
+        "completion_reminder",
+        "completion_critical"
+      ]
+    }
+  ],
+  "implemented_followups": [
+    "environment_contract_v2_requires_pytest_before_agent_start",
+    "fixed_python38_virtual_environment_recalibrated_baseline_and_reference",
+    "retry_transient_connection_and_timeout_failures_before_tool_dispatch"
+  ],
+  "data_admission": {
+    "raw_episodes_retained_locally": true,
+    "dev_bad_case_eligible": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "no_attempt_passed_termination_compliance"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "next_action": "stop_repeating_marshmallow_and_run_one_different_issue_for_generalization",
+  "claim_boundary": "Local Dev remediation evidence only; not an official SWE-bench score, not a compliant task success, and not evidence of model improvement."
+}
