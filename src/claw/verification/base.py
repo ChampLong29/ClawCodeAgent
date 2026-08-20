@@ -12,7 +12,7 @@ from ..trajectory.schema import Trajectory, TrajectoryEvent
 
 @dataclass
 class VerificationPolicy:
-    version: str = "verifier-policy.v1"
+    version: str = "verifier-policy.v2"
     required_signals: List[str] = field(
         default_factory=lambda: ["test_pass_rate"]
     )

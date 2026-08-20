@@ -62,6 +62,46 @@ class ModelClientFinishReasonTests(unittest.TestCase):
         self.assertEqual(result["finish_reason"], "max_tokens")
         self.assertEqual(result["usage"]["output_tokens"], 4096)
 
+    def test_anthropic_client_disables_thinking_and_requires_any_tool(self):
+        payload = {
+            "content": [{
+                "type": "tool_use",
+                "id": "edit-1",
+                "name": "edit_file",
+                "input": {"path": "source.py", "old_text": "a", "new_text": "b"},
+            }],
+            "stop_reason": "tool_use",
+            "usage": {"output_tokens": 12},
+        }
+        client = AnthropicClient(
+            base_url="https://example.invalid",
+            api_key="test",
+            model="test-model",
+            thinking_enabled="auto",
+        )
+        with patch(
+            "claw.openai_compat.urllib.request.urlopen",
+            return_value=_Response(payload),
+        ) as mocked:
+            result = client.complete(
+                messages=[{"role": "user", "content": "x"}],
+                tools=[{
+                    "name": "edit_file",
+                    "description": "edit",
+                    "input_schema": {"type": "object"},
+                }],
+                tool_choice="required",
+                thinking_mode="disabled",
+            )
+
+        request = mocked.call_args.args[0]
+        sent = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(sent["thinking"], {"type": "disabled"})
+        self.assertEqual(sent["tool_choice"], {"type": "any"})
+        self.assertEqual(
+            result["tool_calls"][0]["function"]["name"], "edit_file"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

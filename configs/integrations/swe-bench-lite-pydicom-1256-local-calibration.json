@@ -1,0 +1,38 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_summary.v1",
+  "captured_at": "2026-08-20",
+  "status": "passed_after_repository_reacquisition",
+  "instance_id": "pydicom__pydicom-1256",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "49a3da4a3d9c24d7e8427a25048a1c7d5c4f7724",
+  "protocol_version": "progressive-action-constraint-ablation.v1",
+  "model_calls_before_admission": 0,
+  "repository_acquisition": {
+    "initial_attempt": "local clone from an existing partial repository",
+    "initial_result": "failed because required blobs were absent and the inherited object helper terminated",
+    "remediation": "removed only the two newly created broken task copies, cloned the official upstream repository, disabled the failing inherited fsmonitor setting locally, and checked out the exact base commit",
+    "final_head_verified": true,
+    "final_clean_state": true
+  },
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "5.4.3",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "reused_from": "pydicom__pydicom-1139"
+  },
+  "evaluator_fingerprint": {
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 22,
+    "patch_sha256": "a5251fbc67a3f5c931ae8bddd334bb84a167bb8e9978ca2d005136295c2a24ce",
+    "test_patch_sha256": "78f27855533d38c784e1edf917417154e906cde415b1fb0e33108f7e97e99f28",
+    "test_ids_hash": "8e18fcf96c73c17f1b84917cb4a82ebc13be0cfc37fca657d1c00d9b20899f7c"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {"passed": false, "returncode": 1, "test_count": 1},
+    "baseline_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 22},
+    "reference_fail_to_pass": {"passed": true, "returncode": 0, "test_count": 1},
+    "reference_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 22}
+  },
+  "claim_boundary": "Local compatibility calibration only; no model call, official SWE-bench score, or model-quality result."
+}

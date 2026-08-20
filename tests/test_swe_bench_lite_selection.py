@@ -49,10 +49,14 @@ class SweBenchLiteSelectionTests(unittest.TestCase):
         repo_counts = {}
         for item in selected:
             repo_counts[item["repo"]] = repo_counts.get(item["repo"], 0) + 1
-        self.assertGreaterEqual(len(repo_counts), 5)
-        self.assertLessEqual(max(repo_counts.values()), 2)
+        self.assertGreaterEqual(len(repo_counts), 6)
+        self.assertLessEqual(
+            max(repo_counts.values()),
+            selection["policy"]["maximum_instances_per_repository"],
+        )
+        self.assertEqual(len(selected), selection["policy"]["max_instances"])
         self.assertFalse(selection["policy"]["one_instance_per_repository"])
-        self.assertEqual(selection["policy"]["minimum_distinct_repositories"], 5)
+        self.assertEqual(selection["policy"]["minimum_distinct_repositories"], 6)
         self.assertTrue(all(1 <= item["fail_to_pass_count"] <= 3 for item in selected))
 
     def test_agent_inputs_exclude_evaluation_only_fields(self):

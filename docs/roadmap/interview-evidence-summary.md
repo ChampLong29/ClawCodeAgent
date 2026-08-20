@@ -40,7 +40,7 @@ Benchmark 的血缘。
 | Episode、Checkpoint、Trajectory v2、Replay | 已实现 | `src/claw/episode/`、`src/claw/trajectory/`、集成测试 | 执行事实与后处理评测分离，原始轨迹不被修复逻辑回写。 |
 | Verifier、Bad Case、Dataset Manifest | 已实现 / 契约验证 | `src/claw/verification/`、`src/claw/dataset/`、Task Suite | 硬信号优先，Reviewer 不可覆盖测试或 Diff 等硬失败。 |
 | DataFlow、DataFlex、LlamaFactory 对接 | 已实现接口与数据契约 / 部分契约验证 | 数据中心路线图、导出与训练后端实现 | 已建立可接入的数据治理和 SFT 接口；不等同于已完成真实后训练。 |
-| 本地 SWE-bench Lite Dev Pilot | 本地校准完成；真实 Rollout 已采集 | `benchmarks/swe_bench_lite/`、`configs/integrations/`、实验日志 | 用作受控开发集实验与 Bad Case 研究，不是官方榜单结果。 |
+| 本地 SWE-bench Lite Dev Pilot | 本地校准完成；已有首个合规成功 Episode | `benchmarks/swe_bench_lite/`、`configs/integrations/`、实验日志 | 已证明本地链路可产出一条真实仓库成功；不是官方榜单或策略增点。 |
 | LoRA/QLoRA 真实训练 | 计划中 | 低成本后训练路线图 | 训练契约和后端已具备，真实 Checkpoint 与 Base/SFT 对照仍待完成。 |
 | 官方 SWE-bench Harness | 计划中 | Pilot 文档与路线图 | 尚未使用官方隔离 Harness，绝不把本地校准称作官方成绩。 |
 
@@ -66,6 +66,10 @@ Benchmark 的血缘。
 | 编辑后通过目标用例但破坏容器/返回类型语义 | 模型仅检查局部数值条件，未验证相邻兼容契约 | 新增一次性 Post-edit Contract Notice，提示最小目标验证与相关回归 | 规则实现已由确定性测试覆盖，仍需全新任务上的受控验证。 |
 | 临时复现脚本被误当成“已实现” | 旧逻辑把任意显式文件编辑都当作直接实现变更 | Collector 传入 Oracle 派生的允许路径；仅实现路径编辑可解除 Deadline 或触发 Post-edit 提示 | 路径范围语义已修复，临时编辑不再污染实现进度信号。 |
 | 供应商返回 `max_tokens` 却被记录为 completed | 客户端没有保留 finish reason，且事件 Schema 漏注册 `runtime_stop` | 保留两类客户端的 finish reason；无工具截断显式停止；注册并测试 `runtime_stop` | 原始 Episode 保持基础设施污染标记；修复由集成测试验证。 |
+| 候选通过测试但持续调用工具、无法合规终止 | 提示级提醒不能约束 DeepSeek 长思考和工具选择 | 增加显式 Thinking Mode、Escalation 直接编辑约束和 Critical 最终响应约束 | Marshmallow 重复 Dev 题首次完整成功；强制约束未触发，不能宣称独立因果效果。 |
+| 新 Issue 候选避免异常且回归通过，但目标语义失败 | 模型把立即父对象当配置所有者，未沿 `root` 父链读取根 Schema 的非默认配置 | 增强嵌套回退契约；提前 Escalation 并记录真实强制编辑；保留两次失败 | 约束能改变动作时机，但未修复语义理解；该题停止重采样并作为 Bad Case。 |
+| 探索性失败后容易继续拟合同一 Dev 题 | 反复看结果再改 Prompt 会造成 Benchmark Overfitting | 在仓库获取和模型调用前哈希固定 PyVista 新 Family 的 Control/Treatment、预算、停止规则和解释矩阵 | 两臂均通过目标、114 条回归和硬门槛；证明可复现成功，不证明 Notice 增点。 |
+| 强制动作能阻止继续调查，但可能过早 | SQLFluff 在 Escalation 后首次定位正确文件，仍按 read-before-edit 请求读取 | Runtime 合规停止；行为诊断 v4 记录被拒绝请求，Bad Case 将动作约束违规与基础设施失败分离 | 冻结多任务复现为 1/2；证明约束存在可观测的效率/成功率权衡。 |
 
 详细时间线在 [`swe-bench-lite-experiment-log.md`](swe-bench-lite-experiment-log.md)，机器可读
 摘要在 `configs/integrations/`。面试时应主动说明：候选测试通过和合规终止是两道独立硬门槛；
@@ -110,8 +114,9 @@ SFT 导出和实际 LoRA/QLoRA 训练。DataFlex 更适合训练稳定后再做�
 
 ### Q7：为什么不直接宣称 Deadline/Escalation 有效果？
 
-目前只有跨任务的小样本时序观察，没有同任务随机对照，也没有官方 Harness。因此我只陈述“提示
-被可靠记录、某些样本更早进入编辑或正常终止”，并将其作为待检验假设，而不是性能提升结论。
+Marshmallow-1359 的 v2 确实触发了只允许直接编辑的请求，但候选仍因父链配置语义遗漏失败。
+随后预注册 PyVista 对照，两臂都成功，因此同样无法得到 Notice 的正确性增益。现阶段只陈述
+“约束可执行、冻结流程可在新仓库成功”，而不是性能提升；多任务/Seed 与官方 Harness 仍缺失。
 
 ### Q8：实验失败时你做了什么？
 
@@ -119,15 +124,20 @@ SFT 导出和实际 LoRA/QLoRA 训练。DataFlex 更适合训练稳定后再做�
 回归测试。例如模型输出截断事件缺失时，我修复 finish reason 传递和 Schema 注册，但没有重写
 历史轨迹或为同一行为重复付费调用模型。
 
-### Q9：目前最重要的负结果是什么？
+### Q9：现在已经有成功结果了吗？
 
-真实 Dev Rollout 尚未出现同时满足目标测试、回归测试、Diff Scope 和正常终止的成功候选。这说明
-项目当前的价值在于发现并归因真实 Agent 失败，而不是已经证明模型增益。这个负结果也决定下一步
-应先做受控的 action-forcing / thinking-budget 策略实验，而不是盲目扩大采样。
+有一条。关闭 DeepSeek 显式思考并启用有界动作策略后，Marshmallow-1343 同时通过目标测试、
+24 条回归、Diff Scope、流程、格式和正常终止门槛。但它是重复使用的 Dev 校准题，且模型在
+Escalation 强制编辑与 Critical 强制收尾前主动完成，所以它最初只证明“链路可以产出合规
+成功”。随后 Marshmallow-1359 两次失败，PyVista-4315 则在预注册的 Control/Treatment 中
+双双通过目标、114 条回归和全部硬门槛。这进一步说明项目已经能在新仓库 Family 复现成功，
+但由于两臂都成功，仍不能把成功归因于 Post-edit Notice。
 
 ### Q10：下一步怎样证明项目真的有效？
 
-先冻结更大且家族隔离的 Dev/Test 任务，做有对照的 Runtime 策略实验；随后用许可清晰的公开轨迹
+当前已完成一次单任务预注册对照，以及两条未见 Issue 的冻结复现（1/2 成功）。下一步在新
+任务/Seed 上比较“立即强制编辑”与“允许一次目标读取后必须编辑”，估计成功率、成本和终止
+回答质量分布；随后用许可清晰的公开轨迹
 和自采成功样本构建 Manifest，完成一次真实小模型 LoRA/QLoRA，并以同一 Test Manifest 比较 Base
 与 Curated SFT。只有产出真实 Checkpoint 和独立报告后，才可以报告增益；官方 SWE-bench 结果还
 需要单独通过官方 Harness。

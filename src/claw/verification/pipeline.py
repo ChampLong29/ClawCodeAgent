@@ -10,6 +10,7 @@ from .bad_case import BadCaseClassifier
 from .base import SignalVerifier, VerificationContext
 from .hard_signals import DEFAULT_HARD_VERIFIERS
 from .reviewer_adapter import ReviewerAdapter, ReviewerEvidence
+from .soft_signals import DEFAULT_SOFT_VERIFIERS
 
 
 class VerifierPipeline:
@@ -17,10 +18,14 @@ class VerifierPipeline:
         self,
         hard_verifiers: Optional[Iterable[SignalVerifier]] = None,
         *,
+        soft_verifiers: Optional[Iterable[SignalVerifier]] = None,
         reviewer_adapter: Optional[ReviewerAdapter] = None,
         bad_case_classifier: Optional[BadCaseClassifier] = None,
     ):
         self.hard_verifiers = list(hard_verifiers or DEFAULT_HARD_VERIFIERS)
+        self.soft_verifiers = list(
+            DEFAULT_SOFT_VERIFIERS if soft_verifiers is None else soft_verifiers
+        )
         self.reviewer_adapter = reviewer_adapter or ReviewerAdapter()
         self.bad_case_classifier = bad_case_classifier or BadCaseClassifier()
 
@@ -34,6 +39,7 @@ class VerifierPipeline:
         signals: List[VerificationSignal] = [
             verifier.evaluate(context) for verifier in self.hard_verifiers
         ]
+        signals.extend(verifier.evaluate(context) for verifier in self.soft_verifiers)
         reviewer_metadata = {}
         if reviewer is not None:
             signals.append(

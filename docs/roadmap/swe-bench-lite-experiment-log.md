@@ -402,3 +402,156 @@ Replay 中归为 termination；RuntimeAdapter 集成测试验证截断响应留�
 正常进入 VERIFYING。由于模型“不编辑且长思考耗尽”的行为已经可见，不为同题再次付费重跑。
 机器证据见 `configs/integrations/swe-bench-lite-astroid-1333-local-calibration.json` 与
 `configs/integrations/swe-bench-lite-astroid-1333-path-scoped-rollout.json`。
+
+## 2026-08-20：有界请求与首个合规成功 Episode
+
+DeepSeek Anthropic 兼容接口支持 `thinking=disabled` 和 `tool_choice`，但忽略
+`thinking.budget_tokens`。因此 Runtime 新增可追踪的 Thinking Mode 与两道动作约束：
+Escalation 后的请求只暴露 `write_file`/`edit_file` 并要求工具调用；Critical 请求隐藏全部
+工具并要求最终响应。若供应商返回不符合约束的动作，运行显式记录 `runtime_stop`，不误记完成。
+
+针对性测试通过后，在既有 Marshmallow-1343 Dev 校准题上运行一次真实 Episode：关闭显式
+思考、单次 4096 输出 Token、18 turns、Deadline/Escalation=5/2、Reminder/Critical=4/1。
+模型第 2 轮定位目标文件，第 5 轮收到 Deadline，第 7 轮对
+`src/marshmallow/schema.py` 做最小编辑；Post-edit Contract Notice 后完成复现、相关测试、
+完整 schema/field 测试与 Diff 检查，并在第 15 个工具轮次后主动正常终止。
+
+本地 Verifier 的 1 条 FAIL_TO_PASS、24 条 PASS_TO_PASS、Diff Scope、流程权限、格式和终止
+合规信号全部通过，`hard_gate_passed=true`、`verdict=success`。这是项目保留的第一条本地真实
+仓库合规成功 Episode。模型在第 7 轮编辑，因此 Escalation 强制动作未触发；它也在 Critical
+阈值前结束。因此不能将成功单独归因于两个强制约束，更不能宣称普遍模型增点。该题此前已有
+多次调试，结果只证明有界策略配置下链路能产生一个成功样本；泛化仍需全新 Issue 对照，官方
+成绩仍需 Docker Harness。机器证据见
+`configs/integrations/swe-bench-lite-marshmallow-bounded-action-success.json`。
+
+## 2026-08-20：Marshmallow-1359 新 Issue 复现
+
+为避免只在重复校准题上观察成功，将 `marshmallow-code__marshmallow-1359` 加入 Pilot。
+任务 Base Commit 为 `b40a0f4e33823e6d0f341f7e8684e359a99060d1`，Oracle 只修改
+`src/marshmallow/fields.py`。Python 3.8.20 隔离校准达到：基线 1 条目标测试失败、76 条
+回归通过，参考补丁后两组通过。因此该题具备本地 Rollout 准入条件。
+
+### v1：流程合规但语义失败
+
+固定 `thinking=disabled`、4096 Token、18 turns、Deadline/Escalation=5/2 和允许路径。
+模型第 2 轮定位文件、第 5 轮收到 Deadline、第 7 轮编辑，第 14 个模型轮次正常结束。
+候选通过 76 条回归以及 Diff、流程、格式和终止门槛，但目标测试失败。模型把立即父对象
+缺失的 `opts` 安全回退为 `None`，只验证了默认序列化，没有验证非默认配置沿父链传播。
+
+### v2：强制动作生效，正确性仍失败
+
+在 Post-edit Contract Notice 中增加“回退不能破坏非默认配置的父链传播”通用检查，并把
+Deadline 提前到第 4 轮。第 6 轮 Escalation 实际触发：该请求只暴露直接编辑工具并要求
+工具调用，第 7 轮发生目标文件编辑。模型随后验证显式字段 `format`、76 条 field 测试和
+225 条 schema 测试，均通过；独立目标测试仍失败。原因是探针覆盖了字段自身配置，却没有
+覆盖 `Schema.Meta.datetimeformat`。最终候选仍使用与 v1 等价的 `None` 回退，而不是已有的
+`Field.root` 抽象。
+
+### 结论与停止条件
+
+两次候选都在正确文件做了小范围修改、保留 76 条回归并正常收尾，说明有界动作机制可以
+改变请求和动作时机；两次目标测试都失败，说明它没有弥补根配置所有权与父链传播的语义
+理解。该结果归类为 `semantic_contract_miss`，不进入 Gold SFT。停止继续采样同题；下一步
+把“嵌套对象的配置所有者与 root/parent-chain 不变量”作为通用验证契约，冻结后到另一条
+新 Issue 做控制实验。机器证据见
+`configs/integrations/swe-bench-lite-marshmallow-1359-local-calibration.json` 与
+`configs/integrations/swe-bench-lite-marshmallow-1359-bounded-action-rollouts.json`。
+
+## 2026-08-20：PyVista-4315 预注册确认实验
+
+在获取仓库、运行校准或调用模型前，先固定并哈希
+`bounded-action-confirmatory.v1`：任务为唯一新增仓库 Family 的
+`pyvista__pyvista-4315`；Control 关闭 Post-edit Contract Notice，Treatment 开启；其余
+模型、Thinking、Token、Turn、Deadline/Escalation、动作约束、Critical 和 evaluator 参数
+完全相同；每臂只允许一个有效 Episode，两个归档完成前不分析 Control。
+
+### 环境准备与准入失败
+
+精确 Base Commit 为 `db6ee8dd4a747b8864caae36c5d05883976a3ae5`，仓库干净，Oracle
+只允许 `pyvista/core/grid.py`。首次在 Windows 挂载盘和 WSL 原生目录用 `venv` 创建环境，
+均因底层 `ensurepip` 返回 127 失败；改用现有 uv 管理的 CPython 3.8.20 在 WSL 原生目录
+创建环境。第一次四段校准又因 `tests/conftest.py` 缺少 `ipykernel` 全部返回 pytest 4；
+补齐后，基线目标失败、Oracle 目标通过，但 114 条回归中 3 条因缺少 `tqdm`/`meshio`
+失败。以上阶段模型调用数均为 0。
+
+按仓库声明的版本上限固定 `ipykernel==6.29.5`、`tqdm==4.65.0`、`meshio==5.3.4` 后，
+最终准入达到：基线 1 条 FAIL_TO_PASS 失败、114 条 PASS_TO_PASS 通过；Oracle 后两组
+通过。完整 Python 3.8.20、VTK 9.2.6、NumPy 1.24.4 锁文件与三次校准哈希均本地化。
+
+### Control 与 Treatment
+
+Control 第 2 轮定位目标、第 4 轮收到 Deadline、第 6 轮首次编辑；Treatment 第 3/4/6
+轮达到对应阶段，并在第 6 轮实际收到 Post-edit Notice。两臂都没有触发 Escalation，第 14
+轮收到 Reminder、第 17 轮进入强制最终响应，均在 18 个模型轮次后归档。
+
+两臂候选的语义修改等价，仅 `np.asarray` 转换前的注释措辞不同。两者都通过 1 条目标测试、
+114 条回归、Diff Scope、流程权限、格式和终止门槛，`aggregate_score=1.0`。Treatment 相比
+Control 多 181 Token、约 2.94 秒，少一次显式编辑和一次失败工具调用。Control 在 Critical
+请求把工具调用标记作为普通文本返回，Treatment 则生成正常的实现/验证摘要；该差异只作为
+后续 Reviewer/终止质量假设，不作因果结论。
+
+后续回放确认这是验证盲区而非终止状态错误：旧 `termination_compliance` 只判断 Episode 是否
+以 `completed` 收尾。Verifier Policy v2 新增零权重 Soft 信号 `final_response_quality.v1`，
+保守识别空回答、纯思考块和裸工具调用标记，不影响硬门槛与 Gold 准入。对不可变轨迹派生的
+结果为 Control `raw_tool_call_markup/fail`、Treatment `user_facing_text/pass`；原始轨迹和
+Verification 均未重写。待多任务/Seed 回放确认误报率后，再决定是否提升为数据筛选门槛。
+
+按照预注册解释矩阵，本次落入 `control_pass_treatment_pass`：支持冻结策略可以在此前未见的
+PyVista 仓库 Family 产出两条本地合规成功，不支持 Post-edit Notice 带来正确性提升。下一步
+必须增加未见任务或 Seed 才能估计成功率、成本和最终回答质量分布。协议与机器证据见
+`docs/roadmap/bounded-action-confirmatory-experiment-protocol.md`、
+`configs/integrations/swe-bench-lite-pyvista-4315-local-calibration.json` 和
+`configs/integrations/swe-bench-lite-pyvista-4315-confirmatory-comparison.json`。
+
+## 2026-08-20：两任务冻结复现与动作约束负效应
+
+在获取两个任务的目标提交、校准或调用模型前，哈希冻结
+`bounded-action-multitask.v1`。固定 `pvlib__pvlib-python-1606` 与
+`sqlfluff__sqlfluff-1733`，相同 DeepSeek、Token、Turn、Deadline/Escalation、Post-edit、
+Critical 和 Verifier v2 配置，每题最多一个有效 Episode，不做质量重试。两个 Python 3.8.20
+既有隔离环境均一次通过准入：pvlib 为基线目标失败/10 回归通过、Oracle 两组通过；SQLFluff
+为基线目标失败/3 回归通过、Oracle 两组通过。准入前模型调用数为 0。
+
+pvlib 第 2 轮定位 `pvlib/tools.py`，第 4 轮收到 Deadline，第 5 轮做一次最小编辑并收到
+Post-edit Notice，第 10 轮正常完成。候选通过 1 条目标、10 条回归、Diff、流程、格式、终止
+和最终答复质量信号；共 7420 Token、约 137.93 秒。Escalation 与 Critical 均未触发。
+
+SQLFluff 前 6 轮集中检查 L003，第 4/6 轮收到 Deadline/Escalation。第 7 轮模型第一次在请求中
+定位正确的 `src/sqlfluff/rules/L039.py`，但选择 `read_file`；该请求已经只暴露直接编辑工具，
+Runtime 因而记录 `action_constraint_unsatisfied` 并取消 Episode，没有实际编辑。候选保持基线：
+目标失败、3 条回归通过，最终答复质量为 `not_completed`；共 9470 Token、约 288.48 秒。
+
+这不是环境失败，也不重跑。它表明立即强制编辑虽然能阻止无界调查，却可能截断“刚定位目标、
+先读后改”的可恢复路径。原归档报告因通用 `runtime_error` 规则将其标为
+`environment_or_infra`；原文件保持不可变，分类器现确定性重放为
+`action_constraint_violation`，次类为 `test_failure`。行为诊断 v4 同时区分 9 次模型请求的
+工具调用、8 次实际分发和 1 次被拒绝调用，将目标定位时机修正为第 7 轮。两题合计 1/2 成功，
+只能作为描述性策略权衡证据。协议和机器结果分别见
+`docs/roadmap/bounded-action-multitask-validation-protocol.md` 与
+`configs/integrations/swe-bench-lite-bounded-action-multitask-result.json`。
+
+## 2026-08-20：渐进式目标读取约束实现
+
+针对 SQLFluff-1733 暴露的截断问题，Runtime 新增默认关闭的
+`implementation_target_read_allowance`。其值只能为 0 或 1；设为 1 时，Escalation 后的
+首次受约束请求可选择直接编辑，或读取一次命中实现路径 allowlist 的目标文件。若选择读取，
+下一次工具请求只暴露 `write_file`/`edit_file` 并必须编辑 allowlist 内路径。越界读取、第二次
+读取、混合调用和越界编辑均在工具分发前停止，并保留 `model_request.action_constraint` 与
+`runtime_guidance` 证据。旧配置默认值为 0，因此历史严格约束可原样复现。
+
+本次只完成机制与聚焦测试，不把测试通过解释为模型质量增点，也不重跑 SQLFluff-1733。
+下一步是在获取新任务提交、校准和调用模型前冻结一份新任务对照协议。
+
+随后哈希冻结 `progressive-action-constraint-ablation.v1`，选择此前未运行的
+`pylint-dev__astroid-1978` 与 `pydicom__pydicom-1256`，按 Strict→Progressive 与
+Progressive→Strict 的反向顺序做最多四条配对 Episode。任务纳入后首次尝试从既有本地副本
+复制仓库失败：旧副本是部分对象仓库，切换到目标提交时缺少 Blob，并触发机器级 Git
+`core.fsmonitor` helper 的 `daemon terminated`。该失败发生在新建且被忽略的任务副本中，主
+工作树未受影响。删除且仅删除这两个损坏副本后，从官方上游完整重取；只在新副本内关闭失效
+的 fsmonitor，最终 HEAD、对象完整性、clean-state、tracked size 与许可证哈希均通过。
+
+模型调用前复用 WSL Python 3.8 环境完成准入。Astroid-1978 基线 1 条目标失败、12 条回归
+通过，参考补丁两组通过；pydicom-1256 基线 1 条目标失败、22 条回归通过，参考补丁两组
+通过。模型调用数仍为 0。证据见
+`configs/integrations/swe-bench-lite-astroid-1978-local-calibration.json` 与
+`configs/integrations/swe-bench-lite-pydicom-1256-local-calibration.json`。

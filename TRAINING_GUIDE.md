@@ -403,6 +403,10 @@ Benchmark 支持以下组名：
 - 在独立 Python 3.8.20 环境完成 `pylint-dev__astroid-1196` 校准：基线 2 条
   FAIL_TO_PASS 失败、24 条 PASS_TO_PASS 通过，参考补丁后两组均通过。版本化
   证据位于 `configs/integrations/swe-bench-lite-astroid-local-calibration.json`。
+- 在同一固定 Python 3.8.20 环境完成新 Issue
+  `marshmallow-code__marshmallow-1359` 校准：基线 1 条目标测试失败、76 条回归通过，
+  参考补丁后两组通过。机器证据位于
+  `configs/integrations/swe-bench-lite-marshmallow-1359-local-calibration.json`。
 - 完成 `sqlfluff__sqlfluff-1763` 的第三类本地校准：固定 Python 3.8 环境、非
   editable 插件元数据和保守 Node ID 规范化后，3 条 FAIL_TO_PASS 在基线失败、
   参考补丁后通过，PASS_TO_PASS 保持通过。该证据只表示环境具备 Rollout
@@ -445,10 +449,15 @@ python tools/analyze_rollout_behavior.py `
 
 ```powershell
 python tools/collect_swe_bench_lite_episode.py <其余参数> `
+  --thinking-mode disabled `
+  --max-tokens 4096 `
   --implementation-deadline-turns 12 `
   --implementation-escalation-turns 4 `
+  --force-direct-mutation-after-escalation `
+  --implementation-target-read-allowance 1 `
   --completion-reminder-turns 8 `
-  --completion-critical-turns 3
+  --completion-critical-turns 3 `
+  --force-final-response-at-critical
 ```
 
 新生成的 Benchmark/Training Episode 会把同一投影写入 Episode Result 的
@@ -459,8 +468,53 @@ python tools/collect_swe_bench_lite_episode.py <其余参数> `
 提示，进入 Completion Reminder 区间后也不会叠加注入。首次成功修改允许提交的实现路径后还会注入
 一次 Post-edit Contract Notice，要求用目标测试与相关回归检查值、异常、scalar/collection、
 容器与返回类型、shape、ordering、null 和 metadata 等兼容契约；可用
-`--no-post-edit-contract-guidance` 关闭。这些都是运行时提示而非工具拦截，也不是已经
-证明的模型改进。
+`--no-post-edit-contract-guidance` 关闭。可选的动作约束默认会在 Escalation 请求只暴露
+`write_file`/`edit_file` 并设置 required tool choice；显式设置
+`--implementation-target-read-allowance 1` 后，升级后的首次请求额外允许一次命中实现路径
+allowlist 的 `read_file`，随后下一次工具请求只允许直接编辑。越界读取、连续第二次读取或编辑
+非目标路径都会在分发前显式停止。在 Critical 请求可隐藏工具并要求最终响应。DeepSeek Anthropic 兼容接口忽略
+`budget_tokens`，因此本项目用 `thinking=disabled` 加单次 `max_tokens` 实现可验证的有界
+请求，而不宣称不存在的精确思考 Token 预算。
+
+2026-08-20 在 Marshmallow-1343 上完成首次本地真实仓库成功 Episode。配置关闭显式思考、
+单次上限 4096 Token、18 turns、Deadline/Escalation=5/2，并启用直接编辑和最终响应约束。
+模型第 2 轮定位目标、第 5 轮收到 Deadline、第 7 轮编辑允许路径、第 15 个工具轮次后主动
+正常结束；1 条 FAIL_TO_PASS、24 条 PASS_TO_PASS、Diff Scope、流程、格式和终止门槛全部
+通过。Escalation 与 Critical 约束未实际触发，因此该结果只能证明有界动作策略配置下首次
+产生合规成功，不能估计两个强制约束的独立因果效果，也不是官方 SWE-bench 分数。机器证据见
+`configs/integrations/swe-bench-lite-marshmallow-bounded-action-success.json`。
+
+随后在新加入的 Marshmallow-1359 上进行跨 Issue 复现。固定关闭显式思考、4096 Token、
+18 turns 和同一允许路径边界。v1 第 2 轮定位、第 5 轮收到 Deadline、第 7 轮编辑；v2 将
+Deadline 提前至第 4 轮，并在第 6 轮实际触发只允许直接编辑的 Escalation 请求，第 7 轮
+完成编辑。两次均通过 76 条 PASS_TO_PASS、Diff Scope、流程、格式和正常终止，但 1 条
+FAIL_TO_PASS 均失败。模型用 `None` 回退避免立即异常，却没有沿已有 `Field.root` 父链读取
+根 `Schema.opts`；v2 虽增加了显式字段格式探针，仍未覆盖 `Schema.Meta.datetimeformat` 的
+非默认配置继承。这证明动作约束可以被实际执行，但没有复现成功或产生质量增点证据。两条
+失败轨迹保留为 `semantic_contract_miss` Bad Case，不再对同题继续采样。机器证据见
+`configs/integrations/swe-bench-lite-marshmallow-1359-bounded-action-rollouts.json`。
+
+为验证该假设而不继续拟合 1359，新增并在仓库获取、校准和模型调用前哈希固定
+`bounded-action-confirmatory.v1` 协议。选择此前未运行且新增仓库 Family 的
+`pyvista__pyvista-4315`，固定 Control 关闭 Post-edit Notice、Treatment 开启 Notice，
+其余 DeepSeek 模型、Thinking、Token、Turn、Deadline/Escalation、Critical 和评测参数完全
+一致，每臂最多一个有效 Episode。Python 3.8.20/VTK 9.2.6 环境首次因缺少 `ipykernel`
+无法收集，补齐后又有 3/114 回归缺少 `tqdm`/`meshio`；所有失败均发生在模型调用前并原样
+保留。冻结依赖后校准满足基线目标失败/114 回归通过、Oracle 两组通过。
+
+双臂均在第 6 轮首次编辑，最终同时通过 1 条 FAIL_TO_PASS、114 条 PASS_TO_PASS、Diff、
+流程、格式和终止硬门槛。Treatment 的 Notice 在第 6 轮实际注入；相较 Control 多 181
+Token、约 2.94 秒，少一次编辑和一次失败工具调用，并生成更正常的最终说明，但两者候选语义
+等价。按照预注册解释矩阵，该结果支持“冻结流程可在全新仓库 Family 复现合规成功”，不支持
+“Notice 提升正确性”。协议见
+`docs/roadmap/bounded-action-confirmatory-experiment-protocol.md`，机器证据见
+`configs/integrations/swe-bench-lite-pyvista-4315-confirmatory-comparison.json`。
+
+Verifier Policy v2 将最终答复盲区拆成独立、零权重的 `final_response_quality` Soft 信号。
+它只从 Trajectory v2 的不可变终止详情确定性识别空回答、纯思考块和裸工具调用标记，不判断
+实现正确性，也不覆盖测试、Diff、权限、格式或终止硬门槛。对上述两条历史轨迹回放后，
+Control 为 `raw_tool_call_markup/fail`，Treatment 为 `user_facing_text/pass`；原始 Episode
+与 Verification 文件不被改写。可用 `tools/analyze_final_response_quality.py` 重放该诊断。
 
 pydicom 新鲜 Dev Episode 已实际触发首级策略：第 3 轮定位目标、第 8 轮收到 Deadline、
 第 19 轮才编辑，第 22 轮正常终止。补充评测中 38 条 PASS_TO_PASS 通过但
@@ -502,11 +556,11 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 当前未完成：
 
 - 官方 Docker Harness 接入。
-- 对 SQLFluff 等其余历史仓库构建固定依赖镜像。
+- 对其余历史仓库构建固定依赖镜像。
 - FAIL_TO_PASS / PASS_TO_PASS 的正式容器化验证。
-- pvlib 已完成二级 Escalation 新鲜验证，但实现破坏 Series 返回类型；pydicom-1413 的
-  新鲜复验只编辑临时脚本并耗尽预算。路径限定的 Post-edit Contract Notice 已完成契约
-  测试，下一步必须换不同 Issue 验证，不能继续对同题调参。
+- 已完成两条未见 Issue 的冻结多任务复现：pvlib-1606 成功，SQLFluff-1733 因直接编辑约束
+  拒绝 read-before-edit 请求而停止，合计 1/2。下一步先调整约束为有界“定位后一次读取再编辑”
+  的新协议，再用新任务/Seed 验证；不得重跑 1733 追求成功。
 
 因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。Marshmallow 与 Astroid 的本地结果只证明评测环境能观察到预期状态转换；两者均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
@@ -517,7 +571,7 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. 已完成五仓库七任务受控 Dev 验证；pydicom-1413 与 Astroid-1333 分别暴露临时脚本误触发和 `runtime_stop` Schema 缺口，均已修复。连续两题仍没有允许路径内编辑，下一步应先限制长思考或增加动作预算策略，再选择新 Issue，而不是直接放量。
+6. 已完成六仓库十一任务受控 Dev Episode；Pilot 已扩为十三题。Astroid-1978 与 pydicom-1256 已通过模型调用前准入，下一步按冻结 Strict/Progressive 顺序运行最多四条配对 Episode。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。

@@ -1,0 +1,66 @@
+{
+  "base_commit": "a1579a16b1d8913d9d7c7d12add374a290bcc78c",
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score.",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "environment": {
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "official_swebench_harness": false,
+    "python_version": "Python 3.8.20"
+  },
+  "evaluator_fingerprint": {
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "fail_to_pass_count": 1,
+    "hints_sha256": "76a857f12d473cd6c50cf4e16170b85f9af74c36ece16c7fc77695b39c449acb",
+    "instance_id": "sqlfluff__sqlfluff-1733",
+    "pass_to_pass_count": 3,
+    "patch_sha256": "294bf2589cb5c4fc23b87c22d33d5f18f27c04563a50d8cd61287ea77b110139",
+    "schema_version": "swe_bench_lite_evaluation_bundle.v1",
+    "test_ids_hash": "a5cf1a759a40460acb0b46ba253a5a4760320e4326d4abc59b32140ead1019ea",
+    "test_patch_sha256": "f4aa1e4f84b1c98457a7e4650e49fe6a54e78f6931c29ddeee784f9bca15038c"
+  },
+  "instance_id": "sqlfluff__sqlfluff-1733",
+  "runs": {
+    "baseline_fail_to_pass": {
+      "duration_seconds": 13.20505,
+      "group": "baseline_fail_to_pass",
+      "normalized_node_ids": 0,
+      "passed": false,
+      "returncode": 1,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "933e92f5756dcbc320d0f2a2589de28aa79bc82407988e0c88b80aa41b994dc4",
+      "test_count": 1
+    },
+    "baseline_pass_to_pass": {
+      "duration_seconds": 7.338897,
+      "group": "baseline_pass_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "bc62434a25f170838de1799287b72952e662f6b27582e1b86e6c560f6b566848",
+      "test_count": 3
+    },
+    "reference_fail_to_pass": {
+      "duration_seconds": 7.610688,
+      "group": "reference_fail_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "29c79b359da9567d91f1d854b13a98cc8ea4f20fffdf397b5493e318ea4b42b4",
+      "test_count": 1
+    },
+    "reference_pass_to_pass": {
+      "duration_seconds": 7.79814,
+      "group": "reference_pass_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "7b68483a70b419217d7393e80086c12e344dad86f5cd7fe59c4cf5d9f9108560",
+      "test_count": 3
+    }
+  },
+  "schema_version": "swe_bench_lite_local_calibration.v1",
+  "status": "passed"
+}

@@ -101,6 +101,41 @@ class RolloutBehaviorDiagnosticsTests(unittest.TestCase):
         self.assertEqual(diagnostics.tool_calls_before_first_mutation, 1)
         self.assertEqual(diagnostics.investigation_without_edit_ratio, 1.0)
 
+    def test_rejected_model_tool_request_still_records_localization(self):
+        trajectory = Trajectory(
+            header=make_trajectory().header,
+        )
+        trajectory.header.termination = None
+        trajectory.header.finished_at = None
+        trajectory.append(
+            "model_response",
+            payload={
+                "tool_calls": [
+                    {
+                        "id": "rejected-call",
+                        "function": {
+                            "name": "read_file",
+                            "arguments": '{"path":"src/target.py"}',
+                        },
+                    }
+                ]
+            },
+        )
+        trajectory.append(
+            "runtime_stop",
+            payload={"reason": "action_constraint_unsatisfied"},
+        )
+        trajectory.terminate("cancelled")
+
+        diagnostics = analyze_rollout_behavior(
+            trajectory, target_path_patterns=["src/target.py"]
+        )
+
+        self.assertEqual(diagnostics.first_target_path_turn, 1)
+        self.assertEqual(diagnostics.model_requested_tool_calls, 1)
+        self.assertEqual(diagnostics.tool_calls, 0)
+        self.assertEqual(diagnostics.rejected_tool_calls, 1)
+
     def test_benchmark_metrics_aggregate_behavior_diagnostics(self):
         diagnostics = analyze_rollout_behavior(
             make_trajectory(), target_path_patterns=["src/target.py"]

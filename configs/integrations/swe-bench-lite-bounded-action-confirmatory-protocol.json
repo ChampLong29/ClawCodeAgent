@@ -1,0 +1,48 @@
+{
+  "schema_version": "bounded_action_confirmatory_protocol.v1",
+  "registered_at": "2026-08-20",
+  "status": "preregistered_before_task_acquisition",
+  "protocol_version": "bounded-action-confirmatory.v1",
+  "protocol_document": "docs/roadmap/bounded-action-confirmatory-experiment-protocol.md",
+  "protocol_sha256": "20d2d01749d2a543336963dd6a1d1b087968e15ec0d301a68ea5923fdd5e0a99",
+  "instance_id": "pyvista__pyvista-4315",
+  "new_repository_family": true,
+  "official_swebench_harness": false,
+  "admission": {
+    "baseline_fail_to_pass_must_fail": true,
+    "baseline_pass_to_pass_must_pass": true,
+    "reference_fail_to_pass_must_pass": true,
+    "reference_pass_to_pass_must_pass": true,
+    "model_calls_before_admission": 0
+  },
+  "shared_policy": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "evaluator_timeout_seconds": 180
+  },
+  "arms": [
+    {
+      "name": "control",
+      "order": 1,
+      "post_edit_contract_guidance": false
+    },
+    {
+      "name": "treatment",
+      "order": 2,
+      "post_edit_contract_guidance": true
+    }
+  ],
+  "maximum_valid_episodes_per_arm": 1,
+  "quality_retries": 0,
+  "analysis_after_both_arms": true,
+  "claim_boundary": "Preregistered local Dev one-task comparison; not an official SWE-bench score or a model-level causal estimate."
+}

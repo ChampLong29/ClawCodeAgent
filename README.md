@@ -288,7 +288,7 @@ python tools/validate_task_suite.py --manifest task_suites/manifest.json
 python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 ```
 
-SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 7 个任务、覆盖 Marshmallow、Astroid、SQLFluff、pydicom 和 pvlib 5 个仓库。pydicom-1413 复验只编辑临时脚本并耗尽 24 轮，因此 Post-edit Contract Notice 已改为只由 Oracle 路径内的实现编辑触发。新的 Astroid-1333 路径解析任务完成 1 目标/46 回归的 Oracle 校准；模型定位并复现问题，但未编辑源码，最终长思考耗尽 8192 输出 Token。该运行还暴露 `runtime_stop` 未注册到 Trajectory v2，现已修复并由 RuntimeAdapter 集成测试覆盖，原 Episode 不改写、不付费重跑。所有历史 Episode 仅保留作 Dev Bad Case 或基础设施样本；没有模型增点结论，正式 Docker Harness 仍待实现。
+SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 13 个任务、覆盖 6 个仓库；新增两题只完成了模型调用前校准。Runtime 支持显式 Thinking Mode、Escalation 后强制直接编辑或一次目标读取后强制编辑、Critical 强制最终响应，以及路径限定的 Post-edit Contract Notice。Marshmallow-1343 产生首个本地真实仓库 Dev 成功 Episode；Marshmallow-1359 的两次跨 Issue 复现则暴露配置父链语义遗漏。预注册 PyVista-4315 双臂均通过 1 条目标测试、114 条回归及全部硬门槛，但不支持 Notice 正确性增益。随后冻结的两任务复现中，pvlib-1606 成功，SQLFluff-1733 在第 7 轮首次定位正确文件时仍请求读取，被直接编辑约束拒绝并停止，最终为 1/2 成功。这一负面结果推动了 Strict/Progressive 配对协议；Astroid-1978 与 pydicom-1256 已通过准入，但尚未调用模型。Verifier Policy v2 与行为诊断 v4 分别记录最终答复质量、被拒绝工具请求和真实定位时机；上述结果均为本地 Dev 证据，不是官方 SWE-bench 分数。
 
 ## 会话与上下文
 
@@ -339,7 +339,7 @@ python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 
 - `task_suites/manifest.json` 是确定性 smoke suite；用于验证机制，不用于证明模型在真实仓库上的能力。
 - Medium Pilot 当前只有两条任务，适合校准 Rollout 和 Reviewer，不足以形成统计显著结论。
-- SWE-bench Lite 已完成两个不同历史仓库的本地校准和受控 Agent Rollout；当前没有符合测试与终止双重硬门槛的成功样本，正式成绩仍需更多 Rollout 和官方 Docker Harness。
+- SWE-bench Lite 已完成单任务预注册对照和两条未见 Issue 的冻结复现；后者为 1/2 成功，并暴露直接编辑约束可能截断 read-before-edit 路径。样本仍太少，正式成绩需更多任务/Seed 与官方 Docker Harness。
 - PEFT SFT 后端已有可审计实现，但真实 GPU 训练结果必须以运行产物和校验后的 Checkpoint 为准；Dry-run 只验证协议与证据链。
 - Reviewer 可以由独立 Agent 执行，但最终指标必须与可复现测试证据分开记录，避免主观评分替代自动验证。
 - DataFlow/DataFlex 已完成上游版本基线，稳定数据契约、确定性治理 Operator、Gold 证据和 LlamaFactory ShareGPT Tool-use 导出已落地；固定 Fixture、2 条简单 Train Episode 和首组真实仓库 Dev Bad Case 均已形成证据。下一步先修正 Agent 的终止效率并扩充真实 Train 数据，再运行最小 Raw/DataFlow LoRA 对照。

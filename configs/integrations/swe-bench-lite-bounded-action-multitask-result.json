@@ -1,0 +1,140 @@
+{
+  "schema_version": "bounded_action_multitask_result.v1",
+  "captured_at": "2026-08-20",
+  "status": "partial_success_1_of_2",
+  "protocol_version": "bounded-action-multitask.v1",
+  "protocol_sha256": "2fe7905e21b8f5f4ed2d7195a2c2bdab49e5b46d34b80c8b01d7d8f66f2a74e1",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "f6f2029",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "admission": {
+    "model_calls_before_admission": 0,
+    "all_tasks_admitted": true,
+    "pvlib_calibration_sha256": "c6a1b1c033e339803253a17a9e397e94c550cb8866c88a0e8469f375933229b0",
+    "sqlfluff_calibration_sha256": "776ebf06b792b8555b365804f6d512e7794f35d7a889961a12171b6e874ff014"
+  },
+  "shared_policy": {
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "post_edit_contract_guidance": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "evaluator_timeout_seconds": 180,
+    "verifier_version": "verifier-policy.v2"
+  },
+  "episodes": [
+    {
+      "instance_id": "pvlib__pvlib-python-1606",
+      "collection_id": "episode_collection_261800532b4faefd4f13",
+      "episode_id": "training-eb0e82c5b7d44368bde8",
+      "success": true,
+      "hashes": {
+        "collection_manifest_sha256": "2c3c1754d1f832e2029aff116007a5ffd15b1252e3fb6476d9e3758abbf6c494",
+        "trajectory_sha256": "7926059e6894d6f0be213cf5057f18c12f3fdb50cd3ea15da11ab89f2e6051c6",
+        "verification_sha256": "7714abdf46baf063dfcef1abd927e0a5fcb018d284e427e24a849007533317b0",
+        "episode_sha256": "ed9bc96535d9f2a308c880a81d44a647b864b2d1d0ece5d0cd1252765f20d4b0"
+      },
+      "verification": {
+        "verdict": "success",
+        "hard_gate_passed": true,
+        "aggregate_score": 1.0,
+        "fail_to_pass": true,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 10,
+        "changed_files": ["pvlib/tools.py"],
+        "termination_reason": "completed",
+        "final_response_quality": "user_facing_text"
+      },
+      "behavior_v4": {
+        "model_turns": 10,
+        "model_requested_tool_calls": 9,
+        "dispatched_tool_calls": 9,
+        "rejected_tool_calls": 0,
+        "input_tokens": 5565,
+        "output_tokens": 1855,
+        "total_tokens": 7420,
+        "latency_seconds": 137.929989519,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 5,
+        "post_edit_contract_guidance_turn": 5,
+        "direct_mutation_calls": 1,
+        "failed_tool_calls": 0
+      },
+      "interpretation": "A minimal equal-bound early return passed the target and all selected regressions. Escalation and completion constraints did not trigger."
+    },
+    {
+      "instance_id": "sqlfluff__sqlfluff-1733",
+      "collection_id": "episode_collection_e258be82ff1daee92973",
+      "episode_id": "training-2c11fc43f35d497f92b5",
+      "success": false,
+      "hashes": {
+        "collection_manifest_sha256": "03ca7ad652855d0289817066120f865527efbdaad818d8cd1dd55a74140e4853",
+        "trajectory_sha256": "ac7df2a4e9d2b06bca8e82643ada6727f43acf63dccd243baeeaeec812c12a0a",
+        "verification_sha256": "e3504c4672c39bde4442a4ffce9712d11750a96acbf166c441b10fa03fb94f44",
+        "episode_sha256": "4522ef10cc3c0390fc13ec42c3ae08cc13627e46f4dd8c682b0f1deb5e59540c"
+      },
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": false,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 3,
+        "changed_files": [],
+        "termination_reason": "cancelled",
+        "termination_detail": "provider did not satisfy the required direct-mutation action constraint",
+        "final_response_quality": "not_completed"
+      },
+      "behavior_v4": {
+        "model_turns": 7,
+        "model_requested_tool_calls": 9,
+        "dispatched_tool_calls": 8,
+        "rejected_tool_calls": 1,
+        "input_tokens": 8853,
+        "output_tokens": 617,
+        "total_tokens": 9470,
+        "latency_seconds": 288.481478485,
+        "first_target_path_turn": 7,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": 6,
+        "first_direct_mutation_turn": null,
+        "post_edit_contract_guidance_turn": null,
+        "direct_mutation_calls": 0,
+        "failed_tool_calls": 0
+      },
+      "failure_analysis": {
+        "valid_model_quality_failure": true,
+        "primary_category_after_deterministic_replay": "action_constraint_violation",
+        "secondary_categories": ["test_failure"],
+        "observed_sequence": "The model inspected L003 through turn 6, then first named the correct L039 path on turn 7 but requested read_file during a direct-edit-only request. Runtime rejected the request and stopped without mutation.",
+        "strategy_tradeoff": "The action constraint prevented further investigation but also cut off a newly localized, potentially recoverable read-before-edit path.",
+        "archived_report_limitation": "The immutable archived report labeled the paired runtime_error as environment_or_infra. The classifier now maps action_constraint_unsatisfied separately; the archived report was not rewritten."
+      }
+    }
+  ],
+  "aggregate": {
+    "tasks": 2,
+    "hard_gate_successes": 1,
+    "hard_gate_success_rate": 0.5,
+    "target_test_successes": 1,
+    "regression_preservation_successes": 2,
+    "completed_user_facing_final_responses": 1,
+    "total_tokens": 16890,
+    "mean_tokens": 8445.0,
+    "total_latency_seconds": 426.411468004,
+    "mean_latency_seconds": 213.205734002
+  },
+  "claim_boundary": "Preregistered two-task local Dev robustness replication with one success and one action-constraint failure. Descriptive only; not an official SWE-bench score, a statistical estimate, or evidence that the bounded policy improves the model."
+}

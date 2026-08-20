@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, AsyncIterator, Sequence
+from typing import Any, Dict, List, Optional, AsyncIterator, Sequence, Set
 
 from .agent_types import (
     AgentPermissions,
@@ -77,8 +77,11 @@ class LocalCodingAgent:
     api_config_cwd: Optional[str] = None
     completion_reminder_turns: int = 0
     completion_critical_turns: int = 0
+    force_final_response_at_critical: bool = False
     implementation_deadline_turns: int = 0
     implementation_escalation_turns: int = 0
+    force_direct_mutation_after_escalation: bool = False
+    implementation_target_read_allowance: int = 0
     post_edit_contract_guidance: bool = False
     implementation_path_patterns: Sequence[str] = ()
 
@@ -125,11 +128,44 @@ class LocalCodingAgent:
                 "implementation_escalation_turns requires a positive "
                 "implementation_deadline_turns"
             )
+        if (
+            self.force_direct_mutation_after_escalation
+            and self.implementation_escalation_turns <= 0
+        ):
+            raise ValueError(
+                "force_direct_mutation_after_escalation requires a positive "
+                "implementation_escalation_turns"
+            )
+        if self.implementation_target_read_allowance not in {0, 1}:
+            raise ValueError(
+                "implementation_target_read_allowance must be 0 or 1"
+            )
+        if (
+            self.implementation_target_read_allowance > 0
+            and not self.force_direct_mutation_after_escalation
+        ):
+            raise ValueError(
+                "implementation_target_read_allowance requires "
+                "force_direct_mutation_after_escalation"
+            )
+        if self.force_final_response_at_critical and self.completion_critical_turns <= 0:
+            raise ValueError(
+                "force_final_response_at_critical requires a positive "
+                "completion_critical_turns"
+            )
         self.implementation_path_patterns = tuple(
             str(pattern).replace("\\", "/")
             for pattern in self.implementation_path_patterns
             if str(pattern).strip()
         )
+        if (
+            self.implementation_target_read_allowance > 0
+            and not self.implementation_path_patterns
+        ):
+            raise ValueError(
+                "implementation_target_read_allowance requires explicit "
+                "implementation_path_patterns"
+            )
 
         if (
             self.completion_reminder_turns > 0
@@ -271,6 +307,20 @@ class LocalCodingAgent:
             for pattern in self.implementation_path_patterns
         )
 
+    @staticmethod
+    def _tool_call_path(tool_call: Dict[str, Any]) -> Any:
+        """Extract a path from a model tool call without dispatching it."""
+        function = tool_call.get("function") or {}
+        arguments = function.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (TypeError, ValueError):
+                return None
+        if not isinstance(arguments, dict):
+            return None
+        return arguments.get("path")
+
     @classmethod
     def from_session(
         cls,
@@ -397,6 +447,9 @@ class LocalCodingAgent:
             post_edit_contract_guidance_pending = False
             first_direct_mutation_turn: Optional[int] = None
             direct_mutation_succeeded = False
+            force_direct_mutation_request = False
+            target_reads_remaining = self.implementation_target_read_allowance
+            force_final_response_request = False
             while self.turns < max_turns:
                 # Check budget
                 allowed, reason = budget.check()
@@ -426,8 +479,16 @@ class LocalCodingAgent:
                         "values and exceptions, but also compatibility contracts such "
                         "as scalar versus collection inputs, container and return "
                         "types, shape, ordering, null handling, and metadata when they "
-                        "apply. If any check fails, read the failure and repair the "
-                        "implementation before returning a final response."
+                        "apply. When adding a guard, default, or fallback around a "
+                        "nested object, first identify which object owns the "
+                        "configuration and whether the codebase already exposes a "
+                        "root or parent chain abstraction. Then set an explicit "
+                        "non-default configuration at that owner and verify that it "
+                        "propagates to the nested leaf; setting the value directly "
+                        "on the leaf or merely avoiding the exception is not "
+                        "sufficient. If any "
+                        "check fails, read the failure and repair the implementation "
+                        "before returning a final response."
                     )
                     messages.append({"role": "user", "content": contract_guidance})
                     self._trace(
@@ -487,13 +548,38 @@ class LocalCodingAgent:
                     escalation = (
                         "[Runtime implementation escalation] The earlier "
                         "implementation deadline was not followed and no successful "
-                        "direct file edit has been observed. Do not call read, search, "
-                        "outline, or environment-inspection tools again. In the next "
-                        "tool-bearing response, either make the smallest defensible "
-                        "direct edit based on current evidence, or run exactly one "
-                        "focused reproducer that distinguishes two concrete "
-                        "implementation choices and then edit immediately."
+                        "direct file edit has been observed. "
                     )
+                    if (
+                        self.force_direct_mutation_after_escalation
+                        and target_reads_remaining > 0
+                    ):
+                        escalation += (
+                            "In the next tool-bearing response, either make the "
+                            "smallest defensible direct edit based on current "
+                            "evidence, or read exactly one file matching the allowed "
+                            "implementation paths. If you read it, the following "
+                            "tool-bearing response must directly edit an allowed "
+                            "implementation path. Do not call search, outline, shell, "
+                            "or environment-inspection tools."
+                        )
+                    else:
+                        escalation += (
+                            "Do not call read, search, outline, or "
+                            "environment-inspection tools again. In the next "
+                            "tool-bearing response, either make the smallest "
+                            "defensible direct edit based on current evidence, or "
+                            "run exactly one focused reproducer that distinguishes "
+                            "two concrete implementation choices and then edit "
+                            "immediately."
+                        )
+                    if self.implementation_path_patterns:
+                        escalation += (
+                            " Direct edits must target one of these implementation "
+                            "path patterns: "
+                            + ", ".join(self.implementation_path_patterns)
+                            + "."
+                        )
                     messages.append({"role": "user", "content": escalation})
                     self._trace(
                         "runtime_guidance",
@@ -503,9 +589,22 @@ class LocalCodingAgent:
                             "configured_delay": self.implementation_escalation_turns,
                             "deadline_threshold": self.implementation_deadline_turns,
                             "remaining_tool_turns": remaining_tool_turns,
+                            "action_constraint": (
+                                (
+                                    "target_read_or_direct_mutation"
+                                    if target_reads_remaining > 0
+                                    else "required_direct_mutation"
+                                )
+                                if self.force_direct_mutation_after_escalation
+                                else "guidance_only"
+                            ),
+                            "target_reads_remaining": target_reads_remaining,
                         },
                     )
                     implementation_escalation_sent = True
+                    force_direct_mutation_request = (
+                        self.force_direct_mutation_after_escalation
+                    )
                 if (
                     self.completion_reminder_turns > 0
                     and not completion_reminder_sent
@@ -550,20 +649,64 @@ class LocalCodingAgent:
                             "guidance_type": "completion_critical",
                             "remaining_tool_turns": remaining_tool_turns,
                             "configured_threshold": self.completion_critical_turns,
+                            "action_constraint": (
+                                "final_response_only"
+                                if self.force_final_response_at_critical
+                                else "guidance_only"
+                            ),
                         },
                     )
                     completion_critical_sent = True
+                    force_final_response_request = (
+                        self.force_final_response_at_critical
+                    )
 
                 inference_config = self._model_inference_kwargs()
+                if (
+                    implementation_escalation_sent
+                    and self.force_direct_mutation_after_escalation
+                    and not direct_mutation_succeeded
+                    and not force_final_response_request
+                ):
+                    force_direct_mutation_request = True
+                allowed_request_tools: Optional[Set[str]] = None
+                allow_target_read_request = (
+                    force_direct_mutation_request
+                    and target_reads_remaining > 0
+                )
+                if force_final_response_request:
+                    allowed_request_tools = set()
+                    inference_config["tool_choice"] = "none"
+                elif force_direct_mutation_request:
+                    allowed_request_tools = set(_DIRECT_MUTATION_TOOLS)
+                    if allow_target_read_request:
+                        allowed_request_tools.add("read_file")
+                    inference_config["tool_choice"] = "required"
+                request_tools = self._get_toolspec(
+                    allowed_names=allowed_request_tools
+                )
                 model_request_event_id = self._trace(
                     "model_request",
                     payload={
                         "model": getattr(self.client, "model", ""),
                         "messages": messages,
-                        "tools": self._get_toolspec(),
+                        "tools": request_tools,
                         "stream": stream,
                         "turn": self.turns,
                         "inference_config": inference_config,
+                        "action_constraint": (
+                            (
+                                "target_read_or_direct_mutation"
+                                if allow_target_read_request
+                                else "required_direct_mutation"
+                            )
+                            if force_direct_mutation_request
+                            else (
+                                "final_response_only"
+                                if force_final_response_request
+                                else None
+                            )
+                        ),
                     },
                 )
                 model_started = time.monotonic()
@@ -576,24 +719,33 @@ class LocalCodingAgent:
                     non_system_messages = [m for m in messages if m.get("role") != "system"]
 
                     if stream:
-                        response = self._stream_anthropic(non_system_messages, system_content)
+                        response = self._stream_anthropic(
+                            non_system_messages,
+                            system_content,
+                            tools=request_tools,
+                            inference_config=inference_config,
+                        )
                     else:
                         response = self._retry_call(
                             self.client.complete,
                             messages=non_system_messages,
                             system_prompt=system_content,
-                            tools=self._get_toolspec(),
+                            tools=request_tools,
                             **inference_config,
                         )
                 else:
                     # OpenAI-compatible client
                     if stream:
-                        response = self._stream_openai(messages)
+                        response = self._stream_openai(
+                            messages,
+                            tools=request_tools,
+                            inference_config=inference_config,
+                        )
                     else:
                         response = self._retry_call(
                             self.client.complete,
                             messages=messages,
-                            tools=self._get_toolspec(),
+                            tools=request_tools,
                             **inference_config,
                         )
 
@@ -631,6 +783,91 @@ class LocalCodingAgent:
                 # Handle response
                 content = response.get("content", "")
                 tool_calls = response.get("tool_calls")
+
+                if force_direct_mutation_request:
+                    force_direct_mutation_request = False
+                    requested_names = {
+                        str((item.get("function") or {}).get("name", ""))
+                        for item in (tool_calls or [])
+                    }
+                    direct_mutation_request = bool(tool_calls) and (
+                        requested_names.issubset(_DIRECT_MUTATION_TOOLS)
+                    ) and all(
+                        self._tool_call_path(item) is not None
+                        and self._is_implementation_path(
+                            self._tool_call_path(item)
+                        )
+                        for item in (tool_calls or [])
+                    )
+                    target_read_request = (
+                        allow_target_read_request
+                        and len(tool_calls or []) == 1
+                        and requested_names == {"read_file"}
+                        and self._tool_call_path((tool_calls or [])[0]) is not None
+                        and self._is_implementation_path(
+                            self._tool_call_path((tool_calls or [])[0])
+                        )
+                    )
+                    if target_read_request:
+                        target_reads_remaining -= 1
+                        self._trace(
+                            "runtime_guidance",
+                            payload={
+                                "guidance_type": "implementation_target_read_consumed",
+                                "path": self._tool_call_path((tool_calls or [])[0]),
+                                "target_reads_remaining": target_reads_remaining,
+                                "next_action_constraint": "required_direct_mutation",
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
+                    if not direct_mutation_request and not target_read_request:
+                        detail = (
+                            "provider did not satisfy the bounded implementation "
+                            "action constraint"
+                        )
+                        self._trace(
+                            "runtime_stop",
+                            payload={
+                                "reason": "action_constraint_unsatisfied",
+                                "detail": detail,
+                                "requested_tool_names": sorted(requested_names),
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
+                        self.session.stop_reason = "stopped"
+                        return AgentRunResult(
+                            stop_reason="stopped",
+                            final_message=content or None,
+                            error=detail,
+                            usage=self.usage,
+                        )
+                if force_final_response_request:
+                    force_final_response_request = False
+                    if tool_calls:
+                        requested_names = {
+                            str((item.get("function") or {}).get("name", ""))
+                            for item in tool_calls
+                        }
+                        detail = (
+                            "provider did not satisfy the final-response-only "
+                            "action constraint"
+                        )
+                        self._trace(
+                            "runtime_stop",
+                            payload={
+                                "reason": "action_constraint_unsatisfied",
+                                "detail": detail,
+                                "requested_tool_names": sorted(requested_names),
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
+                        self.session.stop_reason = "stopped"
+                        return AgentRunResult(
+                            stop_reason="stopped",
+                            final_message=content or None,
+                            error=detail,
+                            usage=self.usage,
+                        )
 
                 # Extract thinking metadata for session persistence
                 _thinking = response.get("_thinking")
@@ -1039,9 +1276,23 @@ class LocalCodingAgent:
         }
         if self.model_config.max_tokens is not None:
             kwargs["max_tokens"] = self.model_config.max_tokens
+        thinking_mode = getattr(self.model_config, "thinking_mode", None)
+        if thinking_mode is not None:
+            normalized = str(thinking_mode).strip().lower()
+            if normalized not in {"auto", "enabled", "disabled"}:
+                raise ValueError(
+                    "thinking_mode must be one of auto, enabled, or disabled"
+                )
+            kwargs["thinking_mode"] = normalized
         return kwargs
 
-    def _stream_openai(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _stream_openai(
+        self,
+        messages: List[Dict[str, Any]],
+        *,
+        tools: List[Dict[str, Any]],
+        inference_config: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Stream completion from OpenAI-compatible API and accumulate response."""
         content_parts = []
         tool_calls_map: Dict[int, Dict[str, Any]] = {}
@@ -1049,8 +1300,8 @@ class LocalCodingAgent:
 
         for chunk in self.client.stream(
             messages=messages,
-            tools=self._get_toolspec(),
-            **self._model_inference_kwargs(),
+            tools=tools,
+            **inference_config,
         ):
             if "content" in chunk and chunk["content"]:
                 text = chunk["content"]
@@ -1090,7 +1341,14 @@ class LocalCodingAgent:
         response["usage"] = usage
         return response
 
-    def _stream_anthropic(self, messages: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
+    def _stream_anthropic(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: str,
+        *,
+        tools: List[Dict[str, Any]],
+        inference_config: Dict[str, Any],
+    ) -> Dict[str, Any]:
         """Stream completion from Anthropic API and accumulate response."""
         content_parts = []
         tool_call_buffer: Dict[str, Dict[str, Any]] = {}
@@ -1101,8 +1359,8 @@ class LocalCodingAgent:
         for chunk in self.client.stream(
             messages=messages,
             system_prompt=system_prompt,
-            tools=self._get_toolspec(),
-            **self._model_inference_kwargs(),
+            tools=tools,
+            **inference_config,
         ):
             if "content" in chunk and chunk["content"]:
                 text = chunk["content"]
@@ -1152,7 +1410,10 @@ class LocalCodingAgent:
 
         return response
 
-    def _get_toolspec(self) -> List[Dict[str, Any]]:
+    def _get_toolspec(
+        self,
+        allowed_names: Optional[Set[str]] = None,
+    ) -> List[Dict[str, Any]]:
         """Get tool specifications for the model, respecting blocked tools and adding virtuals."""
         registry = default_tool_registry()
         tools = []
@@ -1165,6 +1426,8 @@ class LocalCodingAgent:
         for tool in registry.list_tools():
             # Skip blocked tools — the model should not see them
             if tool.name in blocked_names:
+                continue
+            if allowed_names is not None and tool.name not in allowed_names:
                 continue
 
             if is_anthropic:
@@ -1185,6 +1448,11 @@ class LocalCodingAgent:
 
         # Add virtual tools from plugins
         for vt in self._virtual_tools:
+            if (
+                allowed_names is not None
+                and vt.get("name", "") not in allowed_names
+            ):
+                continue
             if is_anthropic:
                 tools.append({
                     "name": vt.get("name", ""),

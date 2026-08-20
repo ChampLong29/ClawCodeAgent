@@ -1,0 +1,69 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_evidence.v1",
+  "captured_at": "2026-08-20",
+  "status": "passed_after_dependency_remediation",
+  "instance_id": "pyvista__pyvista-4315",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "db6ee8dd4a747b8864caae36c5d05883976a3ae5",
+  "model_calls_before_admission": 0,
+  "environment": {
+    "python_version": "Python 3.8.20",
+    "vtk_version": "9.2.6",
+    "numpy_version": "1.24.4",
+    "pytest_version": "7.3.2",
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "native_wsl_environment": "/home/wanzhoulong/.cache/claw/environments/pyvista-4315-py38-uv",
+    "lock_file": "configs/integrations/pyvista-4315-py38-lock.txt",
+    "lock_sha256": "1c09da89c33cf16744dbc22e594bfa693404ed0c5c8f9b9bff7ccf773055f536",
+    "official_swebench_harness": false
+  },
+  "preparation_failures": [
+    {
+      "stage": "windows_mount_venv_creation",
+      "error": "ensurepip returned 127",
+      "model_calls": 0,
+      "resolution": "Create the environment on the native WSL filesystem with the existing uv-managed CPython 3.8.20 interpreter."
+    },
+    {
+      "stage": "first_test_collection",
+      "error": "tests/conftest.py required ipykernel",
+      "model_calls": 0,
+      "resolution": "Pin ipykernel==6.29.5 before rerunning calibration."
+    },
+    {
+      "stage": "first_regression_execution",
+      "error": "3 of 114 regressions required tqdm and meshio",
+      "model_calls": 0,
+      "resolution": "Pin tqdm==4.65.0 and meshio==5.3.4 within the repository's declared upper bounds."
+    }
+  ],
+  "calibration_attempts": [
+    {
+      "name": "v1_collection_failure",
+      "result_sha256": "920f4ca51b0a9309b88880a7ab61d805494f1338a5e8c7e35006b0b051e17906",
+      "status": "failed",
+      "return_codes": [4, 4, 4, 4]
+    },
+    {
+      "name": "v2_missing_regression_dependencies",
+      "result_sha256": "7ef5f97c122d0c03d016a31667b5da9ab5f358a6f4b96b4b09aabd25098da3bc",
+      "status": "failed",
+      "baseline_fail_to_pass": false,
+      "baseline_pass_to_pass": false,
+      "reference_fail_to_pass": true,
+      "reference_pass_to_pass": false
+    },
+    {
+      "name": "v3_admitted",
+      "result_sha256": "25ab02a5fdb685e5a11ee5731e485d016fc341afc654049107a098ae060913ee",
+      "status": "passed",
+      "baseline_fail_to_pass": false,
+      "baseline_pass_to_pass": true,
+      "reference_fail_to_pass": true,
+      "reference_pass_to_pass": true,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 114
+    }
+  ],
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score."
+}

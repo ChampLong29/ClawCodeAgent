@@ -1,0 +1,38 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_summary.v1",
+  "captured_at": "2026-08-20",
+  "status": "passed_after_repository_reacquisition",
+  "instance_id": "pylint-dev__astroid-1978",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "0c9ab0fe56703fa83c73e514a1020d398d23fa7f",
+  "protocol_version": "progressive-action-constraint-ablation.v1",
+  "model_calls_before_admission": 0,
+  "repository_acquisition": {
+    "initial_attempt": "local clone from an existing partial repository",
+    "initial_result": "failed because required blobs were absent and the inherited object helper terminated",
+    "remediation": "removed only the two newly created broken task copies, cloned the official upstream repository, disabled the failing inherited fsmonitor setting locally, and checked out the exact base commit",
+    "final_head_verified": true,
+    "final_clean_state": true
+  },
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "7.4.4",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "reused_from": "pylint-dev__astroid-1333"
+  },
+  "evaluator_fingerprint": {
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 12,
+    "patch_sha256": "11c73aed91977e5a0a6534072e1452cd5879bff0fbe800a495f83924b07a7f62",
+    "test_patch_sha256": "78bd28d876b53eac8bfa0b236de02c3b40137101a4996784a9657534b110c2c9",
+    "test_ids_hash": "e39e7b0febf9179f81f00799d7a9bc33bf0c2af7080cb625ae882877acb6829d"
+  },
+  "runs": {
+    "baseline_fail_to_pass": {"passed": false, "returncode": 1, "test_count": 1},
+    "baseline_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 12},
+    "reference_fail_to_pass": {"passed": true, "returncode": 0, "test_count": 1},
+    "reference_pass_to_pass": {"passed": true, "returncode": 0, "test_count": 12}
+  },
+  "claim_boundary": "Local compatibility calibration only; no model call, official SWE-bench score, or model-quality result."
+}

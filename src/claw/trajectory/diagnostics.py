@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 from .schema import Trajectory, TrajectoryEvent
 
 
-DIAGNOSTICS_SCHEMA_VERSION = "rollout_behavior_diagnostics.v3"
+DIAGNOSTICS_SCHEMA_VERSION = "rollout_behavior_diagnostics.v4"
 
 _DIRECT_MUTATION_TOOLS = {"write_file", "edit_file", "multi_edit", "apply_patch"}
 _PATH_INSPECTION_TOOLS = {
@@ -71,7 +71,9 @@ class RolloutBehaviorDiagnostics:
     """Observable timing and exploration facts; no semantic quality judgement."""
 
     model_turns: int
+    model_requested_tool_calls: int
     tool_calls: int
+    rejected_tool_calls: int
     direct_mutation_calls: int
     path_inspection_calls: int
     failed_tool_calls: int
@@ -120,6 +122,7 @@ def analyze_rollout_behavior(
     implementation_escalation_turn: Optional[int] = None
     post_edit_contract_guidance_turn: Optional[int] = None
     tool_calls = 0
+    rejected_tool_calls = 0
     mutation_calls = 0
     inspection_calls = 0
     target_inspections = 0
@@ -129,10 +132,38 @@ def analyze_rollout_behavior(
     tool_calls_after_critical = 0
     inspected_paths = set()
 
+    dispatched_call_ids = {
+        str(resolve(event).get("call_id") or "")
+        for event in trajectory.events
+        if event.event_type == "tool_call"
+    }
+
     for event in trajectory.events:
         payload = resolve(event)
         if event.event_type == "model_response":
             turn += 1
+            response_calls = payload.get("tool_calls") or []
+            for call in response_calls if isinstance(response_calls, list) else []:
+                if not isinstance(call, dict):
+                    continue
+                call_id = str(call.get("id") or "")
+                if call_id and call_id in dispatched_call_ids:
+                    continue
+                rejected_tool_calls += 1
+                function = call.get("function") or {}
+                if not isinstance(function, dict):
+                    continue
+                arguments = _arguments({"arguments": function.get("arguments", {})})
+                serialized_arguments = json.dumps(
+                    arguments, ensure_ascii=False, sort_keys=True
+                ).replace("\\", "/")
+                target_mentioned = any(
+                    _normalize_path(pattern).rstrip("*") in serialized_arguments
+                    for pattern in target_path_patterns
+                    if _normalize_path(pattern).rstrip("*") not in {"", "/"}
+                )
+                if target_mentioned and first_target_turn is None:
+                    first_target_turn = turn
             continue
         if event.event_type == "runtime_guidance":
             guidance_type = payload.get("guidance_type")
@@ -211,7 +242,9 @@ def analyze_rollout_behavior(
     )
     return RolloutBehaviorDiagnostics(
         model_turns=turn,
+        model_requested_tool_calls=tool_calls + rejected_tool_calls,
         tool_calls=tool_calls,
+        rejected_tool_calls=rejected_tool_calls,
         direct_mutation_calls=mutation_calls,
         path_inspection_calls=inspection_calls,
         failed_tool_calls=failed_calls,

@@ -45,6 +45,7 @@ class ModelConfig:
     name: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
     temperature: float = 0.1
     max_tokens: Optional[int] = None
+    thinking_mode: Optional[str] = None
     pricing: Optional[ModelPricing] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -52,6 +53,7 @@ class ModelConfig:
             "name": self.name,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
+            "thinking_mode": self.thinking_mode,
             "pricing": self.pricing.to_dict() if self.pricing else None,
         }
 
@@ -64,6 +66,7 @@ class ModelConfig:
             name=data.get("name", "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
             temperature=data.get("temperature", 0.1),
             max_tokens=data.get("max_tokens"),
+            thinking_mode=data.get("thinking_mode"),
             pricing=pricing,
         )
 

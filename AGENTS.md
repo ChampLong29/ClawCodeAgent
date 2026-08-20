@@ -169,7 +169,9 @@ Trajectory v2 remains the immutable event source. Derive path-localization and e
 signals with `claw.trajectory.analyze_rollout_behavior()` or
 `tools/analyze_rollout_behavior.py`; do not rewrite historical trajectory events to add
 diagnostics. `direct_mutation` means an observed explicit file-edit tool, not proof that Shell
-commands had no side effects.
+commands had no side effects. Behavior diagnostics v4 distinguishes model-requested,
+dispatched, and policy-rejected tool calls; a rejected request can still provide
+path-localization evidence without being counted as an executed inspection or mutation.
 
 ## Repository Layout
 
@@ -221,6 +223,12 @@ When changing tool execution:
 - Keep optional implementation-deadline, escalation, and post-edit contract
   guidance traceable as `runtime_guidance`; guidance is not a tool-policy bypass
   or proof of model improvement.
+- Keep optional forced-action requests visible in `model_request`: direct-mutation
+  constraints may expose only explicit edit tools, or one allowlisted target-file
+  read followed by an edit-only request; final-response constraints expose no tools.
+  Reject off-target and repeated reads before dispatch. A provider that violates a
+  constraint must stop explicitly; a configured but untriggered constraint is not
+  evidence of causal improvement.
 
 ### Configuration discovery
 
@@ -263,6 +271,10 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Real PEFT training must pin the base-model revision and full training config.
 - Dataset construction must reject Split/Family leakage and broken tool-call alignment.
 - Reviewer scores remain separate from automated test outcomes.
+- Verifier policy v2 records `final_response_quality` as a zero-weight Soft signal
+  derived from immutable termination detail. It detects only obvious delivery
+  defects and does not override hard test, Diff, permission, format, or termination
+  results.
 - Non-base benchmark groups require matching Dataset, Training Run, and Experiment references.
 - Completed Registry evidence is immutable; do not overwrite it to make a run appear consistent.
 - A screened SWE-bench item is not an official result until run through the official isolated Harness.

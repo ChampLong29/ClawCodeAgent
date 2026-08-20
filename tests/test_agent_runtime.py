@@ -424,6 +424,29 @@ class TestAgentConfiguration(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalCodingAgent(
                 cwd=self.tempdir,
+                implementation_target_read_allowance=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_target_read_allowance=2,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_target_read_allowance=1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_deadline_turns=1,
+                implementation_escalation_turns=1,
+                force_direct_mutation_after_escalation=True,
+                implementation_target_read_allowance=1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
                 completion_reminder_turns=2,
                 completion_critical_turns=3,
             )
@@ -540,6 +563,228 @@ class TestAgentConfiguration(unittest.TestCase):
             )
         )
         self.assertEqual(len(client.requests), 5)
+
+    def test_escalation_can_force_one_bounded_direct_mutation_request(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(
+                name="benchmark-model",
+                max_tokens=2048,
+                thinking_mode="disabled",
+            ),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) <= 2:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": f"inspect-{len(self.requests)}",
+                            "function": {
+                                "name": "list_dir",
+                                "arguments": '{"path": "."}',
+                            },
+                        }],
+                        "usage": {},
+                    }
+                if len(self.requests) == 3:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "forced-edit",
+                            "function": {
+                                "name": "write_file",
+                                "arguments": (
+                                    '{"path": "fixed.py", '
+                                    '"content": "VALUE = 1\\n"}'
+                                ),
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "completed")
+        forced = client.requests[2]
+        self.assertEqual(forced["tool_choice"], "required")
+        self.assertEqual(forced["thinking_mode"], "disabled")
+        self.assertEqual(forced["max_tokens"], 2048)
+        visible_names = {
+            item.get("name")
+            or (item.get("function") or {}).get("name")
+            for item in forced["tools"]
+        }
+        self.assertEqual(visible_names, {"write_file", "edit_file"})
+        self.assertTrue((Path(self.tempdir) / "fixed.py").is_file())
+
+    def test_escalation_can_allow_one_target_read_then_requires_edit(self):
+        (Path(self.tempdir) / "fixed.py").write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_target_read_allowance=1,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                request_number = len(self.requests)
+                if request_number <= 2:
+                    name, arguments = "list_dir", '{"path": "."}'
+                elif request_number == 3:
+                    name, arguments = "read_file", '{"path": "fixed.py"}'
+                elif request_number == 4:
+                    name = "write_file"
+                    arguments = '{"path": "fixed.py", "content": "VALUE = 1\\n"}'
+                else:
+                    return {"content": "done", "usage": {}}
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{request_number}",
+                        "function": {"name": name, "arguments": arguments},
+                    }],
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=6)
+
+        self.assertEqual(result.stop_reason, "completed")
+        target_read_tools = {
+            item.get("name") or (item.get("function") or {}).get("name")
+            for item in client.requests[2]["tools"]
+        }
+        self.assertEqual(
+            target_read_tools, {"read_file", "write_file", "edit_file"}
+        )
+        edit_only_tools = {
+            item.get("name") or (item.get("function") or {}).get("name")
+            for item in client.requests[3]["tools"]
+        }
+        self.assertEqual(edit_only_tools, {"write_file", "edit_file"})
+        self.assertEqual(
+            (Path(self.tempdir) / "fixed.py").read_text(), "VALUE = 1\n"
+        )
+
+    def test_escalation_rejects_off_target_read_without_dispatch(self):
+        (Path(self.tempdir) / "other.py").write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_target_read_allowance=1,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class OffTargetClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **kwargs):
+                self.calls += 1
+                name = "list_dir" if self.calls <= 2 else "read_file"
+                path = "." if self.calls <= 2 else "other.py"
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{self.calls}",
+                        "function": {
+                            "name": name,
+                            "arguments": json.dumps({"path": path}),
+                        },
+                    }],
+                    "usage": {},
+                }
+
+        agent.client = OffTargetClient()
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertIn("bounded implementation", result.error)
+        self.assertEqual(len(agent.session.messages), 5)
+
+    def test_escalation_rejects_second_target_read(self):
+        (Path(self.tempdir) / "fixed.py").write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_target_read_allowance=1,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class RepeatingReadClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **kwargs):
+                self.calls += 1
+                name = "list_dir" if self.calls <= 2 else "read_file"
+                path = "." if self.calls <= 2 else "fixed.py"
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{self.calls}",
+                        "function": {
+                            "name": name,
+                            "arguments": json.dumps({"path": path}),
+                        },
+                    }],
+                    "usage": {},
+                }
+
+        client = RepeatingReadClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=6)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertEqual(client.calls, 4)
+        self.assertIn("bounded implementation", result.error)
 
     def test_successful_edit_suppresses_implementation_escalation(self):
         agent = LocalCodingAgent(
@@ -670,6 +915,10 @@ class TestAgentConfiguration(unittest.TestCase):
         ]
         self.assertEqual(len(final_notices), 1)
         self.assertIn("container and return types", notices[0]["content"])
+        self.assertIn("non-default configuration", notices[0]["content"])
+        self.assertIn("parent chain", notices[0]["content"])
+        self.assertIn("which object owns", notices[0]["content"])
+        self.assertIn("setting the value directly", notices[0]["content"])
 
     def test_scratch_edit_does_not_trigger_implementation_contract_notice(self):
         agent = LocalCodingAgent(
@@ -796,6 +1045,57 @@ class TestAgentConfiguration(unittest.TestCase):
             ),
             1,
         )
+
+    def test_critical_turn_can_force_final_response_without_tools(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(
+                name="benchmark-model",
+                thinking_mode="disabled",
+            ),
+            permissions={"allow_write": True},
+            completion_reminder_turns=2,
+            completion_critical_turns=1,
+            force_final_response_at_critical=True,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                if len(self.requests) < 3:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": f"inspect-{len(self.requests)}",
+                            "function": {
+                                "name": "list_dir",
+                                "arguments": '{"path": "."}',
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "implemented and verified",
+                    "finish_reason": "end_turn",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=3)
+
+        self.assertEqual(result.stop_reason, "completed")
+        constrained = client.requests[2]
+        self.assertEqual(constrained["tool_choice"], "none")
+        self.assertEqual(constrained["tools"], [])
+        self.assertEqual(result.final_message, "implemented and verified")
 
     def test_create_with_budget(self):
         budget = BudgetConfig(max_total_tokens=100000, max_output_tokens=40000)

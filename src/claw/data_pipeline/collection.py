@@ -190,7 +190,7 @@ def collect_local_training_episodes(
     runtime_version: str = "local-agent-runtime.v1",
     prompt_version: str = "agent-system-prompt.v1",
     tool_version: str = "tool-schema.v1",
-    verifier_version: str = "verifier-policy.v1",
+    verifier_version: str = "verifier-policy.v2",
     config_version: str = "training-collection.v1",
     task_ids: Sequence[str] = (),
     limit: Optional[int] = None,

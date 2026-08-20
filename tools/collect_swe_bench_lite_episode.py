@@ -20,11 +20,42 @@ def main() -> int:
     parser.add_argument("--model", default="deepseek-v4-flash")
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int)
+    parser.add_argument(
+        "--thinking-mode",
+        choices=("auto", "enabled", "disabled"),
+        help=(
+            "Per-request thinking mode. DeepSeek Anthropic compatibility "
+            "ignores thinking budget_tokens, so use disabled for a bounded "
+            "action experiment."
+        ),
+    )
     parser.add_argument("--max-turns", type=int, default=50)
     parser.add_argument("--completion-reminder-turns", type=int, default=8)
     parser.add_argument("--completion-critical-turns", type=int, default=3)
+    parser.add_argument(
+        "--force-final-response-at-critical",
+        action="store_true",
+        help="At the critical threshold, hide tools and require a final response.",
+    )
     parser.add_argument("--implementation-deadline-turns", type=int, default=12)
     parser.add_argument("--implementation-escalation-turns", type=int, default=4)
+    parser.add_argument(
+        "--force-direct-mutation-after-escalation",
+        action="store_true",
+        help=(
+            "On the escalation request, expose only write_file/edit_file and "
+            "require a tool call."
+        ),
+    )
+    parser.add_argument(
+        "--implementation-target-read-allowance",
+        type=int,
+        default=0,
+        help=(
+            "Set to 1 to allow one read of an allowlisted target file after "
+            "escalation; the following tool-bearing response must edit."
+        ),
+    )
     parser.add_argument(
         "--no-post-edit-contract-guidance",
         action="store_false",
@@ -51,11 +82,19 @@ def main() -> int:
         model_ref=args.model,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
+        thinking_mode=args.thinking_mode,
         max_turns=args.max_turns,
         completion_reminder_turns=args.completion_reminder_turns,
         completion_critical_turns=args.completion_critical_turns,
+        force_final_response_at_critical=args.force_final_response_at_critical,
         implementation_deadline_turns=args.implementation_deadline_turns,
         implementation_escalation_turns=args.implementation_escalation_turns,
+        force_direct_mutation_after_escalation=(
+            args.force_direct_mutation_after_escalation
+        ),
+        implementation_target_read_allowance=(
+            args.implementation_target_read_allowance
+        ),
         post_edit_contract_guidance=args.post_edit_contract_guidance,
         timeout_seconds=args.timeout,
         prompt_version=args.prompt_version,

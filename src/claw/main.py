@@ -778,7 +778,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     benchmark_parser.add_argument("--tool-version", default="tool-schema.v1")
     benchmark_parser.add_argument(
-        "--verifier-version", default="verifier-policy.v1"
+        "--verifier-version", default="verifier-policy.v2"
     )
     benchmark_parser.add_argument(
         "--config-version", default="benchmark-cli.v1"

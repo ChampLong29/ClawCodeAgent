@@ -1,0 +1,134 @@
+{
+  "schema_version": "swe_bench_lite_bounded_action_comparison.v1",
+  "captured_at": "2026-08-20",
+  "status": "fresh_task_replication_failed",
+  "instance_id": "marshmallow-code__marshmallow-1359",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "f6f2029",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "calibration": {
+    "baseline_fail_to_pass": false,
+    "baseline_pass_to_pass": true,
+    "reference_fail_to_pass": true,
+    "reference_pass_to_pass": true
+  },
+  "shared_policy": {
+    "thinking_mode": "disabled",
+    "temperature": 0,
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "force_direct_mutation_after_escalation": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "post_edit_contract_guidance": true,
+    "implementation_path_patterns": [
+      "src/marshmallow/fields.py"
+    ]
+  },
+  "attempts": [
+    {
+      "name": "fresh_task_v1",
+      "collection_id": "episode_collection_11e85b0fac35163bab5f",
+      "episode_id": "training-c76f7dee2235441a8c3b",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.marshmallow-1359-bounded-action-v1",
+      "policy_delta": {
+        "implementation_deadline_turns": 5,
+        "implementation_escalation_turns": 2,
+        "enhanced_nested_fallback_guidance": false
+      },
+      "hashes": {
+        "trajectory_sha256": "37dd7bf37f9cfff5d1340367572eb1522e2c3cd77a0f5dd083ae4b6d9d3cd6f1",
+        "verification_sha256": "be8e89af1f8b9adf05b2a9123748ba17024ee2fbdfcdfd5b55e6aa212bbbdc2b",
+        "episode_sha256": "64c6360b4e4c81558499369db73b0dfe4d2bbc7e78a8f8eaaf2a33f8b5d3bbec",
+        "collection_manifest_sha256": "84ee2c0e0c01cc0648a6c14e97b5376c69092b26d1805bf20f0f640877f535b1"
+      },
+      "behavior": {
+        "model_turns": 14,
+        "tool_calls": 13,
+        "total_tokens": 9691,
+        "latency_seconds": 66.931859784,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 5,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 7,
+        "post_edit_contract_guidance_turn": 7,
+        "completion_reminder_turn": null,
+        "completion_critical_turn": null
+      },
+      "verification": {
+        "hard_gate_passed": false,
+        "fail_to_pass": false,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 76,
+        "diff_scope_passed": true,
+        "process_permission_passed": true,
+        "format_schema_passed": true,
+        "termination_compliance_passed": true
+      },
+      "diagnosis": "The fallback avoided the exception but replaced root Schema options with None for nested fields. The model checked default serialization, not non-default Schema.Meta configuration propagation."
+    },
+    {
+      "name": "guided_remediation_v2",
+      "collection_id": "episode_collection_13df799679463c0e721a",
+      "episode_id": "training-2996932abb4c4825add6",
+      "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.marshmallow-1359-bounded-action-v2",
+      "policy_delta": {
+        "implementation_deadline_turns": 4,
+        "implementation_escalation_turns": 2,
+        "enhanced_nested_fallback_guidance": true
+      },
+      "hashes": {
+        "trajectory_sha256": "ce0a45327599beaa82ccfaa3f17e008577c038467aaa449d8522fc99d9638f98",
+        "verification_sha256": "ab65decc44db7dc6dcc64d8029486abcabcda80edc9af6e7d31f85758d1bb9f7",
+        "episode_sha256": "24a12c79f0adbe574def37dd4f5bad8e9f354aaf0fbb9754fff954d230d53ba9",
+        "collection_manifest_sha256": "265532e68766349b237c31cfcf7ec2318458e1bb3e1596754e33e6485eede1d3"
+      },
+      "behavior": {
+        "model_turns": 15,
+        "tool_calls": 14,
+        "total_tokens": 13941,
+        "latency_seconds": 77.28828943,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": 6,
+        "forced_direct_mutation_request_triggered": true,
+        "first_direct_mutation_turn": 7,
+        "post_edit_contract_guidance_turn": 7,
+        "completion_reminder_turn": 14,
+        "completion_critical_turn": null
+      },
+      "verification": {
+        "hard_gate_passed": false,
+        "fail_to_pass": false,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 76,
+        "diff_scope_passed": true,
+        "process_permission_passed": true,
+        "format_schema_passed": true,
+        "termination_compliance_passed": true
+      },
+      "diagnosis": "The action constraint triggered and the model added an explicit field-format probe, but it still did not test Schema.Meta.datetimeformat propagation through List/Tuple to the root Schema. It repeated the same semantically incomplete fallback."
+    }
+  ],
+  "root_cause": {
+    "category": "semantic_contract_miss",
+    "failed_contract": "Nested DateTime fields must inherit non-default datetimeformat from the root Schema options.",
+    "correct_localization": "Use the existing Field.root parent-chain abstraction rather than treating the immediate container field as the configuration owner.",
+    "why_public_tests_were_insufficient": "The selected 76 regressions and the Agent's ad-hoc probes covered construction, default output, and explicit field format, but not Schema.Meta option inheritance."
+  },
+  "interpretation": {
+    "supported": "The bounded action mechanism is operational: the v2 escalation request constrained the next action to a direct edit, and both attempts produced scoped, normally terminated candidates.",
+    "not_supported": "Neither attempt solved the fresh issue, so there is no evidence of cross-task quality improvement or a successful policy replication.",
+    "next_step": "Do not resample this Dev issue again. Convert the miss into a general parent-chain configuration contract for future fresh tasks, freeze the policy, and compare on a different issue."
+  },
+  "data_admission": {
+    "raw_episodes_retained_locally": true,
+    "dev_success_eligible": false,
+    "gold_sft_eligible": false,
+    "bad_case_eligible": true
+  },
+  "claim_boundary": "Two local Dev failures on a newly added issue; not an official SWE-bench score, a controlled model comparison, or evidence of benchmark improvement."
+}

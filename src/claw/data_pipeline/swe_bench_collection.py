@@ -138,17 +138,21 @@ def collect_swe_bench_lite_dev_episode(
     model_ref: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: Optional[int] = None,
+    thinking_mode: Optional[str] = None,
     max_turns: int = 50,
     completion_reminder_turns: int = 8,
     completion_critical_turns: int = 3,
+    force_final_response_at_critical: bool = False,
     implementation_deadline_turns: int = 12,
     implementation_escalation_turns: int = 4,
+    force_direct_mutation_after_escalation: bool = False,
+    implementation_target_read_allowance: int = 0,
     post_edit_contract_guidance: bool = True,
     timeout_seconds: float = 300.0,
     runtime_version: str = "local-agent-runtime.v1",
     prompt_version: str = "swe-bench-lite-dev.v1",
     tool_version: str = "tool-schema.v1",
-    verifier_version: str = "verifier-policy.v1",
+    verifier_version: str = "verifier-policy.v2",
     config_version: str = "swe-bench-lite-collection.v1",
     allowed_path_patterns: Sequence[str] = (),
     input_token_price_per_million: float = 0.0,
@@ -162,6 +166,12 @@ def collect_swe_bench_lite_dev_episode(
         raise BenchmarkError("temperature must be within [0, 2]")
     if max_tokens is not None and max_tokens <= 0:
         raise BenchmarkError("max_tokens must be positive")
+    if thinking_mode is not None and thinking_mode not in {
+        "auto", "enabled", "disabled"
+    }:
+        raise BenchmarkError(
+            "thinking_mode must be one of auto, enabled, or disabled"
+        )
     if max_turns <= 0 or timeout_seconds <= 0:
         raise BenchmarkError("turn and timeout limits must be positive")
     if completion_reminder_turns < 0:
@@ -178,11 +188,36 @@ def collect_swe_bench_lite_dev_episode(
             "implementation_deadline_turns"
         )
     if (
+        force_direct_mutation_after_escalation
+        and implementation_escalation_turns <= 0
+    ):
+        raise BenchmarkError(
+            "force_direct_mutation_after_escalation requires a positive "
+            "implementation_escalation_turns"
+        )
+    if implementation_target_read_allowance not in {0, 1}:
+        raise BenchmarkError(
+            "implementation_target_read_allowance must be 0 or 1"
+        )
+    if (
+        implementation_target_read_allowance > 0
+        and not force_direct_mutation_after_escalation
+    ):
+        raise BenchmarkError(
+            "implementation_target_read_allowance requires "
+            "force_direct_mutation_after_escalation"
+        )
+    if (
         completion_reminder_turns > 0
         and completion_critical_turns > completion_reminder_turns
     ):
         raise BenchmarkError(
             "completion_critical_turns must not exceed completion_reminder_turns"
+        )
+    if force_final_response_at_critical and completion_critical_turns <= 0:
+        raise BenchmarkError(
+            "force_final_response_at_critical requires a positive "
+            "completion_critical_turns"
         )
     patterns = [str(item) for item in allowed_path_patterns if str(item).strip()]
     if not patterns:
@@ -219,13 +254,22 @@ def collect_swe_bench_lite_dev_episode(
         "max_turns": max_turns,
         "completion_reminder_turns": completion_reminder_turns,
         "completion_critical_turns": completion_critical_turns,
+        "force_final_response_at_critical": force_final_response_at_critical,
         "implementation_deadline_turns": implementation_deadline_turns,
         "implementation_escalation_turns": implementation_escalation_turns,
+        "force_direct_mutation_after_escalation": (
+            force_direct_mutation_after_escalation
+        ),
+        "implementation_target_read_allowance": (
+            implementation_target_read_allowance
+        ),
         "post_edit_contract_guidance": post_edit_contract_guidance,
         "implementation_path_patterns": patterns,
     }
     if max_tokens is not None:
         decoding_config["max_tokens"] = max_tokens
+    if thinking_mode is not None:
+        decoding_config["thinking_mode"] = thinking_mode
 
     configured_python = Path(python_executable).expanduser().absolute()
     original_factory = agent_factory
@@ -242,6 +286,7 @@ def collect_swe_bench_lite_dev_episode(
                         if inference_config.get("max_tokens") is not None
                         else None
                     ),
+                    thinking_mode=inference_config.get("thinking_mode"),
                 ),
                 permissions=AgentPermissions(
                     allow_write=True,
@@ -254,11 +299,24 @@ def collect_swe_bench_lite_dev_episode(
                 completion_critical_turns=int(
                     inference_config.get("completion_critical_turns", 0)
                 ),
+                force_final_response_at_critical=bool(
+                    inference_config.get("force_final_response_at_critical", False)
+                ),
                 implementation_deadline_turns=int(
                     inference_config.get("implementation_deadline_turns", 0)
                 ),
                 implementation_escalation_turns=int(
                     inference_config.get("implementation_escalation_turns", 0)
+                ),
+                force_direct_mutation_after_escalation=bool(
+                    inference_config.get(
+                        "force_direct_mutation_after_escalation", False
+                    )
+                ),
+                implementation_target_read_allowance=int(
+                    inference_config.get(
+                        "implementation_target_read_allowance", 0
+                    )
                 ),
                 post_edit_contract_guidance=bool(
                     inference_config.get("post_edit_contract_guidance", False)

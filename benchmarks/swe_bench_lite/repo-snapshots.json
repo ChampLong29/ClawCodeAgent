@@ -13,6 +13,16 @@
     },
     {
       "clean": true,
+      "head": "b40a0f4e33823e6d0f341f7e8684e359a99060d1",
+      "instance_id": "marshmallow-code__marshmallow-1359",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "ae69ff4f28b18bef6fccfe37769d182bfeb0bfabcd2d8d7f28a80933d6f2d36b",
+      "tracked_bytes": 720107,
+      "tracked_files": 78
+    },
+    {
+      "clean": true,
       "head": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
       "instance_id": "pylint-dev__astroid-1196",
       "license": "LGPL-2.1-or-later",
@@ -70,6 +80,56 @@
       "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
       "tracked_bytes": 2057387,
       "tracked_files": 250
+    },
+    {
+      "clean": true,
+      "head": "db6ee8dd4a747b8864caae36c5d05883976a3ae5",
+      "instance_id": "pyvista__pyvista-4315",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "2a2091637773f4bd863095855a08164bee482ae938ff0a36b082ac0201bd6123",
+      "tracked_bytes": 114358980,
+      "tracked_files": 914
+    },
+    {
+      "clean": true,
+      "head": "c78b50f4337ecbe536a961336ca91a1176efc0e8",
+      "instance_id": "pvlib__pvlib-python-1606",
+      "license": "BSD-3-Clause",
+      "license_path": "LICENSE",
+      "license_sha256": "b5284e280523d2ce92b953123e695ffa4c3af06941119fc23cca7052c1146bc2",
+      "tracked_bytes": 69305274,
+      "tracked_files": 324
+    },
+    {
+      "clean": true,
+      "head": "a1579a16b1d8913d9d7c7d12add374a290bcc78c",
+      "instance_id": "sqlfluff__sqlfluff-1733",
+      "license": "MIT",
+      "license_path": "LICENSE.md",
+      "license_sha256": "6d1e394d2e68a47106733103e9ed87c9d1573d9b7a43f5d05989424fce6dae39",
+      "tracked_bytes": 4047187,
+      "tracked_files": 1807
+    },
+    {
+      "clean": true,
+      "head": "0c9ab0fe56703fa83c73e514a1020d398d23fa7f",
+      "instance_id": "pylint-dev__astroid-1978",
+      "license": "LGPL-2.1-or-later",
+      "license_path": "LICENSE",
+      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
+      "tracked_bytes": 2264253,
+      "tracked_files": 290
+    },
+    {
+      "clean": true,
+      "head": "49a3da4a3d9c24d7e8427a25048a1c7d5c4f7724",
+      "instance_id": "pydicom__pydicom-1256",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
+      "tracked_bytes": 8888066,
+      "tracked_files": 440
     }
   ],
   "schema_version": "swe_bench_repo_snapshots.v1"

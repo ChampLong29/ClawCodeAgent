@@ -55,6 +55,15 @@ PILOT = {
             "low-cost check that the external harness is wired correctly."
         ),
     },
+    "marshmallow-code__marshmallow-1359": {
+        "role": "bounded-action fresh-task replication",
+        "rationale": (
+            "A different Marshmallow 3.0 issue and base commit with 76 "
+            "PASS_TO_PASS tests; reuses the light historical environment while "
+            "testing whether the frozen bounded-action policy transfers beyond "
+            "the task used to obtain the first compliant Episode."
+        ),
+    },
     "pylint-dev__astroid-1196": {
         "role": "semantic reasoning",
         "rationale": (
@@ -98,6 +107,47 @@ PILOT = {
             "A second Astroid issue exercises namespace-package path ordering "
             "with 46 PASS_TO_PASS tests and provides a fresh repository path for "
             "validating implementation-scoped post-edit guidance."
+        ),
+    },
+    "pyvista__pyvista-4315": {
+        "role": "preregistered new-family confirmatory comparison",
+        "rationale": (
+            "The only untried Dev candidate in a new repository family. Its "
+            "one-file patch scope, one target test, and 114 regressions support "
+            "a frozen Control/Treatment comparison, while the heavy VTK "
+            "environment is handled as an explicit admission gate."
+        ),
+    },
+    "pvlib__pvlib-python-1606": {
+        "role": "multi-task numerical-boundary replication",
+        "rationale": (
+            "A previously unrun one-file golden-section boundary bug with one "
+            "target and ten regression tests; it reuses a known scientific "
+            "repository while testing a different numerical contract."
+        ),
+    },
+    "sqlfluff__sqlfluff-1733": {
+        "role": "multi-task formatter-interaction replication",
+        "rationale": (
+            "A previously unrun one-file formatter interaction with one target "
+            "and three regression tests; it contrasts the pvlib numerical task "
+            "under the same frozen Agent policy."
+        ),
+    },
+    "pylint-dev__astroid-1978": {
+        "role": "progressive-constraint paired ablation",
+        "rationale": (
+            "A previously unrun one-file NumPy deprecation issue with one "
+            "target and twelve regression tests; its non-trivial reference "
+            "change exercises the strict versus one-target-read mechanism."
+        ),
+    },
+    "pydicom__pydicom-1256": {
+        "role": "progressive-constraint paired ablation",
+        "rationale": (
+            "A previously unrun nested BulkDataURI propagation issue with one "
+            "target and twenty-two regression tests; it counterbalances the "
+            "Astroid arm order under the frozen paired protocol."
         ),
     },
 }
@@ -249,10 +299,10 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         "dataset_revision": metadata["sha"],
         "split": "dev",
         "policy": {
-            "max_instances": 7,
+            "max_instances": 13,
             "one_instance_per_repository": False,
-            "minimum_distinct_repositories": 5,
-            "maximum_instances_per_repository": 2,
+            "minimum_distinct_repositories": 6,
+            "maximum_instances_per_repository": 3,
             "selection_dimensions": [
                 "environment weight",
                 "problem statement completeness",
@@ -277,7 +327,7 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
             }
             for instance_id in PILOT
         ],
-        "deferred_environment_classes": ["heavy-vtk"],
+        "deferred_environment_classes": [],
     }
     if FALLBACK:
         selection["fallback"] = {

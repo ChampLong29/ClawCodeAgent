@@ -17,6 +17,7 @@ BAD_CASE_CATEGORIES = {
     "tool_execution_failure",
     "context_loss",
     "permission_violation",
+    "action_constraint_violation",
     "over_editing",
     "test_failure",
     "format_or_schema",
@@ -124,6 +125,7 @@ class BadCaseClassifier:
     _PRIORITY = [
         "environment_or_infra",
         "permission_violation",
+        "action_constraint_violation",
         "budget_or_timeout",
         "format_or_schema",
         "over_editing",
@@ -139,6 +141,10 @@ class BadCaseClassifier:
     _SUGGESTIONS = {
         "environment_or_infra": "Repair the task environment and rerun verification.",
         "permission_violation": "Enforce phase tool visibility and permission checks.",
+        "action_constraint_violation": (
+            "Treat the provider's out-of-contract action as a stopped run and "
+            "inspect model/tool-choice compatibility before changing the task."
+        ),
         "budget_or_timeout": "Reduce scope or adjust the controlled execution budget.",
         "format_or_schema": "Validate structured output before terminating the episode.",
         "over_editing": "Restrict edits to task-authorized path patterns.",
@@ -205,6 +211,13 @@ class BadCaseClassifier:
             return
         if signal.status == "unknown" and not signal.required:
             return
+        if signal.name == "termination_compliance":
+            detail = str(signal.details.get("detail") or "").lower()
+            if "action constraint" in detail:
+                candidates.setdefault("action_constraint_violation", []).extend(
+                    signal.evidence_event_ids
+                )
+                return
         mapping = {
             "trajectory_schema": "format_or_schema",
             "environment": "environment_or_infra",
@@ -230,6 +243,13 @@ class BadCaseClassifier:
         if termination and termination.reason in {"timeout", "budget_exceeded"}:
             candidates.setdefault("budget_or_timeout", [])
         for event in trajectory.events:
+            if event.event_type == "runtime_stop":
+                payload = event.payload
+                if payload.get("reason") == "action_constraint_unsatisfied":
+                    candidates.setdefault("action_constraint_violation", []).append(
+                        event.event_id
+                    )
+                    continue
             if event.event_type == "tool_result":
                 payload = event.payload
                 failed = payload.get("exit_code") not in {None, 0} or bool(
@@ -240,6 +260,12 @@ class BadCaseClassifier:
                         event.event_id
                     )
             if event.event_type == "runtime_error":
-                candidates.setdefault("environment_or_infra", []).append(
-                    event.event_id
-                )
+                error = str(event.payload.get("error") or "").lower()
+                if "action constraint" in error:
+                    candidates.setdefault("action_constraint_violation", []).append(
+                        event.event_id
+                    )
+                else:
+                    candidates.setdefault("environment_or_infra", []).append(
+                        event.event_id
+                    )

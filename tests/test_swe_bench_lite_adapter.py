@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -21,6 +22,11 @@ from claw.benchmark.swe_bench_lite_adapter import (
 
 ROOT = Path(__file__).resolve().parents[1]
 BENCHMARK_ROOT = ROOT / "benchmarks" / "swe_bench_lite"
+
+
+def _canonical_text_sha256(path: Path) -> str:
+    content = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 class SweBenchLiteDevAdapterTests(unittest.TestCase):
@@ -268,6 +274,259 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
         self.assertEqual(attempts[2]["termination"], "max_turns")
         self.assertFalse(evidence["data_admission"]["gold_sft_eligible"])
         self.assertIn("not an official SWE-bench score", evidence["claim_boundary"])
+
+    def test_bounded_action_success_evidence_keeps_causal_boundary_explicit(self):
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-marshmallow-bounded-action-success.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["status"], "local_dev_episode_success")
+        self.assertFalse(evidence["official_swebench_harness"])
+        self.assertTrue(evidence["verification"]["hard_gate_passed"])
+        self.assertTrue(evidence["verification"]["fail_to_pass"]["passed"])
+        self.assertTrue(evidence["verification"]["pass_to_pass"]["passed"])
+        self.assertTrue(evidence["verification"]["diff_scope_passed"])
+        self.assertTrue(
+            evidence["verification"]["termination_compliance_passed"]
+        )
+        self.assertIsNone(
+            evidence["observed_behavior"]["implementation_escalation_turn"]
+        )
+        self.assertIsNone(
+            evidence["observed_behavior"]["completion_critical_turn"]
+        )
+        self.assertIn(
+            "does not estimate",
+            evidence["policy_interpretation"]["causal_boundary"],
+        )
+        self.assertIn("not an official", evidence["claim_boundary"])
+
+    def test_fresh_marshmallow_replication_preserves_failed_hard_gate(self):
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-marshmallow-1359-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(calibration["status"], "passed")
+        self.assertFalse(calibration["verification"]["baseline_fail_to_pass"])
+        self.assertTrue(calibration["verification"]["reference_fail_to_pass"])
+        self.assertFalse(calibration["environment"]["official_swebench_harness"])
+
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-marshmallow-1359-bounded-action-rollouts.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(evidence["status"], "fresh_task_replication_failed")
+        self.assertFalse(evidence["official_swebench_harness"])
+        self.assertEqual(len(evidence["attempts"]), 2)
+        self.assertIsNone(
+            evidence["attempts"][0]["behavior"]["implementation_escalation_turn"]
+        )
+        self.assertTrue(
+            evidence["attempts"][1]["behavior"][
+                "forced_direct_mutation_request_triggered"
+            ]
+        )
+        for attempt in evidence["attempts"]:
+            self.assertFalse(attempt["verification"]["hard_gate_passed"])
+            self.assertFalse(attempt["verification"]["fail_to_pass"])
+            self.assertTrue(attempt["verification"]["pass_to_pass"])
+            self.assertTrue(attempt["verification"]["termination_compliance_passed"])
+        self.assertFalse(evidence["data_admission"]["gold_sft_eligible"])
+        self.assertIn("not an official", evidence["claim_boundary"])
+
+    def test_preregistered_pyvista_comparison_preserves_null_correctness_result(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-bounded-action-confirmatory-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+        protocol_path = ROOT / protocol["protocol_document"]
+        self.assertEqual(
+            _canonical_text_sha256(protocol_path),
+            protocol["protocol_sha256"],
+        )
+        self.assertEqual(protocol["maximum_valid_episodes_per_arm"], 1)
+        self.assertEqual(protocol["quality_retries"], 0)
+        self.assertTrue(protocol["analysis_after_both_arms"])
+
+        calibration = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pyvista-4315-local-calibration.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(calibration["model_calls_before_admission"], 0)
+        admitted = calibration["calibration_attempts"][-1]
+        self.assertTrue(admitted["baseline_pass_to_pass"])
+        self.assertTrue(admitted["reference_fail_to_pass"])
+        self.assertTrue(admitted["reference_pass_to_pass"])
+
+        result = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-pyvista-4315-confirmatory-comparison.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            result["status"],
+            "both_arms_success_no_correctness_gain_demonstrated",
+        )
+        self.assertEqual(result["protocol_sha256"], protocol["protocol_sha256"])
+        self.assertEqual(len(result["arms"]), 2)
+        self.assertFalse(result["arms"][0]["post_edit_contract_guidance"])
+        self.assertTrue(result["arms"][1]["post_edit_contract_guidance"])
+        for arm in result["arms"]:
+            self.assertTrue(arm["verification"]["hard_gate_passed"])
+            self.assertTrue(arm["verification"]["fail_to_pass"])
+            self.assertTrue(arm["verification"]["pass_to_pass"])
+        control_quality = result["arms"][0]["verification"][
+            "final_response_quality_advisory"
+        ]
+        treatment_quality = result["arms"][1]["verification"][
+            "final_response_quality_advisory"
+        ]
+        self.assertEqual(control_quality["status"], "fail")
+        self.assertEqual(
+            control_quality["classification"], "raw_tool_call_markup"
+        )
+        self.assertEqual(treatment_quality["status"], "pass")
+        self.assertEqual(
+            treatment_quality["classification"], "user_facing_text"
+        )
+        self.assertEqual(
+            result["interpretation"]["preregistered_matrix_cell"],
+            "control_pass_treatment_pass",
+        )
+        self.assertIn("no correctness improvement", result["claim_boundary"])
+
+    def test_progressive_action_constraint_protocol_is_frozen_before_runs(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-progressive-action-constraint-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+        protocol_path = ROOT / protocol["protocol_document"]
+        self.assertEqual(
+            _canonical_text_sha256(protocol_path),
+            protocol["protocol_sha256"],
+        )
+        self.assertEqual(protocol["maximum_valid_episodes"], 4)
+        self.assertEqual(protocol["quality_retries"], 0)
+        self.assertEqual(
+            protocol["arms"]["strict"]["implementation_target_read_allowance"],
+            0,
+        )
+        self.assertEqual(
+            protocol["arms"]["progressive"][
+                "implementation_target_read_allowance"
+            ],
+            1,
+        )
+        self.assertEqual(
+            protocol["instances"][0]["arm_order"],
+            ["strict", "progressive"],
+        )
+        self.assertEqual(
+            protocol["instances"][1]["arm_order"],
+            ["progressive", "strict"],
+        )
+        for name, regressions in (
+            ("astroid-1978", 12),
+            ("pydicom-1256", 22),
+        ):
+            calibration = json.loads(
+                (
+                    ROOT
+                    / "configs"
+                    / "integrations"
+                    / f"swe-bench-lite-{name}-local-calibration.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertEqual(calibration["model_calls_before_admission"], 0)
+            self.assertTrue(
+                calibration["repository_acquisition"]["final_head_verified"]
+            )
+            self.assertFalse(
+                calibration["runs"]["baseline_fail_to_pass"]["passed"]
+            )
+            self.assertTrue(
+                calibration["runs"]["baseline_pass_to_pass"]["passed"]
+            )
+            self.assertTrue(
+                calibration["runs"]["reference_fail_to_pass"]["passed"]
+            )
+            self.assertTrue(
+                calibration["runs"]["reference_pass_to_pass"]["passed"]
+            )
+            self.assertEqual(
+                calibration["evaluator_fingerprint"]["pass_to_pass_count"],
+                regressions,
+            )
+
+    def test_multitask_replication_preserves_partial_result_and_tradeoff(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-bounded-action-multitask-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+        protocol_path = ROOT / protocol["protocol_document"]
+        self.assertEqual(
+            _canonical_text_sha256(protocol_path),
+            protocol["protocol_sha256"],
+        )
+        self.assertEqual(protocol["maximum_valid_episodes_per_task"], 1)
+        self.assertEqual(protocol["quality_retries"], 0)
+
+        result = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-bounded-action-multitask-result.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(result["status"], "partial_success_1_of_2")
+        self.assertEqual(result["protocol_sha256"], protocol["protocol_sha256"])
+        self.assertTrue(result["admission"]["all_tasks_admitted"])
+        self.assertEqual(result["aggregate"]["hard_gate_successes"], 1)
+        self.assertEqual(result["aggregate"]["hard_gate_success_rate"], 0.5)
+        pvlib, sqlfluff = result["episodes"]
+        self.assertTrue(pvlib["success"])
+        self.assertFalse(sqlfluff["success"])
+        self.assertEqual(
+            sqlfluff["failure_analysis"][
+                "primary_category_after_deterministic_replay"
+            ],
+            "action_constraint_violation",
+        )
+        self.assertEqual(sqlfluff["behavior_v4"]["first_target_path_turn"], 7)
+        self.assertEqual(sqlfluff["behavior_v4"]["rejected_tool_calls"], 1)
+        self.assertIn("not an official", result["claim_boundary"])
 
     def test_sqlfluff_calibration_records_conservative_node_id_policy(self):
         evidence = json.loads(

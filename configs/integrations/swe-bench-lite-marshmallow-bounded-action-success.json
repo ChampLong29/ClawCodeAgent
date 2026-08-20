@@ -1,0 +1,80 @@
+{
+  "schema_version": "swe_bench_lite_bounded_action_rollout.v1",
+  "captured_at": "2026-08-20",
+  "status": "local_dev_episode_success",
+  "instance_id": "marshmallow-code__marshmallow-1343",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "f6f2029",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "collection_id": "episode_collection_852060dab5e9cec20601",
+  "episode_id": "training-aabd0a2924ef49f4ae1b",
+  "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.marshmallow-bounded-action-v1",
+  "trajectory_sha256": "b34accc054565cf076e6334fbc55deeb51c63f0b1d4f9a265782c12a862209a9",
+  "verification_sha256": "a83ccbc5087b10c59189783b207efbafaa87f03ae4dc177f3d7577d60530870b",
+  "episode_sha256": "0a2a41432a6967f57e3d810371bbfd14a251337550b1e28492463d464f85e098",
+  "collection_manifest_sha256": "64dd472656f6b499b8e6c5931068cd28211578674c9fc08ddf401ca947c14b0d",
+  "runtime_policy": {
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_deadline_turns": 5,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "post_edit_contract_guidance": true,
+    "implementation_path_patterns": [
+      "src/marshmallow/schema.py"
+    ]
+  },
+  "observed_behavior": {
+    "model_turns": 15,
+    "tool_calls": 15,
+    "input_tokens": 7661,
+    "output_tokens": 1826,
+    "total_tokens": 9487,
+    "latency_seconds": 79.413065155,
+    "first_target_path_turn": 2,
+    "implementation_deadline_turn": 5,
+    "implementation_escalation_turn": null,
+    "first_direct_mutation_turn": 7,
+    "post_edit_contract_guidance_turn": 7,
+    "completion_reminder_turn": 14,
+    "completion_critical_turn": null,
+    "changed_files": [
+      "src/marshmallow/schema.py"
+    ],
+    "stop_reason": "completed"
+  },
+  "verification": {
+    "hard_gate_passed": true,
+    "verdict": "success",
+    "fail_to_pass": {
+      "passed": true,
+      "test_count": 1
+    },
+    "pass_to_pass": {
+      "passed": true,
+      "test_count": 24
+    },
+    "diff_scope_passed": true,
+    "process_permission_passed": true,
+    "format_schema_passed": true,
+    "termination_compliance_passed": true,
+    "aggregate_score": 1.0
+  },
+  "policy_interpretation": {
+    "supported": "This is the first preserved local real-repository Dev Episode to pass target tests, regressions, Diff Scope, process checks, format checks, and normal termination together under the bounded-action policy configuration.",
+    "causal_boundary": "Thinking was explicitly disabled and the implementation deadline was observed. The model edited before implementation escalation and terminated before the critical final-response constraint, so this single run does not estimate the separate causal effect of either forced action constraint.",
+    "comparison_boundary": "Earlier attempts on the same Dev task produced test-passing candidates but failed termination compliance. The new result is evidence that the configured runtime can produce one compliant success, not a general model-quality or policy-improvement claim."
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "dev_success_eligible": true,
+    "gold_sft_eligibility_requires_dataset_pipeline": true
+  },
+  "claim_boundary": "Local Dev Episode using the repository evaluator, not an official SWE-bench score or a controlled policy-effect estimate."
+}

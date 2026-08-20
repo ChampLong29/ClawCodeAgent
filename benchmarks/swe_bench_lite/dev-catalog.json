@@ -49,7 +49,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "3.0: DateTime fields cannot be used as inner field for List or Tuple fields",
       "total_score": 20,
@@ -130,7 +130,7 @@
         "problem_statement": 4,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "golden-section search fails when upper and lower bounds are equal",
       "total_score": 20,
@@ -238,7 +238,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "from_json does not correctly convert BulkDataURI's in SQ data elements",
       "total_score": 19,
@@ -454,7 +454,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "Deprecation warnings from numpy",
       "total_score": 23,
@@ -481,7 +481,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "Rectilinear grid does not allow Sequences as inputs",
       "total_score": 19,
@@ -562,7 +562,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 2,
       "title": "Extra space when first field moved to new line in a WITH statement",
       "total_score": 20,

@@ -57,6 +57,8 @@ class OpenAICompatClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        thinking_mode: Optional[str] = None,
         stream: bool = False,
     ) -> Dict[str, Any]:
         """Make a non-streaming completion request."""
@@ -73,6 +75,10 @@ class OpenAICompatClient:
             payload["max_tokens"] = max_tokens
         if tools:
             payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if thinking_mode and thinking_mode != "auto":
+            payload["thinking"] = {"type": thinking_mode}
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -135,6 +141,8 @@ class OpenAICompatClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        thinking_mode: Optional[str] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make a streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/chat/completions"
@@ -151,6 +159,10 @@ class OpenAICompatClient:
             payload["max_tokens"] = max_tokens
         if tools:
             payload["tools"] = tools
+        if tool_choice is not None:
+            payload["tool_choice"] = tool_choice
+        if thinking_mode and thinking_mode != "auto":
+            payload["thinking"] = {"type": thinking_mode}
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -380,6 +392,8 @@ class AnthropicClient:
         max_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        thinking_mode: Optional[str] = None,
         stream: bool = False,
     ) -> Dict[str, Any]:
         """Make a non-streaming completion request."""
@@ -404,8 +418,27 @@ class AnthropicClient:
         if tools:
             payload["tools"] = tools
 
-        # Add thinking configuration if explicitly enabled
-        if self._thinking_enabled == "true":
+        if tool_choice is not None:
+            if tool_choice == "required":
+                payload["tool_choice"] = {"type": "any"}
+            elif tool_choice == "auto":
+                payload["tool_choice"] = {"type": "auto"}
+            elif tool_choice == "none":
+                payload["tool_choice"] = {"type": "none"}
+            else:
+                payload["tool_choice"] = tool_choice
+
+        requested_thinking = thinking_mode
+        if requested_thinking is None:
+            requested_thinking = {
+                "true": "enabled",
+                "false": "disabled",
+            }.get(self._thinking_enabled, "auto")
+        if requested_thinking not in {"auto", "enabled", "disabled"}:
+            raise ValueError(
+                "thinking_mode must be one of auto, enabled, or disabled"
+            )
+        if requested_thinking == "enabled":
             payload["thinking"] = {
                 "type": "enabled",
                 "budget_tokens": self._thinking_budget,
@@ -413,6 +446,8 @@ class AnthropicClient:
             # When thinking is enabled, temperature must be 1 (Anthropic requirement)
             if "temperature" in payload:
                 del payload["temperature"]
+        elif requested_thinking == "disabled":
+            payload["thinking"] = {"type": "disabled"}
 
         headers = {
             "x-api-key": self.api_key,
@@ -503,6 +538,8 @@ class AnthropicClient:
         max_tokens: Optional[int] = None,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+        thinking_mode: Optional[str] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make a streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/v1/messages"
@@ -526,14 +563,35 @@ class AnthropicClient:
         if tools:
             payload["tools"] = tools
 
-        # Add thinking configuration if explicitly enabled
-        if self._thinking_enabled == "true":
+        if tool_choice is not None:
+            if tool_choice == "required":
+                payload["tool_choice"] = {"type": "any"}
+            elif tool_choice == "auto":
+                payload["tool_choice"] = {"type": "auto"}
+            elif tool_choice == "none":
+                payload["tool_choice"] = {"type": "none"}
+            else:
+                payload["tool_choice"] = tool_choice
+
+        requested_thinking = thinking_mode
+        if requested_thinking is None:
+            requested_thinking = {
+                "true": "enabled",
+                "false": "disabled",
+            }.get(self._thinking_enabled, "auto")
+        if requested_thinking not in {"auto", "enabled", "disabled"}:
+            raise ValueError(
+                "thinking_mode must be one of auto, enabled, or disabled"
+            )
+        if requested_thinking == "enabled":
             payload["thinking"] = {
                 "type": "enabled",
                 "budget_tokens": self._thinking_budget,
             }
             if "temperature" in payload:
                 del payload["temperature"]
+        elif requested_thinking == "disabled":
+            payload["thinking"] = {"type": "disabled"}
 
         headers = {
             "x-api-key": self.api_key,

@@ -66,7 +66,7 @@ Claw Rollout
 
 ## M2：DataFlow 确定性治理 Pipeline
 
-状态：**Fixture E2E、真实两样本 Contract Batch、五仓库七任务 Dev 验证已完成**。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode；Bad Case 已投影路径定位、首次编辑、编辑前探索和 Guidance 后调用指标。pvlib 候选测试失败；pydicom-1413 暴露临时脚本误触发实现提示，Astroid-1333 又显示长思考耗尽单轮输出且暴露 `runtime_stop` Schema 缺口。缺口已修复，但都不能作为有效性或增点结论；下一步先设计有界思考/动作预算，再换新 Issue 验证路径限定的 Post-edit Contract Notice。
+状态：**Fixture E2E、真实两样本 Contract Batch、六仓库十一任务 Dev Episode 已完成，十三题 Pilot 中新增两题已完成准入**。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode。PyVista 预注册双臂均成功但没有 Notice 增点；随后两任务冻结复现为 1/2，SQLFluff 在首次定位正确路径时请求读取却被直接编辑约束拒绝。渐进式约束已实现，Astroid-1978 与 pydicom-1256 的 Strict/Progressive 配对协议和校准已冻结，尚未调用模型。
 
 目标：先实现无需 LLM 的可复现数据治理。
 
@@ -253,6 +253,6 @@ Adapter 或通过数据 Dry-run。在真实 Adapter、Checkpoint 和独立 Bench
 3. 已实现 ShareGPT Tool-use Exporter，并固化 5 条 Fixture。
 4. 已编写 Test Split、Tool 顺序和确定性测试；待补充跨 Family 泄漏 Fixture。
 5. 已用真实 Episode 构建 Silver/Gold，并完成 LlamaFactory 数据加载与 Tokenization Dry-run；下一步扩充 Train/Dev 小批次，不立即宣称训练效果。
-6. 已完成 SWE-bench Lite 五仓库七任务校准、Dev Episode 和行为诊断 v3；当前候选均不满足 Gold 硬门槛。路径限定提示与 `runtime_stop` 已完成确定性/集成验证，但连续两题没有实现路径编辑；先加入有界思考或动作预算实验，再扩充多 Family Episode。
+6. 已完成 SWE-bench Lite 六仓库十一任务校准、Dev Episode 和行为诊断 v4；最新多任务复现为 1/2。下一步验证“允许一次目标文件读取、随后强制编辑”的细粒度约束，而不是重跑已失败题。
 
 这一步不需要 GPU，但可以验证最关键的数据契约，为后续 DataFlow 和真实训练消除最大的不确定性。

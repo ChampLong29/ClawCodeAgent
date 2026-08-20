@@ -11,6 +11,7 @@ from claw.verification import (
     VerificationContext,
     VerificationPolicy,
     VerifierPipeline,
+    assess_final_response,
 )
 
 
@@ -44,6 +45,7 @@ def make_trajectory(
     changed_files=None,
     include_tests=True,
     stop_reason="completed",
+    final_message="done",
 ):
     result = {
         "task_id": task_id,
@@ -70,7 +72,7 @@ def make_trajectory(
                 "tool_call_id": f"call-{task_id}",
                 "content": "written",
             },
-            {"role": "assistant", "content": "done"},
+            {"role": "assistant", "content": final_message},
         ],
         "diff_result": {"changed_files": changed_files or ["src/main.py"]},
     }
@@ -136,6 +138,98 @@ class TestVerifierPipeline(unittest.TestCase):
         self.assertGreaterEqual(report.aggregate_score, 0.9)
         self.assertEqual(report.reviewer_metadata["model"], "reviewer-model")
         self.assertEqual(report.bad_cases, [])
+        quality = next(
+            signal for signal in report.signals
+            if signal.name == "final_response_quality"
+        )
+        self.assertEqual(quality.kind, "soft")
+        self.assertEqual(quality.status, "unknown")
+        self.assertEqual(quality.details["classification"], "legacy_placeholder")
+
+    def test_raw_tool_markup_is_advisory_failure_not_a_hard_gate(self):
+        trajectory = make_trajectory()
+        trajectory.header.termination.detail = (
+            '<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="bash">'
+            "</｜｜DSML｜｜invoke></｜｜DSML｜｜tool_calls>"
+        )
+        report = VerifierPipeline().verify(context(trajectory))
+        signal = next(
+            item for item in report.signals
+            if item.name == "final_response_quality"
+        )
+        self.assertEqual(signal.status, "fail")
+        self.assertEqual(signal.details["classification"], "raw_tool_call_markup")
+        self.assertEqual(report.verdict, "success")
+        self.assertTrue(report.hard_gate_passed)
+        self.assertEqual(report.bad_cases, [])
+
+    def test_human_readable_final_response_passes_advisory_signal(self):
+        trajectory = make_trajectory()
+        trajectory.header.termination.detail = "Implemented the fix; all tests pass."
+        report = VerifierPipeline().verify(context(trajectory))
+        signal = next(
+            item for item in report.signals
+            if item.name == "final_response_quality"
+        )
+        self.assertEqual(signal.status, "pass")
+        self.assertEqual(signal.details["classification"], "user_facing_text")
+
+    def test_empty_completed_response_fails_advisory_signal(self):
+        trajectory = make_trajectory()
+        trajectory.header.termination.detail = ""
+        report = VerifierPipeline().verify(context(trajectory))
+        signal = next(
+            item for item in report.signals
+            if item.name == "final_response_quality"
+        )
+        self.assertEqual(signal.status, "fail")
+        self.assertEqual(signal.details["classification"], "empty")
+        self.assertTrue(report.hard_gate_passed)
+
+    def test_thinking_only_response_is_detected(self):
+        assessment = assess_final_response(
+            "<think>I should run one more test.</think>", completed=True
+        )
+        self.assertEqual(assessment.status, "fail")
+        self.assertEqual(assessment.classification, "thinking_only")
+
+    def test_non_completed_response_quality_is_unknown(self):
+        assessment = assess_final_response("partial answer", completed=False)
+        self.assertEqual(assessment.status, "unknown")
+        self.assertEqual(assessment.classification, "not_completed")
+
+    def test_action_constraint_stop_is_not_mislabeled_as_infrastructure(self):
+        trajectory = make_trajectory(passed_tests=0)
+        trajectory.events.pop()
+        trajectory.header.termination = None
+        trajectory.header.finished_at = None
+        trajectory.append(
+            "runtime_stop",
+            payload={
+                "reason": "action_constraint_unsatisfied",
+                "detail": "provider did not satisfy the required action constraint",
+            },
+        )
+        trajectory.append(
+            "runtime_error",
+            payload={
+                "error": "provider did not satisfy the required action constraint",
+                "stop_reason": "stopped",
+            },
+        )
+        trajectory.terminate(
+            "cancelled",
+            detail="provider did not satisfy the required action constraint",
+        )
+        report = VerifierPipeline().verify(context(trajectory))
+        self.assertEqual(
+            report.bad_cases[0]["primary_category"],
+            "action_constraint_violation",
+        )
+        self.assertNotIn(
+            "environment_or_infra",
+            report.bad_cases[0]["secondary_categories"],
+        )
 
     def test_reviewer_cannot_override_hard_test_failure(self):
         report = VerifierPipeline().verify(

@@ -1,0 +1,155 @@
+{
+  "schema_version": "bounded_action_confirmatory_result.v1",
+  "captured_at": "2026-08-20",
+  "status": "both_arms_success_no_correctness_gain_demonstrated",
+  "protocol_version": "bounded-action-confirmatory.v1",
+  "protocol_sha256": "20d2d01749d2a543336963dd6a1d1b087968e15ec0d301a68ea5923fdd5e0a99",
+  "instance_id": "pyvista__pyvista-4315",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "f6f2029",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "calibration_admitted": true,
+  "shared_policy": {
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "implementation_path_patterns": [
+      "pyvista/core/grid.py"
+    ]
+  },
+  "arms": [
+    {
+      "name": "control",
+      "post_edit_contract_guidance": false,
+      "collection_id": "episode_collection_311b70c223e2c8a220df",
+      "episode_id": "training-82eda087afbb44cda800",
+      "prompt_version": "bounded-action-confirmatory.v1.control",
+      "hashes": {
+        "collection_manifest_sha256": "67c76e9f9f6aef5e8f123b9cd4c06e86957052ce816a55879822925cca92938a",
+        "trajectory_sha256": "8e6a9018da54e6d52291c57f74e93c523fffbeb8b260f35785e75366c3fec9d4",
+        "verification_sha256": "89caa0a95bcf5cf8647b6acadceabc71c014544365b985309b402b3872f0f2ef",
+        "episode_sha256": "d6736f0574baef6b170e450648a4551439d96085f8aa07a4f0b47a1548b24ba8"
+      },
+      "behavior": {
+        "model_turns": 18,
+        "tool_calls": 17,
+        "input_tokens": 13366,
+        "output_tokens": 2543,
+        "total_tokens": 15909,
+        "latency_seconds": 176.549990747,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 6,
+        "post_edit_contract_guidance_turn": null,
+        "completion_reminder_turn": 14,
+        "completion_critical_turn": 17,
+        "direct_mutation_calls": 3,
+        "failed_tool_calls": 2
+      },
+      "verification": {
+        "hard_gate_passed": true,
+        "verdict": "success",
+        "aggregate_score": 1.0,
+        "fail_to_pass": true,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 114,
+        "diff_scope_passed": true,
+        "process_permission_passed": true,
+        "format_schema_passed": true,
+        "termination_compliance_passed": true,
+        "final_response_quality_advisory": {
+          "status": "fail",
+          "classification": "raw_tool_call_markup",
+          "schema_version": "final_response_quality.v1"
+        }
+      },
+      "final_response_observation": "At the Critical request the model emitted tool-call markup as plain final text because tools were hidden; termination still satisfied the automated hard gate."
+    },
+    {
+      "name": "treatment",
+      "post_edit_contract_guidance": true,
+      "collection_id": "episode_collection_8411722e53f3dac1fd4f",
+      "episode_id": "training-cbf46d600db748029969",
+      "prompt_version": "bounded-action-confirmatory.v1.treatment",
+      "hashes": {
+        "collection_manifest_sha256": "1bee6373a0d8072c6d4c49100c71009e67253e2b26761c9b903c512a819459ef",
+        "trajectory_sha256": "2cf518a1ca2ee47207712350055b258f5df04a53118c5bad207a998363a8174b",
+        "verification_sha256": "899415e14e8ff5e9786386e306845b83430dbebc3a01d413b6875a99c5eb8cfc",
+        "episode_sha256": "8effa00131b4a41de8c13d43f84463cbdd8b90f6893e673027a20133e1bc606d"
+      },
+      "behavior": {
+        "model_turns": 18,
+        "tool_calls": 17,
+        "input_tokens": 13380,
+        "output_tokens": 2710,
+        "total_tokens": 16090,
+        "latency_seconds": 179.491187734,
+        "first_target_path_turn": 3,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 6,
+        "post_edit_contract_guidance_turn": 6,
+        "completion_reminder_turn": 14,
+        "completion_critical_turn": 17,
+        "direct_mutation_calls": 2,
+        "failed_tool_calls": 1
+      },
+      "verification": {
+        "hard_gate_passed": true,
+        "verdict": "success",
+        "aggregate_score": 1.0,
+        "fail_to_pass": true,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 114,
+        "diff_scope_passed": true,
+        "process_permission_passed": true,
+        "format_schema_passed": true,
+        "termination_compliance_passed": true,
+        "final_response_quality_advisory": {
+          "status": "pass",
+          "classification": "user_facing_text",
+          "schema_version": "final_response_quality.v1"
+        }
+      },
+      "final_response_observation": "The model returned a normal human-readable implementation and verification summary at the Critical request."
+    }
+  ],
+  "paired_differences_treatment_minus_control": {
+    "primary_success": 0,
+    "total_tokens": 181,
+    "latency_seconds": 2.941196987,
+    "first_target_path_turn": 1,
+    "first_direct_mutation_turn": 0,
+    "direct_mutation_calls": -1,
+    "failed_tool_calls": -1
+  },
+  "candidate_comparison": {
+    "changed_files_equal": true,
+    "semantic_changes_equivalent": true,
+    "difference": "Only the explanatory comment around np.asarray conversion differs."
+  },
+  "interpretation": {
+    "preregistered_matrix_cell": "control_pass_treatment_pass",
+    "supported": "Both configurations can produce a locally compliant success on a previously unseen repository family. The Treatment notice was actually injected after the first edit.",
+    "not_supported": "There is no demonstrated correctness gain from the notice because Control already passed every hard gate. One paired task cannot establish model-level causality.",
+    "descriptive_signal": "Treatment used 181 more tokens and about 2.94 more seconds, made one fewer edit and one fewer failed tool call, and produced a cleaner final explanation. These are hypothesis-generating observations only."
+  },
+  "data_admission": {
+    "control_dev_success_eligible": true,
+    "treatment_dev_success_eligible": true,
+    "gold_sft_eligibility_requires_dataset_pipeline": true
+  },
+  "claim_boundary": "Preregistered local Dev one-task comparison; both arms passed, so no correctness improvement is claimed. This is not an official SWE-bench score or a model-level causal estimate."
+}

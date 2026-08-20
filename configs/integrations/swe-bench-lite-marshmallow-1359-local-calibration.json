@@ -1,0 +1,23 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_evidence.v1",
+  "captured_at": "2026-08-20",
+  "status": "passed",
+  "instance_id": "marshmallow-code__marshmallow-1359",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "b40a0f4e33823e6d0f341f7e8684e359a99060d1",
+  "local_result_sha256": "1e3e34e8e0f463fd1a1c0e146a6cd93763ffc18c53d0171b177201b996e13037",
+  "environment": {
+    "python_version": "Python 3.8.20",
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "official_swebench_harness": false
+  },
+  "verification": {
+    "baseline_fail_to_pass": false,
+    "baseline_pass_to_pass": true,
+    "reference_fail_to_pass": true,
+    "reference_pass_to_pass": true,
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 76
+  },
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score."
+}
