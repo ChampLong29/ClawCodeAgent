@@ -555,3 +555,128 @@ Progressive→Strict 的反向顺序做最多四条配对 Episode。任务纳入
 通过。模型调用数仍为 0。证据见
 `configs/integrations/swe-bench-lite-astroid-1978-local-calibration.json` 与
 `configs/integrations/swe-bench-lite-pydicom-1256-local-calibration.json`。
+
+## 2026-08-20：渐进式约束消融首条 Strict Episode
+
+按冻结顺序运行 `pylint-dev__astroid-1978` Strict 臂，生成提交固定为 `68b7ae0`，且
+`implementation_target_read_allowance=0`。Episode 完整归档：第 2 轮首次定位
+`astroid/raw_building.py`，第 4 轮收到 Deadline，第 5 轮完成唯一一次直接修改并收到
+Post-edit Notice，第 12 轮以正常用户答复结束。共请求并分发 11 次工具调用，无策略拒绝；
+5409 Token，约 81.51 秒。由于模型在 Escalation 前已编辑，本次没有触发 Strict 与
+Progressive 的实际处理差异。
+
+候选补丁在目标 `getattr` 外增加 `warnings.catch_warnings()` 并忽略 Warning。它保持 12 条
+PASS_TO_PASS 回归通过，Diff Scope、流程权限、格式、终止和最终答复质量均通过，但 1 条
+FAIL_TO_PASS 仍失败，因此是有效的模型质量失败，而不是环境、基础设施或动作约束失败。
+Oracle 与隐藏测试要求更广：捕获模块 `__getattr__` 写出的 stdout/stderr，并通过 logger
+记录；仅忽略 Python Warning 没有覆盖该行为。该差异说明模型修复了问题描述中的表面症状，
+却没有恢复基准期望的完整语义。
+
+这是预注册四条 Episode 中的第 1 条，不做单臂因果解释，也不据此调整协议或重试。机器证据
+见 `configs/integrations/swe-bench-lite-progressive-action-constraint-result.json`；
+下一条仍按冻结顺序运行同任务 Progressive 臂，最终只在全部准入配对归档后比较策略。
+
+证据防回归测试首次从未安装包的 Windows 解释器直接运行时，因缺少 `PYTHONPATH=src` 在
+收集阶段报 `ModuleNotFoundError: claw`，没有执行任何测试。按仓库文档补上该环境变量后，
+相关 27 项测试全部通过；这属于本地验证命令配置问题，不影响已在隔离 WSL 环境完成的
+Episode 或其不可变证据。
+
+随后按冻结顺序运行同任务 Progressive 臂。它第 2 轮定位目标、第 4 轮收到 Deadline、第 6
+轮触发 Escalation，并被允许“读取一次目标文件或直接编辑”；模型没有消费读取额度，而在第
+7 轮直接编辑并收到 Post-edit Notice。它第 14 轮收到 Completion Reminder，第 16 轮正常
+完成；15 次模型请求的工具调用均被动作约束接受，共 11812 Token、约 119.27 秒。
+
+Progressive 产生了与 Strict 完全相同的 `warnings.catch_warnings()` 三行修改，也同样保持
+12 条回归通过但未通过目标测试。过程中的两次普通工具失败分别是复现环境缺少 NumPy，以及
+模型尝试用 `git stash` 包裹复现命令而被 Shell 安全策略阻止；后者没有实际分发或改变工作区，
+两者均不是 Episode 的主失败原因。
+
+Astroid 配对因此落入“相同硬结果”的不确定单元：Strict 没有触发 Escalation；Progressive
+虽触发了新增选择，却直接编辑而未使用读取许可。两臂成本差异只作描述，不解释为策略因果
+效应。实验现完成 2/4 条有效 Episode，下一步按冻结的反向顺序先运行 pydicom-1256
+Progressive，再运行 Strict。
+
+## 2026-08-20：渐进式目标读取约束消融完成
+
+pydicom-1256 按冻结的 Progressive→Strict 反向顺序各运行一次。两臂第 2 轮定位
+`pydicom/jsonrep.py`，第 4 轮收到 Deadline，第 6 轮触发 Escalation。Strict 第 7 轮仍请求
+`read_file`，因该轮只允许直接编辑而在分发前停止；Progressive 接受了第 7 轮唯一一次目标
+读取，并把下一轮收紧为直接编辑，但模型第 8 轮再次请求读取，同样在分发前停止。两条工作区
+均无修改，目标测试失败、22 条回归通过，主 Bad Case 均为 `action_constraint_violation`。
+
+Progressive 因而把可恢复窗口延长一轮，却没有把 Strict 的约束停止转化为编辑或成功：Strict
+为 5755 Token、约 116.08 秒，Progressive 为 11119 Token、约 122.78 秒。Astroid 配对则在
+两臂产生相同错误补丁和相同测试失败，其中 Progressive 虽收到可选读取约束但直接编辑，未消费
+许可。四条 Episode 合计 0/4 通过硬门槛，4/4 保持所选回归，Strict/Progressive 各有一次
+动作约束停止。
+
+按预注册决策规则，两组配对均为相同硬结果，整体结论为不确定：不偏好 Progressive，也不把
+该小样本解释为 Strict 的因果优势，保留现有默认值。下一步不在这些任务上调参或质量重试；应
+基于不可变 Bad Case 另行预注册“读取后转编辑遵循性”干预，并保持 LoRA 数据冻结为独立门槛。
+最终机器证据见
+`configs/integrations/swe-bench-lite-progressive-action-constraint-result.json`。
+
+## 2026-08-20：读取后转编辑纠正——机制、首轮关闭与新载体准入
+
+### 为什么做这项干预
+
+pydicom-1256 Progressive 的不可变轨迹已经证明 Runtime 接受了第 7 轮唯一一次目标读取，
+并在第 8 轮只暴露编辑工具；模型却再次请求读取，随后被显式停止。这支持的最窄推断是
+“模型可能没有在一次协议切换后遵循 edit-only 请求”，而不是“模型缺少更多文件信息”。因此
+新机制没有增加读取额度，也没有提供文件内容、测试结果或解题提示；它只把消费目标读取后的
+第一次无效动作保留为未分发证据，并允许一次 no-new-information 纠正请求。若再次违规，仍按
+原策略停止。参数默认值为 0，实验值只能为 1，且必须与一次目标读取额度同时启用。
+
+该设计分别验证三层命题：H1，一次纠正能否把“重复读取”转成目标路径编辑；H2，错误请求是否
+始终未分发、纠正次数是否有界、是否没有泄露新任务信息；H3，转成编辑后能否进一步通过目标和
+回归测试。H1 成立但 H3 失败只说明动作协议恢复，不等于修复能力提升。聚焦测试用模拟模型复现
+了“读取→重复读取→纠正→编辑”和“读取→重复读取→纠正→再次重复读取→显式停止”两条路径；
+证据断言只发生一次真实读取，纠正事件标记 `rejected_before_dispatch=true` 和
+`new_task_information_provided=false`，恢复请求只暴露 `write_file`/`edit_file`。
+
+### 首轮预注册为何在零模型调用阶段关闭
+
+在仓库获取和模型调用前冻结 `read-to-edit-constraint-repair.v1`，按确定性筛选得到
+SQLFluff-1517 与 Astroid-1866。SQLFluff 首次校准发现历史参数化 Node ID 被截断；Adapter
+随后做了通用且保守的完整函数归一化，解决 `::` 出现在参数值和嵌套方括号时的解析错误。
+但归一化后的完整测试函数同时包含目标参数与 PASS_TO_PASS 参数，导致 baseline 回归组失败。
+Astroid 的目标与回归截断 ID 也归一化为同一测试函数。继续过滤失败参数会改变冻结 evaluator
+覆盖范围，因此两题均不准入，协议按“不得替换”规则关闭，模型调用数为 0。
+
+这不是 Repair 干预失败，因为干预从未被模型请求触发；证据只否定“这两条历史快照能作为独立
+目标/回归载体”。失败、归一化修正、两次 SQLFluff 校准与一次 Astroid 校准哈希均保存在
+`configs/integrations/swe-bench-lite-read-to-edit-repair-calibration-result.json`，未覆盖或删除。
+
+### 独立后续协议与准入证据
+
+首轮关闭后另行冻结 `read-to-edit-constraint-repair-admissible.v1`，显式排除已选 15 题和肉眼可见
+的截断参数 ID，确定性选出 Astroid-1268（Control→Repair）与 pydicom-1694
+（Repair→Control）。两条精确仓库快照分别固定到
+`ce5cbce5ba11cdc2f8139ade66feea1e181a7944` 和
+`f8cf45b6c121e5a4bf4a43f71aba3bc64af3db9c`，clean-state、Tracked 文件/字节数及许可证哈希
+均与版本化快照一致。
+
+零模型调用校准得到 Astroid baseline 目标 1 条失败（rc=1）、91 条回归通过，Oracle 后两组
+通过；pydicom baseline 目标 1 条失败（rc=1）、26 条回归通过，Oracle 后两组通过。由此支持
+“两条任务是有效的本地实验载体”，不支持“Repair 已改善动作或正确性”。原始校准文件分别以
+SHA-256 `5826631041f50f52f7895a979fad4a4195f2e6677f0beed62933a9d208cc78a2` 和
+`7e593f97fbfe59f34b641be05fc17a310e5ff270d1d373d709f9d62c2f61255c` 固定；观察、推断和
+结论边界见
+`configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-calibration-result.json`。
+
+正式 Control/Repair 模型调用尚未开始。下一门槛是先把机制、协议、快照、校准和测试固定到
+可引用的实现版本；在工作树仍有未提交实现时不把旧 HEAD 冒充生成版本。
+
+## 2026-08-21：跨设备接续封装
+
+为避免后续设备把 Git 中的版本化证据与本机被忽略资产混淆，新增根目录
+`TRAINING_HANDOFF.md`。它明确列出不会随 Git 迁移的 `.env`、`.port_sessions`、任务仓库
+副本、环境和模型产物，并给出两条下一任务的精确仓库提交、Python 3.8 环境重建、零模型调用
+准入复跑、四臂顺序、Collector 公共参数、证据解释层级与 LoRA 前置门槛。
+
+原机 Astroid 环境没有 pip 模块，因此不能用 `pip freeze`；改从已安装发行包的 `.dist-info`
+元数据读取版本。pydicom 环境可直接 `pip freeze`。两组结果分别固化为
+`configs/integrations/astroid-1268-py38-lock.txt` 与
+`configs/integrations/pydicom-1694-py38-lock.txt`。这些锁只复现已通过的本地环境，不宣称
+等价于官方 Docker Harness。机器协议同时在任何模型调用前显式固定 Collector 当前默认的
+`prompt_version=swe-bench-lite-dev.deepseek-v4-flash.v1`，两臂仍只有 repair attempts 一项差异。

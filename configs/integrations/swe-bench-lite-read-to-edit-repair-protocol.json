@@ -1,0 +1,100 @@
+{
+  "schema_version": "read_to_edit_constraint_repair_protocol.v1",
+  "registered_at": "2026-08-20",
+  "status": "preregistered_before_task_repository_acquisition",
+  "protocol_version": "read-to-edit-constraint-repair-ablation.v1",
+  "protocol_document": "docs/roadmap/read-to-edit-constraint-repair-ablation-protocol.md",
+  "protocol_sha256": "bbe54eb722ad6c79ecbf22aaac282cbbc80dce83881eb220b266a85f428413e1",
+  "design_document": "docs/roadmap/read-to-edit-constraint-repair-design.md",
+  "design_sha256": "ee9eafbe8206dcf18316ae20bc1d3d77dd9459792ea1170057fcf9f02b7ad9cb",
+  "source_evidence": "configs/integrations/swe-bench-lite-progressive-action-constraint-result.json",
+  "source_evidence_sha256": "000cefcd0f20523bc7daee2693b96e991b2fd69cd00d0cac89bf445c10bba3ba",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "official_swebench_harness": false,
+  "selection_rule": {
+    "exclude_existing_pilot": true,
+    "oracle_implementation_file_count": 1,
+    "fail_to_pass_count": 1,
+    "pass_to_pass_minimum": 1,
+    "pass_to_pass_maximum": 50,
+    "allowed_environment_classes": [
+      "light",
+      "moderate"
+    ],
+    "ordering": [
+      "patch_changed_lines_desc",
+      "instance_id_asc"
+    ],
+    "take": 2,
+    "require_distinct_repositories": true
+  },
+  "instances": [
+    {
+      "order": 1,
+      "instance_id": "sqlfluff__sqlfluff-1517",
+      "base_commit": "304a197829f98e7425a46d872ada73176137e5ae",
+      "implementation_paths": [
+        "src/sqlfluff/core/parser/helpers.py"
+      ],
+      "oracle_patch_changed_lines": 11,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 42,
+      "arm_order": [
+        "control",
+        "repair"
+      ]
+    },
+    {
+      "order": 2,
+      "instance_id": "pylint-dev__astroid-1866",
+      "base_commit": "6cf238d089cf4b6753c94cfc089b4a47487711e5",
+      "implementation_paths": [
+        "astroid/brain/brain_builtin_inference.py"
+      ],
+      "oracle_patch_changed_lines": 6,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 10,
+      "arm_order": [
+        "repair",
+        "control"
+      ]
+    }
+  ],
+  "admission": {
+    "baseline_fail_to_pass_must_fail": true,
+    "baseline_pass_to_pass_must_pass": true,
+    "reference_fail_to_pass_must_pass": true,
+    "reference_pass_to_pass_must_pass": true,
+    "model_calls_before_admission": 0
+  },
+  "shared_policy": {
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "post_edit_contract_guidance": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "evaluator_timeout_seconds": 180,
+    "verifier_version": "verifier-policy.v2"
+  },
+  "arms": {
+    "control": {
+      "implementation_constraint_repair_attempts": 0
+    },
+    "repair": {
+      "implementation_constraint_repair_attempts": 1
+    }
+  },
+  "maximum_valid_episodes_per_task_arm": 1,
+  "maximum_valid_episodes": 4,
+  "quality_retries": 0,
+  "analysis_after_all_admitted_pairs": true,
+  "claim_boundary": "Preregistered paired local Dev read-to-edit compliance ablation; not an official SWE-bench score, training result, statistical model estimate, or LoRA readiness result."
+}

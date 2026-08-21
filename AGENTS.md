@@ -226,9 +226,11 @@ When changing tool execution:
 - Keep optional forced-action requests visible in `model_request`: direct-mutation
   constraints may expose only explicit edit tools, or one allowlisted target-file
   read followed by an edit-only request; final-response constraints expose no tools.
-  Reject off-target and repeated reads before dispatch. A provider that violates a
-  constraint must stop explicitly; a configured but untriggered constraint is not
-  evidence of causal improvement.
+  Reject off-target and repeated reads before dispatch. The optional one-attempt
+  read-to-edit repair may issue one no-new-information corrective request before an
+  explicit stop; record the rejected request and correction as immutable evidence.
+  A provider that exhausts the configured repair must stop explicitly; a configured
+  but untriggered constraint or repair is not evidence of causal improvement.
 
 ### Configuration discovery
 
@@ -278,6 +280,9 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Non-base benchmark groups require matching Dataset, Training Run, and Experiment references.
 - Completed Registry evidence is immutable; do not overwrite it to make a run appear consistent.
 - A screened SWE-bench item is not an official result until run through the official isolated Harness.
+- For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
+  `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
+  reconstruct and revalidate them before model calls or training.
 
 ## Coding and Git Rules
 

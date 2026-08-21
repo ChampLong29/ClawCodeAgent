@@ -434,6 +434,25 @@ class TestAgentConfiguration(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalCodingAgent(
                 cwd=self.tempdir,
+                implementation_constraint_repair_attempts=-1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_constraint_repair_attempts=2,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                implementation_deadline_turns=1,
+                implementation_escalation_turns=1,
+                force_direct_mutation_after_escalation=True,
+                implementation_constraint_repair_attempts=1,
+                implementation_path_patterns=("fixed.py",),
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
                 implementation_target_read_allowance=1,
             )
         with self.assertRaises(ValueError):
@@ -785,6 +804,176 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertEqual(result.stop_reason, "stopped")
         self.assertEqual(client.calls, 4)
         self.assertIn("bounded implementation", result.error)
+
+    def test_constraint_repair_can_recover_repeated_read_into_edit(self):
+        (Path(self.tempdir) / "fixed.py").write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_target_read_allowance=1,
+            implementation_constraint_repair_attempts=1,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class CapturingObserver:
+            def __init__(self):
+                self.events = []
+
+            def on_run_start(self, *args, **kwargs):
+                pass
+
+            def on_run_finish(self, *args, **kwargs):
+                pass
+
+            def record(self, event_type, **kwargs):
+                self.events.append((event_type, copy.deepcopy(kwargs)))
+                return f"event-{len(self.events)}"
+
+        class RepairingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                request_number = len(self.requests)
+                if request_number <= 2:
+                    name, arguments = "list_dir", '{"path": "."}'
+                elif request_number in {3, 4}:
+                    name, arguments = "read_file", '{"path": "fixed.py"}'
+                elif request_number == 5:
+                    name = "write_file"
+                    arguments = '{"path": "fixed.py", "content": "VALUE = 1\\n"}'
+                else:
+                    return {"content": "done", "usage": {}}
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{request_number}",
+                        "function": {"name": name, "arguments": arguments},
+                    }],
+                    "usage": {},
+                }
+
+        observer = CapturingObserver()
+        client = RepairingClient()
+        agent.runtime_observer = observer
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=7)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(len(client.requests), 6)
+        self.assertEqual(
+            (Path(self.tempdir) / "fixed.py").read_text(), "VALUE = 1\n"
+        )
+        correction_messages = [
+            item
+            for item in client.requests[4]["messages"]
+            if "Runtime action-constraint correction" in str(item.get("content"))
+        ]
+        self.assertEqual(len(correction_messages), 1)
+        visible_names = {
+            item.get("name") or (item.get("function") or {}).get("name")
+            for item in client.requests[4]["tools"]
+        }
+        self.assertEqual(visible_names, {"write_file", "edit_file"})
+        tool_calls = [
+            kwargs["payload"]["tool_name"]
+            for event_type, kwargs in observer.events
+            if event_type == "tool_call"
+        ]
+        self.assertEqual(tool_calls.count("read_file"), 1)
+        repairs = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "runtime_guidance"
+            and kwargs["payload"].get("guidance_type")
+            == "implementation_action_constraint_repair"
+        ]
+        self.assertEqual(len(repairs), 1)
+        self.assertTrue(repairs[0]["rejected_before_dispatch"])
+        self.assertFalse(repairs[0]["new_task_information_provided"])
+
+    def test_constraint_repair_stops_after_one_failed_correction(self):
+        (Path(self.tempdir) / "fixed.py").write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            implementation_deadline_turns=1,
+            implementation_escalation_turns=1,
+            force_direct_mutation_after_escalation=True,
+            implementation_target_read_allowance=1,
+            implementation_constraint_repair_attempts=1,
+            implementation_path_patterns=("fixed.py",),
+        )
+
+        class CapturingObserver:
+            def __init__(self):
+                self.events = []
+
+            def on_run_start(self, *args, **kwargs):
+                pass
+
+            def on_run_finish(self, *args, **kwargs):
+                pass
+
+            def record(self, event_type, **kwargs):
+                self.events.append((event_type, copy.deepcopy(kwargs)))
+                return f"event-{len(self.events)}"
+
+        class NonCompliantClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **kwargs):
+                self.calls += 1
+                name = "list_dir" if self.calls <= 2 else "read_file"
+                path = "." if self.calls <= 2 else "fixed.py"
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{self.calls}",
+                        "function": {
+                            "name": name,
+                            "arguments": json.dumps({"path": path}),
+                        },
+                    }],
+                    "usage": {},
+                }
+
+        observer = CapturingObserver()
+        client = NonCompliantClient()
+        agent.runtime_observer = observer
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=7)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertEqual(client.calls, 5)
+        self.assertEqual(
+            (Path(self.tempdir) / "fixed.py").read_text(), "VALUE = 0\n"
+        )
+        tool_calls = [
+            kwargs["payload"]["tool_name"]
+            for event_type, kwargs in observer.events
+            if event_type == "tool_call"
+        ]
+        self.assertEqual(tool_calls.count("read_file"), 1)
+        stops = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "runtime_stop"
+        ]
+        self.assertEqual(stops[-1]["reason"], "action_constraint_unsatisfied")
+        self.assertEqual(stops[-1]["constraint_repairs_used"], 1)
+        self.assertTrue(stops[-1]["constraint_repairs_exhausted"])
 
     def test_successful_edit_suppresses_implementation_escalation(self):
         agent = LocalCodingAgent(

@@ -39,15 +39,19 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
                 "test/example_test.py::test_plain",
                 "test/example_test.py::test_case[incomplete:",
                 "test/example_test.py::test_case[incomplete:",
+                "test/example_test.py::test_nested[value[index]",
+                "test/example_test.py::test_cast[value::TYPE",
                 "test/example_test.py::test_other[complete]",
             ]
         )
-        self.assertEqual(changes, 2)
+        self.assertEqual(changes, 4)
         self.assertEqual(
             normalized,
             [
                 "test/example_test.py::test_plain",
                 "test/example_test.py::test_case",
+                "test/example_test.py::test_nested",
+                "test/example_test.py::test_cast",
                 "test/example_test.py::test_other[complete]",
             ],
         )
@@ -484,6 +488,205 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
                 calibration["evaluator_fingerprint"]["pass_to_pass_count"],
                 regressions,
             )
+
+    def test_progressive_action_constraint_result_preserves_inconclusive_pairs(
+        self,
+    ):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-progressive-action-constraint-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+        result = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-progressive-action-constraint-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(result["protocol_sha256"], protocol["protocol_sha256"])
+        self.assertEqual(
+            result["schema_version"],
+            "progressive_action_constraint_result.v1",
+        )
+        self.assertEqual(result["status"], "completed_4_of_4_valid_episodes")
+        self.assertEqual(len(result["completed_arms"]), 4)
+        strict, progressive, pydicom_progressive, pydicom_strict = result[
+            "completed_arms"
+        ]
+        self.assertEqual(strict["instance_id"], "pylint-dev__astroid-1978")
+        self.assertEqual(strict["arm"], "strict")
+        self.assertFalse(strict["success"])
+        self.assertFalse(strict["verification"]["fail_to_pass"])
+        self.assertTrue(strict["verification"]["pass_to_pass"])
+        self.assertIsNone(
+            strict["behavior_v4"]["implementation_escalation_turn"]
+        )
+        self.assertFalse(
+            strict["failure_analysis"]["action_constraint_failure"]
+        )
+        self.assertEqual(progressive["arm"], "progressive")
+        self.assertEqual(
+            progressive["behavior_v4"]["implementation_escalation_turn"], 6
+        )
+        self.assertTrue(
+            progressive["progressive_constraint"]["target_read_option_offered"]
+        )
+        self.assertFalse(
+            progressive["progressive_constraint"][
+                "target_read_allowance_consumed"
+            ]
+        )
+        self.assertEqual(
+            result["completed_pair_summaries"][0]["protocol_interpretation"],
+            "inconclusive_identical_hard_outcomes",
+        )
+        self.assertEqual(pydicom_progressive["arm"], "progressive")
+        self.assertTrue(
+            pydicom_progressive["progressive_constraint"][
+                "target_read_allowance_consumed"
+            ]
+        )
+        self.assertEqual(pydicom_strict["arm"], "strict")
+        self.assertEqual(
+            result["completed_pair_summaries"][1]["protocol_interpretation"],
+            "inconclusive_progressive_delayed_but_did_not_eliminate_constraint_stop",
+        )
+        self.assertEqual(result["aggregate"]["valid_episodes"], 4)
+        self.assertEqual(result["aggregate"]["hard_gate_successes"], 0)
+        self.assertFalse(result["decision"]["prefer_progressive"])
+        self.assertEqual(
+            result["decision"]["result"], "inconclusive_keep_existing_default"
+        )
+        self.assertIn("Completed preregistered", result["claim_boundary"])
+
+    def test_read_to_edit_repair_protocol_is_frozen_before_runs(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-read-to-edit-repair-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            _canonical_text_sha256(ROOT / protocol["protocol_document"]),
+            protocol["protocol_sha256"],
+        )
+        self.assertEqual(
+            _canonical_text_sha256(ROOT / protocol["design_document"]),
+            protocol["design_sha256"],
+        )
+        self.assertEqual(
+            _canonical_text_sha256(ROOT / protocol["source_evidence"]),
+            protocol["source_evidence_sha256"],
+        )
+        self.assertEqual(protocol["maximum_valid_episodes"], 4)
+        self.assertEqual(protocol["quality_retries"], 0)
+        self.assertEqual(
+            protocol["shared_policy"]["implementation_target_read_allowance"],
+            1,
+        )
+        self.assertEqual(
+            protocol["arms"]["control"][
+                "implementation_constraint_repair_attempts"
+            ],
+            0,
+        )
+        self.assertEqual(
+            protocol["arms"]["repair"][
+                "implementation_constraint_repair_attempts"
+            ],
+            1,
+        )
+        self.assertEqual(
+            [item["instance_id"] for item in protocol["instances"]],
+            [
+                "sqlfluff__sqlfluff-1517",
+                "pylint-dev__astroid-1866",
+            ],
+        )
+        self.assertEqual(
+            protocol["instances"][0]["arm_order"], ["control", "repair"]
+        )
+        self.assertEqual(
+            protocol["instances"][1]["arm_order"], ["repair", "control"]
+        )
+
+    def test_read_to_edit_admissible_protocol_preserves_v1_closure(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-read-to-edit-repair-admissible-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            _canonical_text_sha256(ROOT / protocol["protocol_document"]),
+            protocol["protocol_sha256"],
+        )
+        self.assertEqual(
+            _canonical_text_sha256(ROOT / protocol["design_document"]),
+            protocol["design_sha256"],
+        )
+        self.assertEqual(
+            _canonical_text_sha256(
+                ROOT / protocol["predecessor_calibration_result"]
+            ),
+            protocol["predecessor_calibration_sha256"],
+        )
+        self.assertEqual(protocol["predecessor_model_calls"], 0)
+        self.assertEqual(
+            protocol["shared_policy"]["prompt_version"],
+            "swe-bench-lite-dev.deepseek-v4-flash.v1",
+        )
+        self.assertTrue(
+            protocol["selection_rule"][
+                "exclude_visibly_truncated_parameter_ids"
+            ]
+        )
+        self.assertEqual(
+            [item["instance_id"] for item in protocol["instances"]],
+            [
+                "pylint-dev__astroid-1268",
+                "pydicom__pydicom-1694",
+            ],
+        )
+        self.assertEqual(
+            protocol["instances"][0]["arm_order"], ["control", "repair"]
+        )
+        self.assertEqual(
+            protocol["instances"][1]["arm_order"], ["repair", "control"]
+        )
+
+    def test_read_to_edit_admissible_calibration_separates_observation_from_effect(self):
+        result = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-read-to-edit-repair-admissible-calibration-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(result["status"], "admitted")
+        self.assertEqual(result["model_calls_before_admission"], 0)
+        self.assertIn("no evidence", result["conclusion"]["not_supported"])
+        for item in result["instances"]:
+            observations = item["observations"]
+            self.assertFalse(observations["baseline_fail_to_pass"]["passed"])
+            self.assertTrue(observations["baseline_pass_to_pass"]["passed"])
+            self.assertTrue(observations["reference_fail_to_pass"]["passed"])
+            self.assertTrue(observations["reference_pass_to_pass"]["passed"])
+            self.assertEqual(len(item["raw_evidence_sha256"]), 64)
 
     def test_multitask_replication_preserves_partial_result_and_tradeoff(self):
         protocol = json.loads(

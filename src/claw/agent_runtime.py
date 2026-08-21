@@ -82,6 +82,7 @@ class LocalCodingAgent:
     implementation_escalation_turns: int = 0
     force_direct_mutation_after_escalation: bool = False
     implementation_target_read_allowance: int = 0
+    implementation_constraint_repair_attempts: int = 0
     post_edit_contract_guidance: bool = False
     implementation_path_patterns: Sequence[str] = ()
 
@@ -140,6 +141,10 @@ class LocalCodingAgent:
             raise ValueError(
                 "implementation_target_read_allowance must be 0 or 1"
             )
+        if self.implementation_constraint_repair_attempts not in {0, 1}:
+            raise ValueError(
+                "implementation_constraint_repair_attempts must be 0 or 1"
+            )
         if (
             self.implementation_target_read_allowance > 0
             and not self.force_direct_mutation_after_escalation
@@ -147,6 +152,14 @@ class LocalCodingAgent:
             raise ValueError(
                 "implementation_target_read_allowance requires "
                 "force_direct_mutation_after_escalation"
+            )
+        if (
+            self.implementation_constraint_repair_attempts > 0
+            and self.implementation_target_read_allowance != 1
+        ):
+            raise ValueError(
+                "implementation_constraint_repair_attempts requires "
+                "implementation_target_read_allowance=1"
             )
         if self.force_final_response_at_critical and self.completion_critical_turns <= 0:
             raise ValueError(
@@ -449,6 +462,8 @@ class LocalCodingAgent:
             direct_mutation_succeeded = False
             force_direct_mutation_request = False
             target_reads_remaining = self.implementation_target_read_allowance
+            target_read_consumed = False
+            constraint_repairs_used = 0
             force_final_response_request = False
             while self.turns < max_turns:
                 # Check budget
@@ -810,6 +825,7 @@ class LocalCodingAgent:
                     )
                     if target_read_request:
                         target_reads_remaining -= 1
+                        target_read_consumed = True
                         self._trace(
                             "runtime_guidance",
                             payload={
@@ -821,6 +837,56 @@ class LocalCodingAgent:
                             parent_event_id=model_request_event_id,
                         )
                     if not direct_mutation_request and not target_read_request:
+                        if (
+                            target_read_consumed
+                            and constraint_repairs_used
+                            < self.implementation_constraint_repair_attempts
+                        ):
+                            constraint_repairs_used += 1
+                            repair_guidance = (
+                                "[Runtime action-constraint correction] Your previous "
+                                "tool request was not executed. The single allowed "
+                                "target-file read has already been consumed, so no new "
+                                "file or test information is available. In the next "
+                                "tool-bearing response, directly edit one allowed "
+                                "implementation path using write_file or edit_file. "
+                                "Do not request another read, search, outline, shell, "
+                                "or environment-inspection tool."
+                            )
+                            if self.implementation_path_patterns:
+                                repair_guidance += (
+                                    " Allowed implementation path patterns: "
+                                    + ", ".join(self.implementation_path_patterns)
+                                    + "."
+                                )
+                            messages.append(
+                                {"role": "user", "content": repair_guidance}
+                            )
+                            self._trace(
+                                "runtime_guidance",
+                                payload={
+                                    "guidance_type": (
+                                        "implementation_action_constraint_repair"
+                                    ),
+                                    "repair_attempt": constraint_repairs_used,
+                                    "maximum_repair_attempts": (
+                                        self.implementation_constraint_repair_attempts
+                                    ),
+                                    "violating_requested_tool_names": sorted(
+                                        requested_names
+                                    ),
+                                    "rejected_before_dispatch": True,
+                                    "new_task_information_provided": False,
+                                    "target_reads_remaining": target_reads_remaining,
+                                    "next_action_constraint": (
+                                        "required_direct_mutation"
+                                    ),
+                                },
+                                parent_event_id=model_request_event_id,
+                            )
+                            self.turns += 1
+                            force_direct_mutation_request = True
+                            continue
                         detail = (
                             "provider did not satisfy the bounded implementation "
                             "action constraint"
@@ -831,6 +897,11 @@ class LocalCodingAgent:
                                 "reason": "action_constraint_unsatisfied",
                                 "detail": detail,
                                 "requested_tool_names": sorted(requested_names),
+                                "constraint_repairs_used": constraint_repairs_used,
+                                "constraint_repairs_exhausted": (
+                                    constraint_repairs_used
+                                    >= self.implementation_constraint_repair_attempts
+                                ),
                             },
                             parent_event_id=model_request_event_id,
                         )

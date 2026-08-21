@@ -1,0 +1,85 @@
+{
+  "schema_version": "swe_bench_lite_intervention_calibration_result.v1",
+  "protocol_version": "read-to-edit-constraint-repair-admissible.v1",
+  "protocol_document": "docs/roadmap/read-to-edit-constraint-repair-admissible-ablation-protocol.md",
+  "protocol_sha256": "5d7419b12e650e1141deb2056921277a3a4ee9e59f5e20ba7a13d9b77e90e3a7",
+  "status": "admitted",
+  "model_calls_before_admission": 0,
+  "admission_rule": {
+    "baseline_fail_to_pass": false,
+    "baseline_pass_to_pass": true,
+    "reference_fail_to_pass": true,
+    "reference_pass_to_pass": true
+  },
+  "instances": [
+    {
+      "instance_id": "pylint-dev__astroid-1268",
+      "base_commit": "ce5cbce5ba11cdc2f8139ade66feea1e181a7944",
+      "environment": "astroid-1333-py38",
+      "raw_evidence": ".port_sessions/calibration-astroid-1268-read-to-edit-repair-admissible-v1/local-calibration-result.json",
+      "raw_evidence_sha256": "5826631041f50f52f7895a979fad4a4195f2e6677f0beed62933a9d208cc78a2",
+      "observations": {
+        "fail_to_pass_count": 1,
+        "pass_to_pass_count": 91,
+        "baseline_fail_to_pass": {
+          "passed": false,
+          "returncode": 1,
+          "stdout_sha256": "19a3437c5b306ffa3c7acdec1aeab7de5f42a1d011709c36be25378fb107988e"
+        },
+        "baseline_pass_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "f900220079775c4bb8d1cbe248716cfcc73f840209e96f8cb307c4dcd8d5a0ff"
+        },
+        "reference_fail_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "bc47e3b081b999592ee62a24e71ad706cfc084a16c3c6ee9edf58502b0dd57c7"
+        },
+        "reference_pass_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "9902654e5bf960f939cb008d47c02272babbe66fd7f224c590b0ec9069c02865"
+        }
+      },
+      "inference": "The baseline exposes a real target failure without a sampled regression failure, and the frozen Oracle satisfies both groups; the task is a valid local experimental carrier."
+    },
+    {
+      "instance_id": "pydicom__pydicom-1694",
+      "base_commit": "f8cf45b6c121e5a4bf4a43f71aba3bc64af3db9c",
+      "environment": "pydicom-1139-py38",
+      "raw_evidence": ".port_sessions/calibration-pydicom-1694-read-to-edit-repair-admissible-v1/local-calibration-result.json",
+      "raw_evidence_sha256": "7e593f97fbfe59f34b641be05fc17a310e5ff270d1d373d709f9d62c2f61255c",
+      "observations": {
+        "fail_to_pass_count": 1,
+        "pass_to_pass_count": 26,
+        "baseline_fail_to_pass": {
+          "passed": false,
+          "returncode": 1,
+          "stdout_sha256": "94b2ec9abecffdd1731bc8398942f7c51483013d8b91b959ef1f9bb73105d69f"
+        },
+        "baseline_pass_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "ca728d6d5bff4f2540891b83168525f565a86b2c0a7e2aec76245c6ea6761247"
+        },
+        "reference_fail_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "c65dec7cdf0479f94b68dd8b02f66ccdca00b31130127a30f9ea1b4c827affbd"
+        },
+        "reference_pass_to_pass": {
+          "passed": true,
+          "returncode": 0,
+          "stdout_sha256": "20ac8c407eafcebe0e79a1bca673dc5a658f47b8148ebdf56ed9ee965f6a8757"
+        }
+      },
+      "inference": "The baseline exposes a real target failure without a sampled regression failure, and the frozen Oracle satisfies both groups; the task is a valid local experimental carrier."
+    }
+  ],
+  "conclusion": {
+    "supported": "Both preregistered replacement-free carriers satisfy the local baseline/Oracle admission gate, so the frozen paired model comparison may proceed after the implementation is pinned.",
+    "not_supported": "No model request was made, so this result provides no evidence that the repair intervention improves action compliance or hard task success."
+  },
+  "claim_boundary": "Local compatibility admission only; not an official SWE-bench result and not an intervention-effect result."
+}

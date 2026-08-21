@@ -150,6 +150,39 @@ PILOT = {
             "Astroid arm order under the frozen paired protocol."
         ),
     },
+    "sqlfluff__sqlfluff-1517": {
+        "role": "read-to-edit constraint-repair paired ablation",
+        "rationale": (
+            "The deterministic repair-ablation filter selected this previously "
+            "unrun one-file parser-invariant issue with one target and forty-two "
+            "regressions as the highest changed-line moderate/light candidate."
+        ),
+    },
+    "pylint-dev__astroid-1866": {
+        "role": "read-to-edit constraint-repair paired ablation",
+        "rationale": (
+            "The same frozen filter selected this previously unrun one-file "
+            "inference failure with one target and ten regressions as the next "
+            "highest candidate from a distinct repository."
+        ),
+    },
+    "pylint-dev__astroid-1268": {
+        "role": "admissible read-to-edit repair paired ablation",
+        "rationale": (
+            "The follow-on preregistration selected this previously unrun "
+            "one-file formatting issue with one complete target identifier "
+            "and ninety-one regressions after the first carrier pair failed "
+            "zero-model-call admission."
+        ),
+    },
+    "pydicom__pydicom-1694": {
+        "role": "admissible read-to-edit repair paired ablation",
+        "rationale": (
+            "The same follow-on filter selected this previously unrun one-file "
+            "Dataset contract issue with one complete target identifier and "
+            "twenty-six regressions from a distinct repository."
+        ),
+    },
 }
 
 FALLBACK = None
@@ -299,10 +332,10 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         "dataset_revision": metadata["sha"],
         "split": "dev",
         "policy": {
-            "max_instances": 13,
+            "max_instances": 17,
             "one_instance_per_repository": False,
             "minimum_distinct_repositories": 6,
-            "maximum_instances_per_repository": 3,
+            "maximum_instances_per_repository": 5,
             "selection_dimensions": [
                 "environment weight",
                 "problem statement completeness",

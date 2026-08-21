@@ -292,7 +292,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "Dataset.to_json_dict can still generate exceptions when suppress_invalid_tags=True",
       "total_score": 19,
@@ -373,7 +373,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "'AsStringVisitor' object has no attribute 'visit_unknown'",
       "total_score": 21,
@@ -427,7 +427,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "\"TypeError: unsupported format string passed to NoneType.__format__\" while running type inference in version 2.12.x",
       "total_score": 21,
@@ -508,7 +508,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "\"Dropped elements in sequence matching\" when doubled semicolon",
       "total_score": 22,

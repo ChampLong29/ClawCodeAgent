@@ -1,5 +1,5 @@
 {
-  "acquisition": "per-instance shallow fetch of the exact base_commit; repository metadata below is authoritative",
+  "acquisition": "per-instance exact base_commit checkout; repository metadata below is authoritative",
   "instances": [
     {
       "clean": true,
@@ -130,6 +130,46 @@
       "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
       "tracked_bytes": 8888066,
       "tracked_files": 440
+    },
+    {
+      "clean": true,
+      "head": "304a197829f98e7425a46d872ada73176137e5ae",
+      "instance_id": "sqlfluff__sqlfluff-1517",
+      "license": "MIT",
+      "license_path": "LICENSE.md",
+      "license_sha256": "6d1e394d2e68a47106733103e9ed87c9d1573d9b7a43f5d05989424fce6dae39",
+      "tracked_bytes": 3554569,
+      "tracked_files": 1698
+    },
+    {
+      "clean": true,
+      "head": "6cf238d089cf4b6753c94cfc089b4a47487711e5",
+      "instance_id": "pylint-dev__astroid-1866",
+      "license": "LGPL-2.1-or-later",
+      "license_path": "LICENSE",
+      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
+      "tracked_bytes": 2206468,
+      "tracked_files": 282
+    },
+    {
+      "clean": true,
+      "head": "ce5cbce5ba11cdc2f8139ade66feea1e181a7944",
+      "instance_id": "pylint-dev__astroid-1268",
+      "license": "LGPL-2.1-or-later",
+      "license_path": "LICENSE",
+      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
+      "tracked_bytes": 1932803,
+      "tracked_files": 247
+    },
+    {
+      "clean": true,
+      "head": "f8cf45b6c121e5a4bf4a43f71aba3bc64af3db9c",
+      "instance_id": "pydicom__pydicom-1694",
+      "license": "MIT",
+      "license_path": "LICENSE",
+      "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
+      "tracked_bytes": 9547070,
+      "tracked_files": 478
     }
   ],
   "schema_version": "swe_bench_repo_snapshots.v1"

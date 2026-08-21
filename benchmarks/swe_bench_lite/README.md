@@ -13,12 +13,12 @@ not contain the 300-instance test split.
 - `raw/dataset-metadata.json`: dataset revision metadata.
 - `snapshot.json`: source URLs, revision, row count, and local SHA-256 hashes.
 - `dev-catalog.json`: patch-free screening metrics for all 23 dev instances.
-- `pilot-selection.json`: nine selected Dev instances across six repositories.
+- `pilot-selection.json`: seventeen selected Dev instances across six repositories.
 - `pilot-agent-inputs.json`: sanitized Agent inputs containing issue text and
   base revision, with all gold, tests, hints, and evaluation test IDs removed.
 - `repo-snapshots.json`: exact checked-out HEADs, tracked sizes, clean-state
-  checks, and upstream license hashes for the nine pinned task snapshots.
-- `repos/`: ignored shallow checkouts pinned to selected base commits.
+  checks, and upstream license hashes for the seventeen pinned task snapshots.
+- `repos/`: ignored checkouts pinned to selected base commits.
 - `../../configs/integrations/swe-bench-lite-marshmallow-local-calibration.json`:
   versioned hashes and return codes from the first local evaluator calibration.
 - `../../configs/integrations/swe-bench-lite-astroid-local-calibration.json`:
@@ -56,9 +56,25 @@ Selected pilot:
     twelve regressions, and Strict-first paired action-constraint evaluation.
 13. `pydicom__pydicom-1256` — nested BulkDataURI handler propagation with one
     target, twenty-two regressions, and Progressive-first paired evaluation.
+14. `sqlfluff__sqlfluff-1517` — first read-to-edit repair carrier; retained as
+    a zero-model-call admission failure because truncated parameter IDs made
+    the target and regression groups overlap after conservative normalization.
+15. `pylint-dev__astroid-1866` — second first-protocol carrier; retained as the
+    same class of zero-model-call admission failure rather than replaced in place.
+16. `pylint-dev__astroid-1268` — independently preregistered admissible carrier
+    with one target and ninety-one regressions, Control-first.
+17. `pydicom__pydicom-1694` — independently preregistered admissible carrier
+    with one target and twenty-six regressions, Repair-first.
 
-The local calibration runner has verified thirteen tasks from six repositories under isolated
-historical environments; the newest two have calibration evidence but no model Episode yet. For `marshmallow-code__marshmallow-1343`, the
+The local calibration runner has admitted fifteen of seventeen selected tasks from six repositories
+under isolated historical environments. SQLFluff-1517 and Astroid-1866 remain versioned calibration
+failures caused by insufficient historical test-ID precision; no model was called and neither was
+silently replaced inside its frozen protocol. The independently preregistered Astroid-1268 and
+pydicom-1694 replacements satisfy baseline-fails-target/baseline-passes-regressions and
+Oracle-passes-both gates, with zero model calls so far. Astroid-1978 also has
+an archived Strict/Progressive pair with identical failed target-test outcomes. The pydicom pair is
+also archived: Progressive delayed the same action-constraint stop by one accepted target read but
+did not produce an edit or success. For `marshmallow-code__marshmallow-1343`, the
 baseline fails one FAIL_TO_PASS test and passes all 24 PASS_TO_PASS tests. For
 `marshmallow-code__marshmallow-1359`, the baseline fails one target test and
 passes all 76 regressions; its reference patch passes both groups. For
@@ -69,8 +85,9 @@ PASS_TO_PASS tests. The second pydicom task adds 301 PASS_TO_PASS tests for
 bytes/container semantics; the second Astroid task adds 46 path-resolution
 regressions. PyVista adds a pinned Python 3.8.20, VTK 9.2.6, and NumPy 1.24.4
 environment with 114 regressions. The two multi-task additions contribute 10 and
-three regressions respectively; the paired-ablation additions contribute 12 and
-22. All thirteen reference patches pass both groups. Calibration
+three regressions respectively; the first paired-ablation additions contribute 12 and
+22. The admitted follow-on carriers contribute 91 and 26 regressions. All fifteen admitted
+reference patches pass both groups. Calibration
 builds exact Git Archive snapshots, applies evaluator patches outside the agent
 boundary, and stores only hashes and return codes as versioned evidence.
 

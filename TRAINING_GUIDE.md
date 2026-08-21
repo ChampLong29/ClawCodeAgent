@@ -559,19 +559,22 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 - 对其余历史仓库构建固定依赖镜像。
 - FAIL_TO_PASS / PASS_TO_PASS 的正式容器化验证。
 - 已完成两条未见 Issue 的冻结多任务复现：pvlib-1606 成功，SQLFluff-1733 因直接编辑约束
-  拒绝 read-before-edit 请求而停止，合计 1/2。下一步先调整约束为有界“定位后一次读取再编辑”
-  的新协议，再用新任务/Seed 验证；不得重跑 1733 追求成功。
+  拒绝 read-before-edit 请求而停止，合计 1/2。随后已在两条新 Issue 上完成四 Episode 的
+  Strict/Progressive 配对消融：两组硬结果相同；Progressive 在 pydicom-1256 上接受一次目标
+  读取后仍因重复读取停止，未消除 Strict 失败。结论不确定，暂不改变默认策略或进入 LoRA。
 
-因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。Marshmallow 与 Astroid 的本地结果只证明评测环境能观察到预期状态转换；两者均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
+因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。所有本地结果只证明固定环境能观察到对应状态转换；均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
 ## 13. 推荐推进顺序
+
+如果要在另一台设备继续，请先执行 [`TRAINING_HANDOFF.md`](TRAINING_HANDOFF.md) 的仓库、Python 3.8 环境、准入复跑和证据核验步骤；不要直接复制旧 `generation_commit` 或跳过准入开始模型调用。
 
 1. 用 Core Smoke 的一条任务验证端到端链路。
 2. 用 Medium Pilot 的一到两条任务校准模型、Prompt、Turn 和失败日志。
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. 已完成六仓库十一任务受控 Dev Episode；Pilot 已扩为十三题。Astroid-1978 与 pydicom-1256 已通过模型调用前准入，下一步按冻结 Strict/Progressive 顺序运行最多四条配对 Episode。
+6. Pilot 已扩为六仓库十七题：十五题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 四条配对消融已收束为不确定结果；默认关闭的一次 read-to-edit 纠正已完成契约测试，独立预注册的 Astroid-1268/pydicom-1694 已通过准入。下一步先固定实现版本，再按冻结顺序运行 Control/Repair，不能把准入成功写成干预增点。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。

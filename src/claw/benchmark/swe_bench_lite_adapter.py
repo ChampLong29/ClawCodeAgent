@@ -195,8 +195,10 @@ class SweBenchLiteTestExecution:
 def _normalize_pytest_node_ids(test_ids: List[str]) -> tuple[List[str], int]:
     """Conservatively expand visibly truncated parameter IDs to the test function.
 
-    Some historical SWE-bench rows contain a parameterized pytest node ID with an
-    opening ``[`` but no closing ``]``.  Pytest rejects the entire invocation with
+    Some historical SWE-bench rows contain a parameterized pytest node ID whose
+    outer parameter bracket is visibly unclosed. A nested expression may contribute
+    an inner closing bracket, so presence/absence alone is insufficient; compare the
+    bracket counts in the parameter suffix. Pytest rejects such an invocation with
     exit code 4. Running the full test function is a conservative superset of the
     intended parameter case and avoids silently dropping regression coverage.
     """
@@ -204,7 +206,12 @@ def _normalize_pytest_node_ids(test_ids: List[str]) -> tuple[List[str], int]:
     changes = 0
     for node_id in test_ids:
         candidate = node_id
-        if "[" in candidate and "]" not in candidate.rsplit("::", 1)[-1]:
+        parameter_start = candidate.find("[")
+        parameter_suffix = candidate[parameter_start:] if parameter_start >= 0 else ""
+        if (
+            "[" in parameter_suffix
+            and parameter_suffix.count("[") > parameter_suffix.count("]")
+        ):
             candidate = candidate.split("[", 1)[0]
             changes += 1
         if candidate not in normalized:

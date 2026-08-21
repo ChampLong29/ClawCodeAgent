@@ -57,6 +57,15 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--implementation-constraint-repair-attempts",
+        type=int,
+        default=0,
+        help=(
+            "Set to 1 to allow one no-new-information corrective model request "
+            "when the model violates edit-only mode after consuming its target read."
+        ),
+    )
+    parser.add_argument(
         "--no-post-edit-contract-guidance",
         action="store_false",
         dest="post_edit_contract_guidance",
@@ -94,6 +103,9 @@ def main() -> int:
         ),
         implementation_target_read_allowance=(
             args.implementation_target_read_allowance
+        ),
+        implementation_constraint_repair_attempts=(
+            args.implementation_constraint_repair_attempts
         ),
         post_edit_contract_guidance=args.post_edit_contract_guidance,
         timeout_seconds=args.timeout,

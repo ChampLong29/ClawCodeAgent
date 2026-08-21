@@ -1,0 +1,343 @@
+{
+  "schema_version": "progressive_action_constraint_result.v1",
+  "captured_at": "2026-08-20",
+  "status": "completed_4_of_4_valid_episodes",
+  "protocol_version": "progressive-action-constraint-ablation.v1",
+  "protocol_sha256": "ef8e01769bb956da82c03fb15a7effb7f23d13d998f3a3791e1332757c3b90bf",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "68b7ae0",
+  "generation_worktree_dirty": true,
+  "generation_worktree_note": "The source commit was pinned; two unrelated untracked root artifacts were present but were not included in the task workspace or generation commit.",
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "completed_arms": [
+    {
+      "instance_id": "pylint-dev__astroid-1978",
+      "arm": "strict",
+      "implementation_target_read_allowance": 0,
+      "collection_id": "episode_collection_e88fc92726d5bc65410f",
+      "episode_id": "training-0e49225653fe44f6a9af",
+      "success": false,
+      "hashes": {
+        "collection_manifest_sha256": "0dd3dbc45a5a72e180c23d126b8899861314564b7a567d90e16e0bac243b37de",
+        "episode_results_sha256": "8e02b9ca6c81231cb3530d85986a2de7e39b6d12e1f15f7af59bd2ca74829e60",
+        "episode_sha256": "2fd2442ea3b712dc54738571bd6e892ab75ffc227ec9a5ca572036949799f6a2",
+        "trajectory_sha256": "bd2a53776e9dc9bab05cce182b6ee8f37c6f07a004e233fdc2c40f6e51dcc1d5",
+        "verification_sha256": "48a6ce1f09671f4103c17ce4d492399a321b23d76bcaacba11179a36a6d82be7"
+      },
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": false,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 12,
+        "changed_files": [
+          "astroid/raw_building.py"
+        ],
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_reason": "completed",
+        "final_response_quality": "user_facing_text"
+      },
+      "behavior_v4": {
+        "model_turns": 12,
+        "model_requested_tool_calls": 11,
+        "dispatched_tool_calls": 11,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 1,
+        "input_tokens": 3616,
+        "output_tokens": 1793,
+        "total_tokens": 5409,
+        "latency_seconds": 81.51039920199999,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 5,
+        "post_edit_contract_guidance_turn": 5,
+        "direct_mutation_calls": 1,
+        "target_to_mutation_turn_lag": 3
+      },
+      "failure_analysis": {
+        "primary_category": "test_failure",
+        "environment_or_infrastructure_failure": false,
+        "action_constraint_failure": false,
+        "candidate_change": "Wrapped the target getattr call in warnings.catch_warnings() and ignored emitted warnings.",
+        "oracle_behavior": "Redirects stdout and stderr emitted during module attribute lookup and records captured output through the module logger.",
+        "observed_gap": "The candidate addresses the issue's FutureWarning symptom but does not implement the broader output-capture behavior exercised by the hidden FAIL_TO_PASS test.",
+        "regression_result": "All 12 selected PASS_TO_PASS tests remained green."
+      }
+    },
+    {
+      "instance_id": "pylint-dev__astroid-1978",
+      "arm": "progressive",
+      "implementation_target_read_allowance": 1,
+      "collection_id": "episode_collection_ff3595ba6aaa6760f636",
+      "episode_id": "training-6e8ee9d0f8034ed19da0",
+      "success": false,
+      "hashes": {
+        "collection_manifest_sha256": "a3f00b552aac4c66aac1b051beef372a708cc82138dd4452e2205065f22c1e76",
+        "episode_results_sha256": "fd21df616ab9905bdbe2b92242abf2b34f4211f7ef8bc64a23f243f8b46df234",
+        "episode_sha256": "7460f9614f3ac07eaec6ae56fbffff9e1950be7b3047287555c04bdc706299bd",
+        "trajectory_sha256": "6f0ec0dc8acde36e0e98df7ee6a462edd9d371892755a623f8fe352cddf98619",
+        "verification_sha256": "1fe4be8b09b7edbe11465e59f46cf80123820464072f8782d6ff15757def9aea"
+      },
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": false,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 12,
+        "changed_files": [
+          "astroid/raw_building.py"
+        ],
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_reason": "completed",
+        "final_response_quality": "user_facing_text"
+      },
+      "behavior_v4": {
+        "model_turns": 16,
+        "model_requested_tool_calls": 15,
+        "dispatched_tool_calls": 15,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 2,
+        "input_tokens": 9118,
+        "output_tokens": 2694,
+        "total_tokens": 11812,
+        "latency_seconds": 119.26937531300001,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": 6,
+        "first_direct_mutation_turn": 7,
+        "post_edit_contract_guidance_turn": 7,
+        "completion_reminder_turn": 14,
+        "direct_mutation_calls": 1,
+        "target_to_mutation_turn_lag": 5
+      },
+      "progressive_constraint": {
+        "target_read_option_offered": true,
+        "target_read_option_offered_turn": 6,
+        "target_read_allowance_consumed": false,
+        "next_action": "direct_mutation_on_turn_7",
+        "action_constraint_rejections": 0
+      },
+      "failure_analysis": {
+        "primary_category": "test_failure",
+        "environment_or_infrastructure_failure": false,
+        "action_constraint_failure": false,
+        "candidate_equivalent_to_strict": true,
+        "candidate_change": "Wrapped the target getattr call in warnings.catch_warnings() and ignored emitted warnings.",
+        "oracle_behavior": "Redirects stdout and stderr emitted during module attribute lookup and records captured output through the module logger.",
+        "observed_gap": "As in the Strict arm, the candidate suppresses Python warnings but does not implement the broader output-capture behavior exercised by the hidden FAIL_TO_PASS test.",
+        "tool_failures": [
+          "A model-authored reproduction used an environment without NumPy and raised ModuleNotFoundError.",
+          "A later attempt to git stash, run a reproduction, and pop the stash was blocked by shell security policy; no stash operation was dispatched."
+        ],
+        "regression_result": "All 12 selected PASS_TO_PASS tests remained green."
+      }
+    },
+    {
+      "instance_id": "pydicom__pydicom-1256",
+      "arm": "progressive",
+      "implementation_target_read_allowance": 1,
+      "collection_id": "episode_collection_ad7bb45b8f2d458209f1",
+      "episode_id": "training-ecc56b7a934c4f5793ce",
+      "success": false,
+      "hashes": {
+        "collection_manifest_sha256": "3140803f37f1f7db65a9d55c50d7b5523c68db8f9809451bab18d92e854f4b2d",
+        "episode_results_sha256": "4371caa2a9ea0d3fee9ed222d8fde31142c5f914e00c5ed588d039db6e1092ef",
+        "episode_sha256": "afd55918d7ca6af0410f41d23d58d4d870e5cd8c85f19d0ffd41aab2119612ce",
+        "trajectory_sha256": "7452bbc25c8cee0f02322f47e13113ada7a84f3c84261a8824b28947b63ffb3e",
+        "verification_sha256": "3676c3cc66e1eaae69046673c8ccb7c6202e46c45730507c78cfd76c02b64f9e"
+      },
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": false,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 22,
+        "changed_files": [],
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_reason": "cancelled",
+        "termination_detail": "provider did not satisfy the bounded implementation action constraint",
+        "final_response_quality": "not_completed"
+      },
+      "behavior_v4": {
+        "model_turns": 8,
+        "model_requested_tool_calls": 8,
+        "dispatched_tool_calls": 7,
+        "rejected_tool_calls": 1,
+        "failed_tool_calls": 0,
+        "input_tokens": 10468,
+        "output_tokens": 651,
+        "total_tokens": 11119,
+        "latency_seconds": 122.78033563700001,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": 6,
+        "first_direct_mutation_turn": null,
+        "post_edit_contract_guidance_turn": null,
+        "direct_mutation_calls": 0
+      },
+      "progressive_constraint": {
+        "target_read_option_offered": true,
+        "target_read_option_offered_turn": 6,
+        "target_read_allowance_consumed": true,
+        "target_read_consumed_turn": 7,
+        "next_action_constraint": "required_direct_mutation",
+        "violating_request_turn": 8,
+        "violating_requested_tools": [
+          "read_file"
+        ],
+        "action_constraint_rejections": 1
+      },
+      "failure_analysis": {
+        "primary_category": "action_constraint_violation",
+        "secondary_categories": [
+          "test_failure"
+        ],
+        "environment_or_infrastructure_failure": false,
+        "action_constraint_failure": true,
+        "observed_sequence": "The one target read allowed after Escalation was accepted on turn 7. The next request again selected read_file instead of a required direct mutation, so Runtime rejected it before dispatch and cancelled the Episode.",
+        "changed_workspace": false,
+        "regression_result": "The unchanged candidate retained all 22 selected PASS_TO_PASS tests."
+      }
+    },
+    {
+      "instance_id": "pydicom__pydicom-1256",
+      "arm": "strict",
+      "implementation_target_read_allowance": 0,
+      "collection_id": "episode_collection_05e3ae5c146e6a329379",
+      "episode_id": "training-4ceba9c53ead4887b2f7",
+      "success": false,
+      "hashes": {
+        "collection_manifest_sha256": "9d9d641fd3df4ed76be341b3bd30d7e90ffa411b83c16c0b05f9eaa30a6cbbfe",
+        "episode_results_sha256": "ff2d078b7dbbbec24d38424ed6e0b52c81e0c8e8e2d639e44bce32b41ebb4b88",
+        "episode_sha256": "3a4fdaa16b5b7a67449e58ccccb6bb4d6ccac3242ea6d784d5bbbf261a07ba47",
+        "trajectory_sha256": "85e2f3507008dd01810752bc383a4209a053141ef3d176f4f2636ffe66d0d062",
+        "verification_sha256": "3841787b4c9ab9b4a589172b87c5daabe2b8b36fe6af8ec7716ea1f48554a93a"
+      },
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": false,
+        "fail_to_pass_count": 1,
+        "pass_to_pass": true,
+        "pass_to_pass_count": 22,
+        "changed_files": [],
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_reason": "cancelled",
+        "termination_detail": "provider did not satisfy the bounded implementation action constraint",
+        "final_response_quality": "not_completed"
+      },
+      "behavior_v4": {
+        "model_turns": 7,
+        "model_requested_tool_calls": 7,
+        "dispatched_tool_calls": 6,
+        "rejected_tool_calls": 1,
+        "failed_tool_calls": 0,
+        "input_tokens": 5206,
+        "output_tokens": 549,
+        "total_tokens": 5755,
+        "latency_seconds": 116.08137599900002,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": 6,
+        "first_direct_mutation_turn": null,
+        "post_edit_contract_guidance_turn": null,
+        "direct_mutation_calls": 0
+      },
+      "strict_constraint": {
+        "required_direct_mutation_turn": 7,
+        "violating_requested_tools": [
+          "read_file"
+        ],
+        "action_constraint_rejections": 1
+      },
+      "failure_analysis": {
+        "primary_category": "action_constraint_violation",
+        "secondary_categories": [
+          "test_failure"
+        ],
+        "environment_or_infrastructure_failure": false,
+        "action_constraint_failure": true,
+        "observed_sequence": "After Escalation made turn 7 edit-only, the model requested another read_file. Runtime rejected it before dispatch and cancelled the Episode without mutation.",
+        "changed_workspace": false,
+        "regression_result": "The unchanged candidate retained all 22 selected PASS_TO_PASS tests."
+      }
+    }
+  ],
+  "remaining_arm_order": [],
+  "completed_pair_summaries": [
+    {
+      "instance_id": "pylint-dev__astroid-1978",
+      "strict_success": false,
+      "progressive_success": false,
+      "same_candidate_change": true,
+      "same_hard_outcome": true,
+      "strict_action_constraint_stop": false,
+      "progressive_action_constraint_stop": false,
+      "progressive_target_read_allowance_consumed": false,
+      "strict_total_tokens": 5409,
+      "progressive_total_tokens": 11812,
+      "strict_latency_seconds": 81.51039920199999,
+      "progressive_latency_seconds": 119.26937531300001,
+      "protocol_interpretation": "inconclusive_identical_hard_outcomes"
+    },
+    {
+      "instance_id": "pydicom__pydicom-1256",
+      "strict_success": false,
+      "progressive_success": false,
+      "same_candidate_change": true,
+      "same_hard_outcome": true,
+      "strict_action_constraint_stop": true,
+      "progressive_action_constraint_stop": true,
+      "progressive_target_read_allowance_consumed": true,
+      "strict_stop_turn": 7,
+      "progressive_stop_turn": 8,
+      "strict_total_tokens": 5755,
+      "progressive_total_tokens": 11119,
+      "strict_latency_seconds": 116.08137599900002,
+      "progressive_latency_seconds": 122.78033563700001,
+      "protocol_interpretation": "inconclusive_progressive_delayed_but_did_not_eliminate_constraint_stop"
+    }
+  ],
+  "aggregate": {
+    "valid_episodes": 4,
+    "hard_gate_successes": 0,
+    "hard_gate_success_rate": 0.0,
+    "target_test_successes": 0,
+    "regression_preservation_successes": 4,
+    "action_constraint_stops": {
+      "strict": 1,
+      "progressive": 1
+    },
+    "total_tokens": 34095,
+    "strict_total_tokens": 11164,
+    "progressive_total_tokens": 22931,
+    "total_latency_seconds": 439.64148615100003,
+    "strict_total_latency_seconds": 197.59177520100002,
+    "progressive_total_latency_seconds": 242.04971095000002
+  },
+  "decision": {
+    "result": "inconclusive_keep_existing_default",
+    "prefer_progressive": false,
+    "prefer_strict_from_causal_evidence": false,
+    "reason": "Both task pairs had identical failed hard outcomes. Progressive did not eliminate a Strict action-constraint stop: on pydicom it delayed the stop by one accepted target read, then the model repeated the read instead of editing.",
+    "next_step": "Do not tune the default or enter LoRA from this ablation. Use the immutable bad cases to design a separately preregistered intervention that improves read-to-edit transition compliance."
+  },
+  "claim_boundary": "Completed preregistered two-task, four-Episode local Dev mechanism ablation. Descriptive and inconclusive; not an official SWE-bench score, a statistical estimate, evidence of model-level improvement, or a LoRA readiness result."
+}

@@ -196,6 +196,26 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
                     allowed_path_patterns=("target.py",),
                 )
 
+    def test_collection_rejects_constraint_repair_without_target_read(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError,
+                "requires implementation_target_read_allowance=1",
+            ):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    implementation_deadline_turns=1,
+                    implementation_escalation_turns=1,
+                    force_direct_mutation_after_escalation=True,
+                    implementation_constraint_repair_attempts=1,
+                    allowed_path_patterns=("target.py",),
+                )
+
     def test_workspace_pythonpath_supports_src_and_root_layouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

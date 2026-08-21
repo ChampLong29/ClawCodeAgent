@@ -1,0 +1,86 @@
+{
+  "schema_version": "read_to_edit_constraint_repair_calibration_result.v1",
+  "captured_at": "2026-08-20",
+  "status": "closed_without_admitted_tasks",
+  "protocol_version": "read-to-edit-constraint-repair-ablation.v1",
+  "protocol_sha256": "bbe54eb722ad6c79ecbf22aaac282cbbc80dce83881eb220b266a85f428413e1",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "model_calls": 0,
+  "official_swebench_harness": false,
+  "repository_acquisition": {
+    "status": "passed",
+    "method": "local full-object clone from previously acquired official upstream copies",
+    "instances": [
+      {
+        "instance_id": "sqlfluff__sqlfluff-1517",
+        "head": "304a197829f98e7425a46d872ada73176137e5ae",
+        "clean": true,
+        "tracked_files": 1698,
+        "tracked_bytes": 3554569
+      },
+      {
+        "instance_id": "pylint-dev__astroid-1866",
+        "head": "6cf238d089cf4b6753c94cfc089b4a47487711e5",
+        "clean": true,
+        "tracked_files": 282,
+        "tracked_bytes": 2206468
+      }
+    ]
+  },
+  "calibrations": [
+    {
+      "instance_id": "sqlfluff__sqlfluff-1517",
+      "status": "not_admitted",
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_sha256": "3b8c1d62ac49a648db56e74ae3548563f9fd5ef462d086f80a3a30313ac4d9d0",
+          "baseline_fail_to_pass_returncode": 1,
+          "baseline_pass_to_pass_returncode": 4,
+          "reference_fail_to_pass_returncode": 0,
+          "reference_pass_to_pass_returncode": 4,
+          "finding": "Pytest rejected the regression invocation because historical parameterized node IDs were truncated."
+        },
+        {
+          "attempt": 2,
+          "evidence_sha256": "5de5406bf30f6dd222198799a6dc8b92da5ab22c456dbdbc621d27de07a30271",
+          "baseline_fail_to_pass_returncode": 1,
+          "baseline_pass_to_pass_returncode": 1,
+          "reference_fail_to_pass_returncode": 0,
+          "reference_pass_to_pass_returncode": 0,
+          "finding": "Bracket-balanced conservative normalization made the suite executable, but expanding the truncated multiple-semicolons regression ID ran the whole parameterized function, including the target-failing case."
+        }
+      ],
+      "decision": "Do not filter target cases out of the expanded regression function because doing so would reduce coverage using post-selection knowledge and change the frozen evaluator semantics."
+    },
+    {
+      "instance_id": "pylint-dev__astroid-1866",
+      "status": "not_admitted",
+      "attempts": [
+        {
+          "attempt": 1,
+          "evidence_sha256": "de2b49aa05f937daccb99aebdb2a91ba482ef32f7cc2d1df13e4b02d9646e9f7",
+          "baseline_fail_to_pass_returncode": 1,
+          "baseline_pass_to_pass_returncode": 1,
+          "reference_fail_to_pass_returncode": 0,
+          "reference_pass_to_pass_returncode": 0,
+          "finding": "Truncated FAIL_TO_PASS and PASS_TO_PASS IDs both expanded to the same test_string_format_uninferable function, so the baseline regression group necessarily included the target failure."
+        }
+      ],
+      "decision": "The baseline PASS_TO_PASS gate failed; do not run either model arm and do not replace the task inside this protocol."
+    }
+  ],
+  "normalization_change": {
+    "status": "contract_verified_but_insufficient_for_admission",
+    "before": "Only absence of any closing bracket after a last-:: split was detected.",
+    "after": "The complete parameter suffix is taken from its first opening bracket and expanded when opening brackets outnumber closing brackets.",
+    "evidence": "This changed SQLFluff regression execution from pytest return code 4 to executable return codes 1/0, exposing target/regression overlap instead of masking it as a usage error."
+  },
+  "experiment_decision": {
+    "run_model_episodes": false,
+    "replace_tasks_inside_protocol": false,
+    "intervention_efficacy_conclusion": "not_tested",
+    "next_step": "A separate preregistration may exclude every row with truncated parameterized test IDs before ranking tasks."
+  },
+  "claim_boundary": "Calibration-only closure with zero model calls. It demonstrates task-selection and historical-node-ID limitations, not failure or success of the read-to-edit repair mechanism."
+}

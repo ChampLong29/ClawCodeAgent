@@ -147,6 +147,7 @@ def collect_swe_bench_lite_dev_episode(
     implementation_escalation_turns: int = 4,
     force_direct_mutation_after_escalation: bool = False,
     implementation_target_read_allowance: int = 0,
+    implementation_constraint_repair_attempts: int = 0,
     post_edit_contract_guidance: bool = True,
     timeout_seconds: float = 300.0,
     runtime_version: str = "local-agent-runtime.v1",
@@ -199,6 +200,10 @@ def collect_swe_bench_lite_dev_episode(
         raise BenchmarkError(
             "implementation_target_read_allowance must be 0 or 1"
         )
+    if implementation_constraint_repair_attempts not in {0, 1}:
+        raise BenchmarkError(
+            "implementation_constraint_repair_attempts must be 0 or 1"
+        )
     if (
         implementation_target_read_allowance > 0
         and not force_direct_mutation_after_escalation
@@ -206,6 +211,14 @@ def collect_swe_bench_lite_dev_episode(
         raise BenchmarkError(
             "implementation_target_read_allowance requires "
             "force_direct_mutation_after_escalation"
+        )
+    if (
+        implementation_constraint_repair_attempts > 0
+        and implementation_target_read_allowance != 1
+    ):
+        raise BenchmarkError(
+            "implementation_constraint_repair_attempts requires "
+            "implementation_target_read_allowance=1"
         )
     if (
         completion_reminder_turns > 0
@@ -263,6 +276,9 @@ def collect_swe_bench_lite_dev_episode(
         "implementation_target_read_allowance": (
             implementation_target_read_allowance
         ),
+        "implementation_constraint_repair_attempts": (
+            implementation_constraint_repair_attempts
+        ),
         "post_edit_contract_guidance": post_edit_contract_guidance,
         "implementation_path_patterns": patterns,
     }
@@ -316,6 +332,11 @@ def collect_swe_bench_lite_dev_episode(
                 implementation_target_read_allowance=int(
                     inference_config.get(
                         "implementation_target_read_allowance", 0
+                    )
+                ),
+                implementation_constraint_repair_attempts=int(
+                    inference_config.get(
+                        "implementation_constraint_repair_attempts", 0
                     )
                 ),
                 post_edit_contract_guidance=bool(
