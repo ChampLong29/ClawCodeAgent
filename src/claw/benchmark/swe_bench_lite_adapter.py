@@ -724,8 +724,16 @@ class SweBenchLiteDevAdapter:
         self.snapshots_path = self.root / "repo-snapshots.json"
         self.raw_rows_path = self.root / "raw" / "dev.rows.json"
 
-    def load_agent_tasks(self) -> List[SweBenchLiteAgentTask]:
-        """Load tasks without opening ``raw/dev.rows.json``."""
+    def load_agent_tasks(
+        self, instance_id: str = ""
+    ) -> List[SweBenchLiteAgentTask]:
+        """Load tasks without opening ``raw/dev.rows.json``.
+
+        When ``instance_id`` is provided, validate only that task's local
+        workspace while still checking the complete public manifest metadata.
+        This allows single-task calibration on a handoff device without
+        reconstructing every repository in the pilot.
+        """
         public = _read_object(self.agent_inputs_path)
         selection = _read_object(self.selection_path)
         snapshots = _read_object(self.snapshots_path)
@@ -746,16 +754,20 @@ class SweBenchLiteDevAdapter:
             forbidden = FORBIDDEN_AGENT_FIELDS.intersection(payload)
             if forbidden:
                 raise ValueError(f"agent input contains evaluation fields: {sorted(forbidden)}")
-            instance_id = str(payload.get("instance_id", ""))
-            selected_item = selected.get(instance_id)
-            snapshot = snapshot_by_id.get(instance_id)
+            payload_instance_id = str(payload.get("instance_id", ""))
+            selected_item = selected.get(payload_instance_id)
+            snapshot = snapshot_by_id.get(payload_instance_id)
             if selected_item is None or snapshot is None:
-                raise ValueError(f"missing selection or snapshot for {instance_id}")
+                raise ValueError(
+                    f"missing selection or snapshot for {payload_instance_id}"
+                )
             if payload.get("base_commit") != snapshot.get("head"):
-                raise ValueError(f"snapshot HEAD mismatch for {instance_id}")
+                raise ValueError(
+                    f"snapshot HEAD mismatch for {payload_instance_id}"
+                )
             workspace_path = self.root / str(selected_item["local_repo"])
             task = SweBenchLiteAgentTask(
-                instance_id=instance_id,
+                instance_id=payload_instance_id,
                 repo=str(payload["repo"]),
                 base_commit=str(payload["base_commit"]),
                 version=str(payload["version"]),
@@ -764,11 +776,16 @@ class SweBenchLiteDevAdapter:
                 workspace_path=workspace_path.resolve(),
                 license=str(selected_item["license"]),
             )
-            task.validate()
             tasks.append(task)
 
         if [task.instance_id for task in tasks] != list(selected):
             raise ValueError("agent task order or membership differs from selection")
+        if instance_id:
+            tasks = [task for task in tasks if task.instance_id == instance_id]
+            if not tasks:
+                raise KeyError(f"instance is not in the selected pilot: {instance_id}")
+        for task in tasks:
+            task.validate()
         return tasks
 
     def load_evaluation_bundle(self, instance_id: str) -> SweBenchLiteEvaluationBundle:

@@ -11,6 +11,7 @@ from unittest import mock
 from claw.benchmark.swe_bench_lite_adapter import (
     FORBIDDEN_AGENT_FIELDS,
     LocalSweBenchLiteCalibrationRunner,
+    SweBenchLiteAgentTask,
     SweBenchLiteEpisodeTaskMaterializer,
     SweBenchLiteLocalCalibrationResult,
     SweBenchLiteTestExecution,
@@ -68,6 +69,18 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
             self.assertEqual(len(task.base_commit), 40)
             self.assertEqual(len(task.dataset_revision), 40)
             self.assertTrue(task.workspace_path.is_dir())
+
+    def test_single_agent_task_validates_only_requested_workspace(self):
+        instance_id = "pylint-dev__astroid-1268"
+        with mock.patch.object(SweBenchLiteAgentTask, "validate") as validate:
+            tasks = self.adapter.load_agent_tasks(instance_id=instance_id)
+
+        self.assertEqual([task.instance_id for task in tasks], [instance_id])
+        validate.assert_called_once_with()
+
+    def test_single_agent_task_rejects_unknown_instance(self):
+        with self.assertRaisesRegex(KeyError, "unknown__repo-1"):
+            self.adapter.load_agent_tasks(instance_id="unknown__repo-1")
 
     def test_evaluator_script_imports_claw_outside_project_cwd(self):
         script = ROOT / "tools" / "evaluate_swe_bench_lite_candidate.py"

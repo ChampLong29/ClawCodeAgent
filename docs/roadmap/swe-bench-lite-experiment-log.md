@@ -680,3 +680,27 @@ SHA-256 `5826631041f50f52f7895a979fad4a4195f2e6677f0beed62933a9d208cc78a2` 和
 `configs/integrations/pydicom-1694-py38-lock.txt`。这些锁只复现已通过的本地环境，不宣称
 等价于官方 Docker Harness。机器协议同时在任何模型调用前显式固定 Collector 当前默认的
 `prompt_version=swe-bench-lite-dev.deepseek-v4-flash.v1`，两臂仍只有 repair attempts 一项差异。
+
+## 2026-08-22：接续设备重建与单任务校准修正
+
+在提交 `6d8ab80` 的接续设备上，从官方上游重建 Astroid-1268 与 pydicom-1694 固定提交，
+并用版本化锁文件重建两个 Python 3.8.20 环境。首次按交接命令运行校准时，校准器尚未进入
+测试：`load_agent_tasks()` 在应用 `--instance-id` 前验证整个 17 题 Pilot，因未重建历史任务
+`marshmallow-code__marshmallow-1343` 而抛出 `FileNotFoundError`。该次失败属于接续工具的
+本地资产范围错误，模型调用数为 0，不是任务准入失败。
+
+适配器现允许单实例加载：仍验证完整公共 Manifest 的修订、成员、顺序、快照和字段边界，
+但只验证指定实例的本地工作区。批量调用保持原行为。两个新增回归测试与六项任务选择测试
+通过。为保留首次失败目录，重跑写入新的 `retry1` 目录。Astroid 恢复预期四态：基线目标
+1 条失败、91 条回归通过，Oracle 目标和回归通过；本地结果 SHA-256 为
+`aa81d254b431b4367d1f08829bd06c5b4689b7b6802d54770189c965524da4cf`。pydicom 同样恢复预期
+四态：基线目标 1 条失败、26 条回归通过，Oracle 两组通过；本地结果 SHA-256 为
+`8583e2f9e51ec9bd0c899a5675ba9716913ed7d263e298135eb23c43a9a5c09e`。两份结果仍只支持本地
+兼容性准入，不是官方 SWE-bench 分数，也不支持 Repair 已改善模型行为。
+
+全量 `unittest` 在该 WSL 接续环境运行了 551 项，结果为 10 失败、13 错误；主要已识别的
+环境差异是缺少 `python` 命令别名、Windows 工作树 CRLF 导致版本化模板字节哈希不同，以及
+按交接范围只重建了 2/17 个忽略的 Pilot 仓库。上述结果不记为全量通过；本次改动的聚焦测试
+和两条实际校准通过。正式 Control/Repair 调用仍未开始，因为 WSL 中六个 Anthropic/OpenAI
+配置变量均未设置，模型调用数继续为 0。下一门槛是固定本次校准修正为可引用提交，并在本地
+安全配置 DeepSeek 端点后按冻结顺序运行四臂 Episode。

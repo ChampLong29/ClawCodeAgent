@@ -121,6 +121,10 @@ record it before remediation and do not spend model calls until the four expecte
 states are restored: baseline target fails, baseline regressions pass, Oracle target
 passes, and Oracle regressions pass.
 
+The calibration CLI loads and validates only the requested `--instance-id` local
+workspace while still validating the complete versioned pilot metadata. The other
+ignored pilot repositories do not need to be reconstructed for these two commands.
+
 ## 4. Frozen next experiment
 
 Read these files before execution:

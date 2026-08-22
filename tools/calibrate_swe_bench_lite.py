@@ -22,9 +22,10 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     workspace = output_dir / "workspace"
     adapter = SweBenchLiteDevAdapter(args.benchmark_root)
-    tasks = {task.instance_id: task for task in adapter.load_agent_tasks()}
-    if args.instance_id not in tasks:
-        raise KeyError(f"instance is not in selected pilot: {args.instance_id}")
+    tasks = {
+        task.instance_id: task
+        for task in adapter.load_agent_tasks(instance_id=args.instance_id)
+    }
     bundle = adapter.load_evaluation_bundle(args.instance_id)
     result = LocalSweBenchLiteCalibrationRunner().calibrate_reference(
         tasks[args.instance_id],
