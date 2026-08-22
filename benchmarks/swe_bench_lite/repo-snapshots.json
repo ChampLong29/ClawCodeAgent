@@ -103,6 +103,16 @@
     },
     {
       "clean": true,
+      "head": "04a523fafbd61bc2e49420963b84ed8e2bd1b3cf",
+      "instance_id": "pvlib__pvlib-python-1072",
+      "license": "BSD-3-Clause",
+      "license_path": "LICENSE",
+      "license_sha256": "88bd02ef00e092986978d3ca7945ffe76208a2008835dc752f34e9e4a7f338b6",
+      "tracked_bytes": 56122654,
+      "tracked_files": 246
+    },
+    {
+      "clean": true,
       "head": "a1579a16b1d8913d9d7c7d12add374a290bcc78c",
       "instance_id": "sqlfluff__sqlfluff-1733",
       "license": "MIT",

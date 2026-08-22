@@ -1,0 +1,69 @@
+{
+  "base_commit": "04a523fafbd61bc2e49420963b84ed8e2bd1b3cf",
+  "claim_boundary": "Local compatibility calibration only; not an official SWE-bench score.",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "environment": {
+    "isolation": "git_archive_snapshot_without_git_metadata",
+    "official_swebench_harness": false,
+    "python_version": "Python 3.8.20"
+  },
+  "evaluator_fingerprint": {
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "fail_to_pass_count": 1,
+    "hints_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "instance_id": "pvlib__pvlib-python-1072",
+    "pass_to_pass_count": 18,
+    "patch_sha256": "d18c3f99799433eb709ff9c4153b1d5e846e487d3a2b25443b64dfd1b4b35bcd",
+    "schema_version": "swe_bench_lite_evaluation_bundle.v1",
+    "test_ids_hash": "6cc835788c58b7041d063100df7fd93fedbe4bef6834212d9d02b22d37838a93",
+    "test_patch_sha256": "163e08ef935845492739feee34d1cb1c96eecdad3627747e6b1a15c2cfca9bee"
+  },
+  "instance_id": "pvlib__pvlib-python-1072",
+  "model_calls": 0,
+  "protocol_reference": "configs/integrations/swe-bench-lite-post-edit-container-return-type-validation-protocol.json",
+  "protocol_version": "post-edit-container-return-type-fresh-validation.v1",
+  "runs": {
+    "baseline_fail_to_pass": {
+      "duration_seconds": 13.424257,
+      "group": "baseline_fail_to_pass",
+      "normalized_node_ids": 0,
+      "passed": false,
+      "returncode": 1,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "107d1d0fd797fc9673912b4c183cf478337805e58ba1780bff5d5e74c6a18e47",
+      "test_count": 1
+    },
+    "baseline_pass_to_pass": {
+      "duration_seconds": 7.288806,
+      "group": "baseline_pass_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "5e5edddda2e90f98589b7131e0c59db2c8ad7958ef7b31e2075302ed0cd4850c",
+      "test_count": 18
+    },
+    "reference_fail_to_pass": {
+      "duration_seconds": 9.36058,
+      "group": "reference_fail_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "8af3f72d1e394a6db8823a958b7abb572622f55eeb31daff19e2674b72ebdc74",
+      "test_count": 1
+    },
+    "reference_pass_to_pass": {
+      "duration_seconds": 7.879554,
+      "group": "reference_pass_to_pass",
+      "normalized_node_ids": 0,
+      "passed": true,
+      "returncode": 0,
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "76a50f94bec4dc8e5ecc08ddbeb7837e702e6c4150ab6155e38bb7847d0f38d9",
+      "test_count": 18
+    }
+  },
+  "schema_version": "swe_bench_lite_local_calibration.v1",
+  "status": "passed"
+}
