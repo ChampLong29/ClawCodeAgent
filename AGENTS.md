@@ -273,6 +273,10 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Real PEFT training must pin the base-model revision and full training config.
 - Dataset construction must reject Split/Family leakage and broken tool-call alignment.
 - Reviewer scores remain separate from automated test outcomes.
+- The completed Astroid-1268/pydicom-1694 read-to-edit Control/Repair comparison
+  has 2/4 hard successes, identical within-task outcomes, and no Repair trigger;
+  keep the repair disabled and do not claim causal improvement or quality-retry
+  those Dev Episodes.
 - Verifier policy v2 records `final_response_quality` as a zero-weight Soft signal
   derived from immutable termination detail. It detects only obvious delivery
   defects and does not override hard test, Diff, permission, format, or termination

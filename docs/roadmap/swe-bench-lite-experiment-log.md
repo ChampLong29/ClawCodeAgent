@@ -705,3 +705,26 @@ Manifest 的修订、成员、顺序、快照和字段边界，但只验证指�
 和两条实际校准通过。正式 Control/Repair 调用仍未开始，因为 WSL 中六个 Anthropic/OpenAI
 配置变量均未设置，模型调用数继续为 0。下一门槛是固定本次校准修正为可引用提交，并在本地
 安全配置 DeepSeek 端点后按冻结顺序运行四臂 Episode。
+
+## 2026-08-22：读取后转编辑纠正消融完成
+
+以生成提交 `3c7f951`、`deepseek-v4-flash`、温度 0、Thinking 关闭和 4096 最大响应 Token，
+严格按 Astroid Control→Repair、pydicom Repair→Control 顺序各运行一个 Episode，没有质量
+重试。四条均在 Escalation 前完成目标文件编辑，因此两条 Repair 臂都没有触发读取后纠正；
+所有请求工具调用均被分发，没有策略拒绝或纠正请求。这意味着 H1 动作恢复没有实际触发样本，
+H2 只观察到无拒绝/无纠正的普通安全路径，不能估计纠正机制的因果效果。
+
+Astroid 两臂均在第 5 轮向 `astroid/nodes/as_string.py` 增加返回空字符串的 `visit_unknown()`，
+目标文件字节哈希相同。Control 为 8 轮、7 次工具调用、3160 Token；Repair 为 8 轮、7 次
+工具调用、2907 Token。两条均保持 91 条回归通过，但目标测试失败；Diff、权限、格式、终止和
+最终答复质量信号通过，主 Bad Case 均为 `test_failure`。这是相同错误补丁和相同硬结果。
+
+pydicom 两臂均把 `data_element = self[key]` 移入既有 `try` 块，目标文件字节哈希相同。
+Repair 第 2 轮编辑，16 轮、15 次工具调用、7768 Token；Control 第 5 轮编辑，12 轮、11 次
+工具调用、4646 Token。两条均通过 1 条目标、26 条回归、Diff、权限、格式和终止硬门槛，
+是相同正确补丁和相同硬结果。成本与编辑时机差异只作描述，不归因于未触发的 Repair。
+
+最终 H3 为 Control 1/2、Repair 1/2、合计 2/4；两个任务配对均为相同硬结果。按预注册边界，
+结论是不确定并保持 Repair 默认关闭。该结果不支持 Repair 改善动作恢复或正确性，也不是官方
+SWE-bench Harness 分数或模型能力估计。逐臂事件 ID、不可变归档哈希和结论边界见
+`configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-result.json`。

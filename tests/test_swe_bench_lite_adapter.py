@@ -701,6 +701,64 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
             self.assertTrue(observations["reference_pass_to_pass"]["passed"])
             self.assertEqual(len(item["raw_evidence_sha256"]), 64)
 
+    def test_read_to_edit_admissible_result_keeps_untriggered_effect_inconclusive(self):
+        protocol = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-read-to-edit-repair-admissible-protocol.json"
+            ).read_text(encoding="utf-8")
+        )
+        result = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-read-to-edit-repair-admissible-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(result["protocol_sha256"], protocol["protocol_sha256"])
+        self.assertEqual(result["status"], "completed_4_of_4_valid_episodes")
+        self.assertEqual(
+            [(item["instance_id"], item["arm"]) for item in result["completed_arms"]],
+            [
+                ("pylint-dev__astroid-1268", "control"),
+                ("pylint-dev__astroid-1268", "repair"),
+                ("pydicom__pydicom-1694", "repair"),
+                ("pydicom__pydicom-1694", "control"),
+            ],
+        )
+        self.assertEqual(
+            [item["success"] for item in result["completed_arms"]],
+            [False, False, True, True],
+        )
+        self.assertTrue(
+            all(
+                not item["repair_evidence"]["correction_triggered"]
+                for item in result["completed_arms"]
+            )
+        )
+        self.assertTrue(
+            all(
+                item["paired_outcome"] == "same_hard_result"
+                for item in result["paired_results"]
+            )
+        )
+        self.assertEqual(
+            result["hypotheses"]["h1_action_recovery"],
+            "not_observed_repair_never_triggered",
+        )
+        self.assertEqual(
+            result["decision"],
+            "inconclusive_keep_repair_disabled_by_default",
+        )
+        for item in result["completed_arms"]:
+            self.assertTrue(
+                all(len(value) == 64 for value in item["hashes"].values())
+            )
+
     def test_multitask_replication_preserves_partial_result_and_tradeoff(self):
         protocol = json.loads(
             (

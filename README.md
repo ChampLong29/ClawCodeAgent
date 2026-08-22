@@ -9,7 +9,7 @@ Claw Code Agent 是一个用 Python 实现的本地编码智能体运行时。�
 
 > 当前状态：核心 Agent、Lifecycle/DevFlow、会话与上下文管理、插件/MCP、训练 Rollout、版本化任务集、可审计 Benchmark 均已有实现。SWE-bench Lite 已完成固定版本数据快照、17 题筛选（15 题通过本地准入、2 题因测试 ID 精度不足被拒绝）、安全加载边界，以及多组真实 Dev Episode 和预注册机制对照；尚未接入官方容器化 Harness，因此不能把本地结果等同于正式 SWE-bench 分数。
 
-跨设备继续实验或训练时，从 [`TRAINING_HANDOFF.md`](TRAINING_HANDOFF.md) 开始；其中列出不会随 Git 迁移的本地资产、环境重建、准入复跑、冻结的四臂顺序和后续 LoRA 门槛。
+跨设备继续实验或训练时，从 [`TRAINING_HANDOFF.md`](TRAINING_HANDOFF.md) 开始；其中列出不会随 Git 迁移的本地资产、环境重建、已完成四臂证据和后续 LoRA 门槛。
 
 ## 快速开始
 
@@ -290,7 +290,7 @@ python tools/validate_task_suite.py --manifest task_suites/manifest.json
 python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 ```
 
-SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 17 个任务、覆盖 6 个仓库，其中 15 题满足本地 baseline/Oracle 准入门。Runtime 支持显式 Thinking Mode、Escalation 后强制直接编辑或一次目标读取后强制编辑、一次默认关闭且不提供新任务信息的 read-to-edit 纠正请求、Critical 强制最终响应，以及路径限定的 Post-edit Contract Notice。Marshmallow-1343 产生首个本地真实仓库 Dev 成功 Episode；Marshmallow-1359 的跨 Issue 复现暴露配置父链语义遗漏。预注册 PyVista-4315 双臂均通过 1 条目标测试、114 条回归及全部硬门槛，但不支持 Notice 正确性增益。随后冻结的两任务复现中，pvlib-1606 成功，SQLFluff-1733 在首次定位正确文件时仍请求读取，被直接编辑约束拒绝并停止，最终为 1/2 成功。由此预注册的 Strict/Progressive 消融已在 Astroid-1978 与 pydicom-1256 完成四条有效 Episode：两组配对硬结果均相同，Progressive 在 pydicom 上多允许一次读取但未消除约束停止，因此结论不确定并保留原默认策略。新的 read-to-edit 纠正机制已完成契约测试；首轮两题因参数化测试 ID 截断在零模型调用准入阶段关闭，独立后续协议选择的 Astroid-1268 与 pydicom-1694 已通过准入，尚未产生模型效果证据。Verifier Policy v2 与行为诊断 v4 分别记录最终答复质量、被拒绝工具请求和真实定位时机；上述结果均为本地 Dev 证据，不是官方 SWE-bench 分数。
+SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 17 个任务、覆盖 6 个仓库，其中 15 题满足本地 baseline/Oracle 准入门。Runtime 支持显式 Thinking Mode、Escalation 后强制直接编辑或一次目标读取后强制编辑、一次默认关闭且不提供新任务信息的 read-to-edit 纠正请求、Critical 强制最终响应，以及路径限定的 Post-edit Contract Notice。Marshmallow-1343 产生首个本地真实仓库 Dev 成功 Episode；Marshmallow-1359 的跨 Issue 复现暴露配置父链语义遗漏。预注册 PyVista-4315 双臂均通过 1 条目标测试、114 条回归及全部硬门槛，但不支持 Notice 正确性增益。随后冻结的两任务复现中，pvlib-1606 成功，SQLFluff-1733 在首次定位正确文件时仍请求读取，被直接编辑约束拒绝并停止，最终为 1/2 成功。由此预注册的 Strict/Progressive 消融已在 Astroid-1978 与 pydicom-1256 完成四条有效 Episode：两组配对硬结果均相同，Progressive 在 pydicom 上多允许一次读取但未消除约束停止，因此结论不确定并保留原默认策略。read-to-edit 纠正机制的独立后续协议也已在 Astroid-1268 与 pydicom-1694 完成四条有效 Episode：Astroid 两臂失败、pydicom 两臂成功，合计 2/4；每题两臂补丁字节相同且 Repair 均未触发，因此仍无纠正机制因果增益证据并保持默认关闭。Verifier Policy v2 与行为诊断 v4 分别记录最终答复质量、被拒绝工具请求和真实定位时机；上述结果均为本地 Dev 证据，不是官方 SWE-bench 分数。
 
 ## 会话与上下文
 
@@ -341,7 +341,7 @@ python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 
 - `task_suites/manifest.json` 是确定性 smoke suite；用于验证机制，不用于证明模型在真实仓库上的能力。
 - Medium Pilot 当前只有两条任务，适合校准 Rollout 和 Reviewer，不足以形成统计显著结论。
-- SWE-bench Lite 已完成单任务预注册对照、两条未见 Issue 的冻结复现，以及两任务四 Episode 的 Strict/Progressive 配对消融。后者 0/4 通过硬门槛，且两组配对结果相同；Progressive 只在一题延后了一轮停止，尚无策略增益证据。样本仍太少，正式成绩需更多任务/Seed 与官方 Docker Harness。
+- SWE-bench Lite 已完成单任务预注册对照、两条未见 Issue 的冻结复现、Strict/Progressive 配对消融，以及 Astroid-1268/pydicom-1694 的 Control/Repair 四臂实验。后者 2/4 通过硬门槛，但 Repair 未触发且两组配对结果相同，不能估计纠正机制因果效果。样本仍太少，正式成绩需更多任务/Seed 与官方 Docker Harness。
 - PEFT SFT 后端已有可审计实现，但真实 GPU 训练结果必须以运行产物和校验后的 Checkpoint 为准；Dry-run 只验证协议与证据链。
 - Reviewer 可以由独立 Agent 执行，但最终指标必须与可复现测试证据分开记录，避免主观评分替代自动验证。
 - DataFlow/DataFlex 已完成上游版本基线，稳定数据契约、确定性治理 Operator、Gold 证据和 LlamaFactory ShareGPT Tool-use 导出已落地；固定 Fixture、2 条简单 Train Episode 和首组真实仓库 Dev Bad Case 均已形成证据。下一步先修正 Agent 的终止效率并扩充真实 Train 数据，再运行最小 Raw/DataFlow LoRA 对照。

@@ -562,6 +562,9 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
   拒绝 read-before-edit 请求而停止，合计 1/2。随后已在两条新 Issue 上完成四 Episode 的
   Strict/Progressive 配对消融：两组硬结果相同；Progressive 在 pydicom-1256 上接受一次目标
   读取后仍因重复读取停止，未消除 Strict 失败。结论不确定，暂不改变默认策略或进入 LoRA。
+- Astroid-1268/pydicom-1694 的 read-to-edit Control/Repair 四臂实验已完成，硬成功 2/4；
+  两个任务的臂内补丁和硬结果分别相同，且 Repair 两臂都未触发纠正。因此保持默认关闭，
+  不把结果解释为动作恢复或正确性增益。
 
 因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。所有本地结果只证明固定环境能观察到对应状态转换；均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
@@ -574,7 +577,7 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. Pilot 已扩为六仓库十七题：十五题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 四条配对消融已收束为不确定结果；默认关闭的一次 read-to-edit 纠正已完成契约测试，独立预注册的 Astroid-1268/pydicom-1694 已通过准入。下一步先固定实现版本，再按冻结顺序运行 Control/Repair，不能把准入成功写成干预增点。
+6. Pilot 已扩为六仓库十七题：十五题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 与 Astroid-1268/pydicom-1694 的两组四臂配对实验均已完成并收束为不确定结果；不要重跑 Dev 题做质量重试，下一步应扩充 family-safe Train 数据。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。

@@ -1,0 +1,298 @@
+{
+  "schema_version": "read_to_edit_constraint_repair_result.v1",
+  "captured_at": "2026-08-22",
+  "status": "completed_4_of_4_valid_episodes",
+  "protocol_version": "read-to-edit-constraint-repair-admissible.v1",
+  "protocol_sha256": "5d7419b12e650e1141deb2056921277a3a4ee9e59f5e20ba7a13d9b77e90e3a7",
+  "protocol_file_sha256": "56dcd020ae9599703bf93eb3239c4e201e751ddcec9fc2125bee9e331cb6502c",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "generation_commit": "3c7f951",
+  "generation_worktree_dirty": true,
+  "generation_worktree_note": "Uncommitted pyproject.toml and uv.lock changes adding ModelScope were preserved outside the materialized task workspaces and were not included in the generation commit.",
+  "model": "deepseek-v4-flash",
+  "temperature": 0,
+  "thinking_mode": "disabled",
+  "official_swebench_harness": false,
+  "completed_arms": [
+    {
+      "order": 1,
+      "instance_id": "pylint-dev__astroid-1268",
+      "arm": "control",
+      "repair_attempts": 0,
+      "collection_id": "episode_collection_df061bd396c150c0d8b0",
+      "episode_id": "training-cb364312799b4ab5834d",
+      "success": false,
+      "bad_cases": ["test_failure"],
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": "fail",
+        "pass_to_pass_count": 91,
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_compliance": "pass",
+        "final_response_quality": "pass"
+      },
+      "behavior_v4": {
+        "model_turns": 8,
+        "model_requested_tool_calls": 7,
+        "dispatched_tool_calls": 7,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 0,
+        "input_tokens": 2377,
+        "output_tokens": 783,
+        "total_tokens": 3160,
+        "latency_seconds": 83.92162190499948,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 5,
+        "post_edit_contract_guidance_turn": 5
+      },
+      "repair_evidence": {
+        "target_read_allowance_consumed_after_escalation": false,
+        "correction_triggered": false,
+        "correction_requests": 0
+      },
+      "candidate": {
+        "changed_files": ["astroid/nodes/as_string.py"],
+        "description": "Added visit_unknown() returning an empty string.",
+        "target_file_sha256": "d8782038da91756a48d484cf19187449c0fa6550dc5876685ef0d519b37bd419"
+      },
+      "evidence_event_ids": {
+        "mutation": "evt_e4c8814cd1b1a5349646",
+        "test": "evt_d738acd927edf2563627",
+        "termination": "evt_4dbfb18a6e23dfdeb743"
+      },
+      "hashes": {
+        "collection_manifest_sha256": "5a1082c067d538af61f757f3468aba34c5d4929dc0a88c5da5fdb81f2685f6ba",
+        "episode_results_sha256": "7f65deb1ba89cdbc4b22eb66765c972bbb87d87582e4122325beaff48aff5423",
+        "episode_sha256": "0876e2928e8102974f4ca2739da18f8d845ada33bd639d5dd6cc0f8585546ed1",
+        "trajectory_sha256": "81dfff6a3931aa99053f58261a13b2295fcfa53004c19e61168f6ff3785ab1ff",
+        "verification_sha256": "b8567f318a0ac807576cd5615f802a39a52451f966443dd899e83272d5b96780"
+      }
+    },
+    {
+      "order": 2,
+      "instance_id": "pylint-dev__astroid-1268",
+      "arm": "repair",
+      "repair_attempts": 1,
+      "collection_id": "episode_collection_94952d55cfe23c4adcf4",
+      "episode_id": "training-d67c5ebed48240999df2",
+      "success": false,
+      "bad_cases": ["test_failure"],
+      "verification": {
+        "verdict": "failure",
+        "hard_gate_passed": false,
+        "aggregate_score": 0.4615384615384615,
+        "fail_to_pass": "fail",
+        "pass_to_pass_count": 91,
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_compliance": "pass",
+        "final_response_quality": "pass"
+      },
+      "behavior_v4": {
+        "model_turns": 8,
+        "model_requested_tool_calls": 7,
+        "dispatched_tool_calls": 7,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 0,
+        "input_tokens": 2097,
+        "output_tokens": 810,
+        "total_tokens": 2907,
+        "latency_seconds": 113.95502502100135,
+        "first_target_path_turn": 2,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 5,
+        "post_edit_contract_guidance_turn": 5
+      },
+      "repair_evidence": {
+        "target_read_allowance_consumed_after_escalation": false,
+        "correction_triggered": false,
+        "correction_requests": 0
+      },
+      "candidate": {
+        "changed_files": ["astroid/nodes/as_string.py"],
+        "description": "Added visit_unknown() returning an empty string; byte-identical to Control.",
+        "target_file_sha256": "d8782038da91756a48d484cf19187449c0fa6550dc5876685ef0d519b37bd419"
+      },
+      "evidence_event_ids": {
+        "mutation": "evt_9a7bda753c0d83c2397d",
+        "test": "evt_712a92f0b5d0d83d75b5",
+        "termination": "evt_8211ca2756421ac65be4"
+      },
+      "hashes": {
+        "collection_manifest_sha256": "dc8011899b0117a12d042208d4a461eaa3e807f0aabb29733d7bc4c78584fc70",
+        "episode_results_sha256": "175b4c7f8d4c5da5ab848451fe1337cfb9495300d79afdf51c892676b9b08aae",
+        "episode_sha256": "9b35900de9d942d1e0d6d76c34e3ff8f20c65e95ccf524f9e54d632dc6efe42c",
+        "trajectory_sha256": "f456d044b8c050f655ce70c468167b8631bd76021992482611f5ed01ad0bdd1f",
+        "verification_sha256": "0890065d377bb658e02711afb5a236102a09407c9963fe70949c2687dae4b89f"
+      }
+    },
+    {
+      "order": 3,
+      "instance_id": "pydicom__pydicom-1694",
+      "arm": "repair",
+      "repair_attempts": 1,
+      "collection_id": "episode_collection_b20f8cbfeb8b38dea65e",
+      "episode_id": "training-86ae9885149746c69fa7",
+      "success": true,
+      "bad_cases": [],
+      "verification": {
+        "verdict": "success",
+        "hard_gate_passed": true,
+        "aggregate_score": 1.0,
+        "fail_to_pass": "pass",
+        "pass_to_pass_count": 26,
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_compliance": "pass",
+        "final_response_quality": "pass"
+      },
+      "behavior_v4": {
+        "model_turns": 16,
+        "model_requested_tool_calls": 15,
+        "dispatched_tool_calls": 15,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 0,
+        "input_tokens": 4573,
+        "output_tokens": 3195,
+        "total_tokens": 7768,
+        "latency_seconds": 172.67463804100043,
+        "first_target_path_turn": 1,
+        "implementation_deadline_turn": null,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 2,
+        "post_edit_contract_guidance_turn": 2,
+        "completion_reminder_turn": 14
+      },
+      "repair_evidence": {
+        "target_read_allowance_consumed_after_escalation": false,
+        "correction_triggered": false,
+        "correction_requests": 0
+      },
+      "candidate": {
+        "changed_files": ["pydicom/dataset.py"],
+        "description": "Moved self[key] inside the existing suppress_invalid_tags try block.",
+        "target_file_sha256": "df51d0173d3276abdd9275381a9998669c3386949b387eb033481d6ede64ccb6"
+      },
+      "evidence_event_ids": {
+        "mutation": "evt_7b558c438e332cf61b55",
+        "test": "evt_f983ff260da1e2a6c054",
+        "termination": "evt_02323a307fb84aa5c3d3"
+      },
+      "hashes": {
+        "collection_manifest_sha256": "bac0932646e23c74cb00506dd38801c409d0a89450f16b0bdb30f25e1e785bdf",
+        "episode_results_sha256": "7f06820dcd44e12f474c244fa13d173e5fb67899d66a8ae7162ae42b6a12e0fa",
+        "episode_sha256": "dc280844186685262adb89abd10c7884a996886b6798d1e38c68a2451fcba62b",
+        "trajectory_sha256": "eb17bc23dd8e130f297c5ae4e2ca74d174805f63e5c036826f45d717192b3f9d",
+        "verification_sha256": "2410b9385354368de255d7c98e01008acca27988ca9053e4cc0ea4066e230961"
+      }
+    },
+    {
+      "order": 4,
+      "instance_id": "pydicom__pydicom-1694",
+      "arm": "control",
+      "repair_attempts": 0,
+      "collection_id": "episode_collection_1e0d51b937919ec872c6",
+      "episode_id": "training-ac731e1cbc2e40ad8b6e",
+      "success": true,
+      "bad_cases": [],
+      "verification": {
+        "verdict": "success",
+        "hard_gate_passed": true,
+        "aggregate_score": 1.0,
+        "fail_to_pass": "pass",
+        "pass_to_pass_count": 26,
+        "diff_scope": "pass",
+        "process_permission": "pass",
+        "format_schema": "pass",
+        "termination_compliance": "pass",
+        "final_response_quality": "pass"
+      },
+      "behavior_v4": {
+        "model_turns": 12,
+        "model_requested_tool_calls": 11,
+        "dispatched_tool_calls": 11,
+        "rejected_tool_calls": 0,
+        "failed_tool_calls": 1,
+        "input_tokens": 2988,
+        "output_tokens": 1658,
+        "total_tokens": 4646,
+        "latency_seconds": 152.26458208399708,
+        "first_target_path_turn": 1,
+        "implementation_deadline_turn": 4,
+        "implementation_escalation_turn": null,
+        "first_direct_mutation_turn": 5,
+        "post_edit_contract_guidance_turn": 5
+      },
+      "repair_evidence": {
+        "target_read_allowance_consumed_after_escalation": false,
+        "correction_triggered": false,
+        "correction_requests": 0
+      },
+      "candidate": {
+        "changed_files": ["pydicom/dataset.py"],
+        "description": "Moved self[key] inside the existing suppress_invalid_tags try block; byte-identical to Repair.",
+        "target_file_sha256": "df51d0173d3276abdd9275381a9998669c3386949b387eb033481d6ede64ccb6"
+      },
+      "evidence_event_ids": {
+        "mutation": "evt_a129c57e980d6f31c201",
+        "test": "evt_18d0ef18adf7139567da",
+        "termination": "evt_1b144c1a8b4ac7d123e1"
+      },
+      "hashes": {
+        "collection_manifest_sha256": "d0cc79107fc9a670ef4685c01fff2451762262d9423a52e8affe0fcb41909c7f",
+        "episode_results_sha256": "a82376ea200e01d52f0bea0407fef73a900f5045868c05b019b6c9eff1202d85",
+        "episode_sha256": "965ec453fb8491398f8639ff8990c00d909942a7c3f9db74fdbd8d9e857d449a",
+        "trajectory_sha256": "630dddab29373186d6566137fad44746e3f412be3ab78dd2efd8da398ea72dca",
+        "verification_sha256": "62a5da1973f468f74247f5f792d5a688c52f1fed1dfaf253fe2492982609e824"
+      }
+    }
+  ],
+  "paired_results": [
+    {
+      "instance_id": "pylint-dev__astroid-1268",
+      "control_success": false,
+      "repair_success": false,
+      "candidate_files_byte_identical": true,
+      "repair_triggered": false,
+      "paired_outcome": "same_hard_result"
+    },
+    {
+      "instance_id": "pydicom__pydicom-1694",
+      "control_success": true,
+      "repair_success": true,
+      "candidate_files_byte_identical": true,
+      "repair_triggered": false,
+      "paired_outcome": "same_hard_result"
+    }
+  ],
+  "hypotheses": {
+    "h1_action_recovery": "not_observed_repair_never_triggered",
+    "h2_bounded_safety": "no_policy_rejections_or_corrections_observed",
+    "h3_hard_success": {
+      "control": "1/2",
+      "repair": "1/2",
+      "overall": "2/4"
+    }
+  },
+  "decision": "inconclusive_keep_repair_disabled_by_default",
+  "supported_claims": [
+    "All four preregistered local Dev Episodes were archived without quality retries.",
+    "Both arms produced the same hard outcome and byte-identical target file for each task.",
+    "The repair mechanism did not trigger in either Repair arm because every Episode edited before escalation."
+  ],
+  "unsupported_claims": [
+    "The repair mechanism improves action recovery or coding correctness.",
+    "Control is causally better than Repair.",
+    "The 2/4 local Dev result is an official SWE-bench score or a model-quality estimate."
+  ],
+  "claim_boundary": "Four fixed local SWE-bench Lite Dev Episodes; mechanism remained untriggered, so the paired result does not estimate repair causality and is not an official Harness score."
+}

@@ -19,9 +19,10 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   hard successes. Its paired outcome is inconclusive; the strict default remains.
 - A one-attempt, no-new-information read-to-edit repair is implemented and
   contract verified. It is disabled by default.
-- The follow-on Astroid-1268 and pydicom-1694 tasks are preregistered and locally
-  admitted with zero model calls. Their Control/Repair model comparison is the
-  next unfinished experiment.
+- The follow-on Astroid-1268 and pydicom-1694 Control/Repair comparison is
+  complete: four valid Episodes, 2/4 hard successes, and identical hard outcomes
+  within both pairs. Repair never triggered, so the result is inconclusive and it
+  remains disabled by default.
 - No real LoRA/QLoRA run or official SWE-bench Harness score is claimed yet.
 
 The authoritative evidence files are:
@@ -30,6 +31,7 @@ The authoritative evidence files are:
 - `configs/integrations/swe-bench-lite-read-to-edit-repair-calibration-result.json`
 - `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-protocol.json`
 - `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-calibration-result.json`
+- `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-result.json`
 - `docs/roadmap/swe-bench-lite-experiment-log.md`
 
 ## 2. What Git does not transfer
@@ -125,7 +127,7 @@ The calibration CLI loads and validates only the requested `--instance-id` local
 workspace while still validating the complete versioned pilot metadata. The other
 ignored pilot repositories do not need to be reconstructed for these two commands.
 
-## 4. Frozen next experiment
+## 4. Completed frozen experiment (do not rerun)
 
 Read these files before execution:
 
@@ -133,6 +135,10 @@ Read these files before execution:
 2. `docs/roadmap/read-to-edit-constraint-repair-admissible-ablation-protocol.md`;
 3. `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-protocol.json`;
 4. `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-calibration-result.json`.
+
+The four arms below were completed once on generation commit `3c7f951`. Do not
+rerun them as quality retries. Use the versioned result above and the raw ignored
+Episodes if a new derived analysis is required.
 
 The immutable order is:
 
@@ -185,9 +191,9 @@ rewrite Trajectory v2; derive diagnostics and add a new versioned result summary
 
 Do not start LoRA merely because the runtime mechanism is implemented. First:
 
-1. finish and archive the four frozen Episodes;
-2. classify successful Episodes, semantic failures, policy stops, and infrastructure
-   failures without allowing Reviewer scores to override hard tests;
+1. retain the four archived frozen Episodes and their versioned result;
+2. use their completed classification without allowing Reviewer scores to override
+   hard tests;
 3. keep Dev Episodes out of SFT and collect additional family-safe Train Episodes;
 4. run leakage, tool-alignment, deduplication, quality, and LlamaFactory export;
 5. run `DryRunBackend` and retain `training_verified=false`;
