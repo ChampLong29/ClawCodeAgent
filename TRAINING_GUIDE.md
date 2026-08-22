@@ -577,7 +577,7 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. Pilot 已扩为六仓库十七题：十五题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 与 Astroid-1268/pydicom-1694 的两组四臂配对实验均已完成并收束为不确定结果；不要重跑 Dev 题做质量重试，下一步应扩充 family-safe Train 数据。
+6. Pilot 已扩为六仓库十八题：十六题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 与 Astroid-1268/pydicom-1694 的两组四臂配对实验均已完成并收束为不确定结果；不要重跑 Dev 题做质量重试，下一步应扩充 family-safe Train 数据。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。

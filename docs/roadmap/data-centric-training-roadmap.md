@@ -66,7 +66,7 @@ Claw Rollout
 
 ## M2：DataFlow 确定性治理 Pipeline
 
-状态：**Fixture E2E、真实两样本 Contract Batch、六仓库十七题筛选（十五题本地准入）与多组 Dev Episode 已完成**。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode。PyVista 预注册双臂均成功但没有 Notice 增点；随后两任务冻结复现为 1/2，SQLFluff 在首次定位正确路径时请求读取却被直接编辑约束拒绝。由此冻结的 Astroid-1978/pydicom-1256 Strict/Progressive 四 Episode 配对消融现已完成：两组硬结果相同，渐进读取只在 pydicom 上延迟一轮停止，没有产生策略增益证据。默认关闭的一次 read-to-edit 纠正已实现并完成契约验证；首轮载体因测试 ID 精度不足在零模型调用阶段关闭，独立后续协议的 Astroid-1268/pydicom-1694 已通过准入，等待实现版本固定后做配对模型实验。
+状态：**Fixture E2E、真实两样本 Contract Batch、六仓库十八题筛选（十六题本地准入）与多组 Dev Episode 已完成**。post-edit 容器/返回类型新鲜验证（pvlib-1072）已按冻结协议完成，模型保持 Series 契约并通过全部硬门槛；机制充分性成立，因果归因不支持。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode。PyVista 预注册双臂均成功但没有 Notice 增点；随后两任务冻结复现为 1/2，SQLFluff 在首次定位正确路径时请求读取却被直接编辑约束拒绝。由此冻结的 Astroid-1978/pydicom-1256 Strict/Progressive 四 Episode 配对消融现已完成：两组硬结果相同，渐进读取只在 pydicom 上延迟一轮停止，没有产生策略增益证据。默认关闭的一次 read-to-edit 纠正已实现并完成契约验证；首轮载体因测试 ID 精度不足在零模型调用阶段关闭，独立后续协议的 Astroid-1268/pydicom-1694 已通过准入，等待实现版本固定后做配对模型实验。
 
 目标：先实现无需 LLM 的可复现数据治理。
 

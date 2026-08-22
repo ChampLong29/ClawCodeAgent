@@ -7,7 +7,7 @@ Claw Code Agent 是一个用 Python 实现的本地编码智能体运行时。�
 - 作为可直接使用的本地 Coding Agent，通过 CLI、REPL、TUI、Web 和外部平台桥接完成代码任务。
 - 作为可研究、可复现的 Agent 训练与评测底座，保存完整轨迹、验证证据、版本和成本信息。
 
-> 当前状态：核心 Agent、Lifecycle/DevFlow、会话与上下文管理、插件/MCP、训练 Rollout、版本化任务集、可审计 Benchmark 均已有实现。SWE-bench Lite 已完成固定版本数据快照、17 题筛选（15 题通过本地准入、2 题因测试 ID 精度不足被拒绝）、安全加载边界，以及多组真实 Dev Episode 和预注册机制对照；尚未接入官方容器化 Harness，因此不能把本地结果等同于正式 SWE-bench 分数。
+> 当前状态：核心 Agent、Lifecycle/DevFlow、会话与上下文管理、插件/MCP、训练 Rollout、版本化任务集、可审计 Benchmark 均已有实现。SWE-bench Lite 已完成固定版本数据快照、18 题筛选（16 题通过本地准入、2 题因测试 ID 精度不足被拒绝）、安全加载边界，以及多组真实 Dev Episode 和预注册机制对照；尚未接入官方容器化 Harness，因此不能把本地结果等同于正式 SWE-bench 分数。
 
 跨设备继续实验或训练时，从 [`TRAINING_HANDOFF.md`](TRAINING_HANDOFF.md) 开始；其中列出不会随 Git 迁移的本地资产、环境重建、已完成四臂证据和后续 LoRA 门槛。
 
@@ -290,7 +290,7 @@ python tools/validate_task_suite.py --manifest task_suites/manifest.json
 python tools/validate_task_suite.py --manifest task_suites/medium/manifest.json
 ```
 
-SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 17 个任务、覆盖 6 个仓库，其中 15 题满足本地 baseline/Oracle 准入门。Runtime 支持显式 Thinking Mode、Escalation 后强制直接编辑或一次目标读取后强制编辑、一次默认关闭且不提供新任务信息的 read-to-edit 纠正请求、Critical 强制最终响应，以及路径限定的 Post-edit Contract Notice。Marshmallow-1343 产生首个本地真实仓库 Dev 成功 Episode；Marshmallow-1359 的跨 Issue 复现暴露配置父链语义遗漏。预注册 PyVista-4315 双臂均通过 1 条目标测试、114 条回归及全部硬门槛，但不支持 Notice 正确性增益。随后冻结的两任务复现中，pvlib-1606 成功，SQLFluff-1733 在首次定位正确文件时仍请求读取，被直接编辑约束拒绝并停止，最终为 1/2 成功。由此预注册的 Strict/Progressive 消融已在 Astroid-1978 与 pydicom-1256 完成四条有效 Episode：两组配对硬结果均相同，Progressive 在 pydicom 上多允许一次读取但未消除约束停止，因此结论不确定并保留原默认策略。read-to-edit 纠正机制的独立后续协议也已在 Astroid-1268 与 pydicom-1694 完成四条有效 Episode：Astroid 两臂失败、pydicom 两臂成功，合计 2/4；每题两臂补丁字节相同且 Repair 均未触发，因此仍无纠正机制因果增益证据并保持默认关闭。Verifier Policy v2 与行为诊断 v4 分别记录最终答复质量、被拒绝工具请求和真实定位时机；上述结果均为本地 Dev 证据，不是官方 SWE-bench 分数。
+SWE-bench Lite Pilot 的数据版本、筛选规则、许可与隔离边界见 [`benchmarks/swe_bench_lite/README.md`](benchmarks/swe_bench_lite/README.md)。安全 Adapter、Git Archive 任务物化、验证期 Test Patch 临时挂载、候选临时副本评测和 Dev Episode Collector 已接通。当前固定 18 个任务、覆盖 6 个仓库，其中 16 题满足本地 baseline/Oracle 准入门。Runtime 支持显式 Thinking Mode、Escalation 后强制直接编辑或一次目标读取后强制编辑、一次默认关闭且不提供新任务信息的 read-to-edit 纠正请求、Critical 强制最终响应，以及路径限定的 Post-edit Contract Notice。post-edit 容器/返回类型新鲜验证（pvlib-1072）已完成：模型保持 Series 返回契约并通过全部硬门槛，H1/H2/H3 均成立，但单臂单样本不支持因果归因。Marshmallow-1343 产生首个本地真实仓库 Dev 成功 Episode；Marshmallow-1359 的跨 Issue 复现暴露配置父链语义遗漏。预注册 PyVista-4315 双臂均通过 1 条目标测试、114 条回归及全部硬门槛，但不支持 Notice 正确性增益。随后冻结的两任务复现中，pvlib-1606 成功，SQLFluff-1733 在首次定位正确文件时仍请求读取，被直接编辑约束拒绝并停止，最终为 1/2 成功。由此预注册的 Strict/Progressive 消融已在 Astroid-1978 与 pydicom-1256 完成四条有效 Episode：两组配对硬结果均相同，Progressive 在 pydicom 上多允许一次读取但未消除约束停止，因此结论不确定并保留原默认策略。read-to-edit 纠正机制的独立后续协议也已在 Astroid-1268 与 pydicom-1694 完成四条有效 Episode：Astroid 两臂失败、pydicom 两臂成功，合计 2/4；每题两臂补丁字节相同且 Repair 均未触发，因此仍无纠正机制因果增益证据并保持默认关闭。Verifier Policy v2 与行为诊断 v4 分别记录最终答复质量、被拒绝工具请求和真实定位时机；上述结果均为本地 Dev 证据，不是官方 SWE-bench 分数。
 
 ## 会话与上下文
 
