@@ -126,6 +126,15 @@ PILOT = {
             "repository while testing a different numerical contract."
         ),
     },
+    "pvlib__pvlib-python-1072": {
+        "role": "post-edit container/return-type fresh validation",
+        "rationale": (
+            "Preregistered single-arm validation of the path-scoped post-edit "
+            "contract notice on the same failure class pvlib-1606 missed: the "
+            "Oracle rewrites a numpy timedelta array into a pandas Series and the "
+            "hidden test asserts Series equality, so a numpy-style fix cannot pass."
+        ),
+    },
     "sqlfluff__sqlfluff-1733": {
         "role": "multi-task formatter-interaction replication",
         "rationale": (
@@ -332,7 +341,7 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         "dataset_revision": metadata["sha"],
         "split": "dev",
         "policy": {
-            "max_instances": 17,
+            "max_instances": 18,
             "one_instance_per_repository": False,
             "minimum_distinct_repositories": 6,
             "maximum_instances_per_repository": 5,

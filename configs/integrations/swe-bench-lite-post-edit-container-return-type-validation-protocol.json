@@ -1,0 +1,90 @@
+{
+  "admission": {
+    "baseline_fail_to_pass_must_fail": true,
+    "baseline_pass_to_pass_must_pass": true,
+    "model_calls_before_admission": 0,
+    "reference_fail_to_pass_must_pass": true,
+    "reference_pass_to_pass_must_pass": true
+  },
+  "analysis_after_episode_archived": true,
+  "arms": {
+    "post-edit-enabled": {
+      "allow_paths": [
+        "pvlib/temperature.py"
+      ],
+      "post_edit_contract_guidance": true
+    }
+  },
+  "claim_boundary": "Single-arm mechanism-sufficiency check on one fresh Dev issue; local Dev evidence only, not an official score, model estimate, training result, or LoRA gate.",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "instances": [
+    {
+      "base_commit": "04a523fafbd61bc2e49420963b84ed8e2bd1b3cf",
+      "fail_to_pass_count": 1,
+      "fail_to_pass_node": "pvlib/tests/test_temperature.py::test_fuentes_timezone[Etc/GMT+5]",
+      "implementation_paths": [
+        "pvlib/temperature.py"
+      ],
+      "instance_id": "pvlib__pvlib-python-1072",
+      "oracle_patch_changed_lines": 5,
+      "order": 1,
+      "pass_to_pass_count": 18,
+      "target_asserts": "assert_series_equal(out, pd.Series(...))"
+    }
+  ],
+  "maximum_valid_episodes": 1,
+  "official_swebench_harness": false,
+  "predecessor_bad_case": "pvlib__pvlib-python-1606",
+  "predecessor_evidence": "configs/integrations/swe-bench-lite-pvlib-escalation-rollout.json",
+  "predecessor_model_calls": 1,
+  "predecessor_observation": "model fixed the numeric boundary but returned ndarray instead of pandas Series; return-type regression failed; Post-edit Notice had not yet been delivered",
+  "protocol_document": "docs/roadmap/post-edit-container-return-type-fresh-validation-protocol.md",
+  "protocol_sha256": "a01fa3f41faf116281e1903e64a99e6f0460cbb58a4497f69ae77ee75dd6141e",
+  "protocol_version": "post-edit-container-return-type-fresh-validation.v1",
+  "quality_retries": 0,
+  "registered_at": "2026-08-22",
+  "schema_version": "post_edit_container_return_type_validation_protocol.v1",
+  "selection_rule": {
+    "allowed_environment_classes": [
+      "light",
+      "moderate",
+      "scientific"
+    ],
+    "container_return_type_semantics": true,
+    "exclude_closed_truncated_id_rows": [
+      "sqlfluff__sqlfluff-1517",
+      "pylint-dev__astroid-1866"
+    ],
+    "exclude_existing_pilot_count": 17,
+    "fail_to_pass_count": 1,
+    "oracle_implementation_file_count": 1,
+    "ordering": [
+      "patch_changed_lines_desc",
+      "instance_id_asc"
+    ],
+    "pass_to_pass_maximum": 100,
+    "pass_to_pass_minimum": 1,
+    "semantics_test": "oracle_patch_introduces_pandas_numpy_type_preserving_computation_and_fail_to_pass_asserts_container_type_or_index",
+    "take": 1
+  },
+  "shared_policy": {
+    "completion_critical_turns": 1,
+    "completion_reminder_turns": 4,
+    "evaluator_timeout_seconds": 180,
+    "force_direct_mutation_after_escalation": true,
+    "force_final_response_at_critical": true,
+    "implementation_constraint_repair_attempts": 0,
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "implementation_target_read_allowance": 0,
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "model": "deepseek-v4-flash",
+    "post_edit_contract_guidance": true,
+    "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v1",
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "verifier_version": "verifier-policy.v2"
+  },
+  "status": "preregistered_before_task_acquisition_and_model_calls"
+}

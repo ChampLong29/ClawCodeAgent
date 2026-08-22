@@ -63,6 +63,7 @@ docs/roadmap/*
 !docs/roadmap/benchmark-pilot.md
 !docs/roadmap/interview-evidence-summary.md
 !docs/roadmap/swe-bench-lite-experiment-log.md
+!docs/roadmap/post-edit-container-return-type-fresh-validation-protocol.md
 images/
 PROJECT_REPRODUCTION_GUIDE.md
 repro_evidence/

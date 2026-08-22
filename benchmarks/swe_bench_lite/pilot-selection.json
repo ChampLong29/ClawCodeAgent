@@ -9,7 +9,7 @@
       "FAIL_TO_PASS",
       "PASS_TO_PASS"
     ],
-    "max_instances": 17,
+    "max_instances": 18,
     "maximum_instances_per_repository": 5,
     "minimum_distinct_repositories": 6,
     "one_instance_per_repository": false,
@@ -323,6 +323,36 @@
       "title": "golden-section search fails when upper and lower bounds are equal",
       "total_score": 20,
       "version": "0.8"
+    },
+    {
+      "base_commit": "04a523fafbd61bc2e49420963b84ed8e2bd1b3cf",
+      "created_at": "2020-10-01T00:53:14Z",
+      "environment_class": "scientific",
+      "environment_setup_commit": "6e5148f59c5050e8f7a0084b7ae39e93b80f72e6",
+      "fail_to_pass_count": 1,
+      "fallback": false,
+      "instance_id": "pvlib__pvlib-python-1072",
+      "license": "BSD-3-Clause",
+      "local_repo": "repos/pvlib__pvlib-python-1072",
+      "pass_to_pass_count": 18,
+      "patch_changed_lines": 5,
+      "patch_file_count": 1,
+      "problem_statement_chars": 2322,
+      "rationale": "Preregistered single-arm validation of the path-scoped post-edit contract notice on the same failure class pvlib-1606 missed: the Oracle rewrites a numpy timedelta array into a pandas Series and the hidden test asserts Series equality, so a numpy-style fix cannot pass.",
+      "repo": "pvlib/pvlib-python",
+      "role": "post-edit container/return-type fresh validation",
+      "scores": {
+        "change_complexity": 3,
+        "environment": 2,
+        "focused_patch": 5,
+        "problem_statement": 5,
+        "regression_tests": 4
+      },
+      "selected": true,
+      "test_patch_file_count": 1,
+      "title": "temperature.fuentes errors when given tz-aware inputs on pandas>=1.0.0",
+      "total_score": 19,
+      "version": "0.7"
     },
     {
       "base_commit": "a1579a16b1d8913d9d7c7d12add374a290bcc78c",
