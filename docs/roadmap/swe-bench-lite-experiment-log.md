@@ -762,3 +762,25 @@ Fixture）；Episode 检查点完整性保留 mode 敏感默认值不变，历�
 支持与不支持的主张：支持"模板哈希现在与检出文件系统无关、Manifest 可在任意平台
 校验"；不支持把该修复描述为模型质量或实验结论变化。后续生成或新增任务集时沿用
 `normalize_exec=True`，并在提交前运行两个 Manifest 的校验。
+
+## 2026-08-22：重建 15 个缺失 Pilot 仓库
+
+接续设备此前只按交接范围重建了 Astroid-1268 与 pydicom-1694 两个工作区，其余 15 个
+实例（Marshmallow-1343/1359、Astroid-1196/1333/1978/1866、SQLFluff-1763/1733/1517、
+pydicom-1139/1413/1256、pvlib-1707/1606、PyVista-4315）缺失，导致 10 项依赖完整
+17 题工作区的测试报 `FileNotFoundError`。
+
+按仓库家族从官方上游全量克隆首个实例，兄弟实例用 `git clone --local` 派生，再
+`checkout --detach` 固定到 `repo-snapshots.json` 记录的精确 Base Commit。17/17 个
+工作区的 HEAD、clean 状态与 tracked 文件数均与快照一致。
+
+快照字节数与许可证哈希是在原机 Windows CRLF 工作树上记录的元数据，本机 LF 检出
+无法逐字节复现：两个 astroid/pydicom 等实例的许可证哈希与 CRLF 内容一致，而
+SQLFluff、pvlib-1707、Marshmallow-1359 的字节数与 LF Blob 完全一致，说明同一
+`repo-snapshots.json` 混合了两种测量约定。该字段无任何代码或测试校验（`tracked_bytes`
+/`tracked_files` 在 src/tools/tests 中无引用），仅作记录，不需要重写快照使其"看起来
+一致"。
+
+验证结果：此前失败的 49 项测试（adapter、Episode 采集、benchmark CLI）全部通过；
+全量 unittest 563/563 通过，为接续设备首次全绿。重建脚本保留在忽略的
+`.port_sessions/rebuild_repos.py` 供后续设备参考，不进入 Git。
