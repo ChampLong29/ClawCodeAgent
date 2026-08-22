@@ -784,3 +784,50 @@ SQLFluff、pvlib-1707、Marshmallow-1359 的字节数与 LF Blob 完全一致，
 验证结果：此前失败的 49 项测试（adapter、Episode 采集、benchmark CLI）全部通过；
 全量 unittest 563/563 通过，为接续设备首次全绿。重建脚本保留在忽略的
 `.port_sessions/rebuild_repos.py` 供后续设备参考，不进入 Git。
+
+## 2026-08-23：Post-edit 容器/返回类型契约新鲜验证完成
+
+### 目的与冻结
+
+在获取任务提交、校准与模型调用前冻结 `post-edit-container-return-type-fresh-validation.v1`
+单臂协议：验证路径限定的 Post-edit Contract Notice 在一条全新 Dev Issue 上能否促成
+容器/返回类型契约验证——即 pvlib-1606 遗漏的失败类（Series 返回类型）。确定性选题规则
+（排除 17 题 Pilot 与 2 题截断关闭行、单 Oracle 文件、1 目标/1-100 回归、
+light/moderate/scientific 环境、Oracle 引入 pandas/numpy 类型保持计算且隐藏测试断言
+容器类型）唯一命中 `pvlib__pvlib-python-1072`：Oracle 把 `np.diff` 的 numpy timedelta
+数组改写为 pandas Series（`index.to_series().diff().dt.total_seconds()`），隐藏测试
+`test_fuentes_timezone[Etc/GMT+5]` 用 `assert_series_equal` 断言返回 Series 与索引。
+
+### 准入（零模型调用）
+
+Python 3.8.20 + pytest 7.4.4 + pytest-mock 3.14.0 + numpy 1.24.4 + pandas 1.5.3 +
+scipy 1.10.1 环境四态校准通过：基线目标失败（rc=1）、基线 18 回归通过、Oracle 两组
+通过。首次校准因 `pvlib.iotools` 导入链缺 `requests` 在收集阶段失败（rc=4），补齐
+依赖后通过，属环境装配问题。
+
+### Episode 与 H1/H2/H3
+
+生成提交 `e111cab`、`deepseek-v4-flash`、温度 0、思考关闭、4096 token、18 turns、
+Deadline 4/Escalation 2、post-edit 提示开启、Critical 1。模型第 1 轮定位
+`pvlib/temperature.py`，第 3 轮以 `np.diff(poa_global.index.asi8)`（int64 纳秒差分）
+完成唯一一次编辑并收到 Post-edit Notice（`post_edit_contract_guidance_turn=3`），
+第 4 轮运行聚焦 bash 复现同时验证 naive 与 tz-aware 索引，第 5 轮正常终止；共 4 次
+工具调用、3076 token、约 86.45 秒，无策略拒绝。
+
+H1 机制激活成立（提示在首次允许路径编辑后立即送达）；H2 契约验证成立（提示后模型
+验证了 tz-aware 失败路径，但未显式断言容器类型）；H3 硬成功成立：1 条目标与 18 条
+回归全部通过，Diff Scope 仅含 `pvlib/temperature.py`，权限、格式、终止与最终答复
+质量信号全部通过，`verdict=success`、`aggregate_score=1.0`。
+
+### 观察、推断与边界
+
+模型修复与 Oracle 实现不同（`.asi8` 保持内部 numpy 容器而非改写为 Series），但
+返回的 `tamb` Series 及索引与隐藏测试断言一致——说明该失败类在此题上被以保持容器
+语义的等价方式解决。单臂、单样本，不能把成功归因于 Post-edit Notice（PyVista-4315
+对照已报 `control_pass_treatment_pass`，无正确性增益证据）；也不支持"提示普遍改善
+容器/返回类型遵循"的推广。该 Episode 不进入 Gold SFT（Dev 题不进入训练集）。
+
+机器证据见 `configs/integrations/swe-bench-lite-post-edit-container-return-type-validation-protocol.json`、
+`swe-bench-lite-pvlib-1072-local-calibration.json` 与
+`swe-bench-lite-post-edit-container-return-type-validation-result.json`。下一步按路线图
+扩充 family-safe Train 数据前，机制与准入门槛均已具备。

@@ -1,0 +1,78 @@
+{
+  "behavior_diagnostics": {
+    "first_direct_mutation_turn": 3,
+    "first_target_path_turn": 1,
+    "investigation_without_edit_ratio": 0.5,
+    "model_requested_tool_calls": 4,
+    "model_turns": 5,
+    "post_edit_contract_guidance_turn": 3,
+    "rejected_tool_calls": 0
+  },
+  "calibration_result_file_sha256": "a5d38e6be7073a336cfe7266d31845d97e3641b9b5e106dcea4047f17fc0b6ec",
+  "calibration_status": "passed",
+  "captured_at": "2026-08-23",
+  "claim_boundary": "local Dev mechanism-sufficiency evidence on one fresh issue; single sample, descriptive only.",
+  "collection_id": "episode_collection_7a328ecd1f9e899f0a73",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "episode": {
+    "edit_event_id": "evt_b34057c260d4d9d4c897",
+    "episode_file_sha256": "53ba1571829192cb1a054b2370cd76dda5454fb478b8ee1913d0330450696829",
+    "episode_id": "training-df3f839c5815404b83d5",
+    "first_direct_mutation_turn": 3,
+    "first_target_path_turn": 1,
+    "guidance_event_id": "evt_71d7c6b742133277432f",
+    "latency_seconds": 86.45,
+    "post_edit_contract_guidance_turn": 3,
+    "tool_calls": 4,
+    "total_tokens": 3076,
+    "trajectory_file_sha256": "9a74d28ef4ef88063dfd828b4ba5141bc7adc83dc8c0541451b5611538690ecd",
+    "turns": 5,
+    "verification_bash_event_id": "evt_ad7806075182ffd83bcc",
+    "verification_file_sha256": "ca8f31819c601d78ca51b88e0d7f6e9ba0db791b0de0c3ab0975258c04141669"
+  },
+  "generation_commit": "e111cab14e7ddfdb8983c3b2961f4290b6da3c30",
+  "generation_worktree_dirty": false,
+  "hypotheses": {
+    "h1_mechanism_activation": {
+      "evidence": "post_edit_contract_guidance_turn=3 immediately after the first successful edit_file on pvlib/temperature.py",
+      "observed": true
+    },
+    "h2_contract_verification": {
+      "evidence": "after the notice the model ran a focused bash repro exercising fuentes with both a naive and a tz-aware DatetimeIndex and printed both results",
+      "observed": true
+    },
+    "h3_hard_success": {
+      "evidence": "target test passed (1/1), 18/18 regressions passed, diff_scope only pvlib/temperature.py, permissions/format/termination/final-response-quality all pass, verdict=success",
+      "observed": true
+    }
+  },
+  "model": "deepseek-v4-flash",
+  "official_swebench_harness": false,
+  "protocol_file_sha256": "40e8fcae66a5d210726a20537db757cae44d0af286012e9f8f55d9c517805a90",
+  "protocol_sha256": "a01fa3f41faf116281e1903e64a99e6f0460cbb58a4497f69ae77ee75dd6141e",
+  "protocol_version": "post-edit-container-return-type-fresh-validation.v1",
+  "result_content_hash": "eb01905b73c117a910a63a240b68c37503649ba1ff60c3ceec604294fe569721",
+  "schema_version": "post_edit_container_return_type_validation_result.v1",
+  "status": "completed_1_valid_episode",
+  "supported_claims": [
+    "on this fresh issue the path-scoped post-edit contract notice was delivered and followed by a focused tz-aware verification;",
+    "the episode passed every hard gate including the hidden assert_series_equal target test and 18 regressions;",
+    "the model's fix (index.asi8 int64 diff) preserved the Series return contract while differing from the Oracle implementation."
+  ],
+  "temperature": 0,
+  "thinking_mode": "disabled",
+  "unsupported_claims": [
+    "any causal attribution of the success to the post-edit notice (single arm, no control; PyVista-4315 already reported control_pass_treatment_pass);",
+    "any general claim that the notice improves container/return-type adherence across tasks;",
+    "an official SWE-bench score, a model capability estimate, a training result, or a LoRA gate."
+  ],
+  "verification": {
+    "aggregate_score": 1.0,
+    "fail_to_pass_passed": 1,
+    "hard_gate_passed": true,
+    "pass_to_pass_passed": 18,
+    "report_id": "verify_89757fd0443308b60aaf",
+    "test_pass_rate": 1.0,
+    "verdict": "success"
+  }
+}
