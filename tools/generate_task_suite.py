@@ -233,7 +233,7 @@ def generate_suite(output_root: Path) -> Path:
                     split=_split(index),
                     prompt=case["prompt"],
                     template_ref=relative_template,
-                    template_hash=workspace_hash(template),
+                    template_hash=workspace_hash(template, normalize_exec=True),
                     initial_checks=[COMMAND],
                     test_commands=[COMMAND],
                     oracle_ref=relative_oracle,

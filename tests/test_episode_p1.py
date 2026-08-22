@@ -75,7 +75,7 @@ class EpisodeTestCase(unittest.TestCase):
             split="train",
             prompt="Set VALUE to 1.",
             template_ref=str(self.template),
-            template_hash=workspace_hash(self.template),
+            template_hash=workspace_hash(self.template, normalize_exec=True),
             initial_checks=[initial_check],
             test_commands=['python -c "import app; assert app.VALUE == 1"'],
             timeout_seconds=30,
@@ -110,7 +110,7 @@ class TestEpisodeStateMachine(EpisodeTestCase):
         except OSError as exc:
             self.skipTest(f"symlink creation is unavailable: {exc}")
         task = self.make_task()
-        task.template_hash = workspace_hash(self.template)
+        task.template_hash = workspace_hash(self.template, normalize_exec=True)
         task.content_hash = task.compute_content_hash()
         orchestrator = EpisodeOrchestrator(
             self.episodes,
@@ -139,7 +139,7 @@ class TestEpisodeStateMachine(EpisodeTestCase):
         except OSError as exc:
             self.skipTest(f"symlink creation is unavailable: {exc}")
         task = self.make_task()
-        task.template_hash = workspace_hash(self.template)
+        task.template_hash = workspace_hash(self.template, normalize_exec=True)
         task.content_hash = task.compute_content_hash()
         orchestrator = EpisodeOrchestrator(
             self.episodes,

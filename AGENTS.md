@@ -259,6 +259,10 @@ When changing session schemas, maintain backward-compatible loading or provide a
 ## Task Suite Invariants
 
 - `schema_version`, task version, template hash, optional hidden-test hash, and suite content hash are validated.
+- Template and hidden-test-asset hashes normalize the executable bit
+  (`workspace_hash(..., normalize_exec=True)`) so a manifest validates identically on
+  Windows-native, WSL/drvfs, and Linux checkouts; Episode checkpoint integrity keeps
+  the mode-sensitive default.
 - Core suites require family-safe Train/Dev/Test isolation.
 - Small curated suites may declare a stricter local `validation` policy, but defaults must remain suitable for the core suite.
 - Initial checks must fail before the solution and final checks must pass after the Oracle is applied.

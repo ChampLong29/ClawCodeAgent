@@ -86,7 +86,7 @@ class LocalAgentBenchmarkAdapterTests(unittest.TestCase):
             split="test",
             prompt="Create solution.txt containing done.",
             template_ref=str(template),
-            template_hash=workspace_hash(template),
+            template_hash=workspace_hash(template, normalize_exec=True),
             initial_checks=[
                 (
                     "python -c \"import pathlib; "

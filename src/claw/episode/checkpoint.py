@@ -54,8 +54,16 @@ def workspace_hash(
     root: Union[str, os.PathLike[str]],
     *,
     ignored_names: Optional[Iterable[str]] = None,
+    normalize_exec: bool = False,
 ) -> str:
-    """Hash relative paths, file modes, and bytes in a workspace."""
+    """Hash relative paths, file modes, and bytes in a workspace.
+
+    ``normalize_exec`` hashes every regular file as ``644`` regardless of the
+    executable bit, making the digest independent of the filesystem's mode
+    reporting (Windows/drvfs report everything as executable). Episode and
+    SWE-bench checkpoint integrity keep the mode-sensitive default; versioned
+    task-suite manifests opt in so template hashes validate on any checkout.
+    """
     base = Path(root).resolve()
     ignored = set(ignored_names or _IGNORED_NAMES)
     digest = hashlib.sha256()
@@ -81,8 +89,12 @@ def workspace_hash(
             digest.update(b"symlink\0")
             digest.update(os.readlink(path).encode("utf-8"))
         else:
-            executable = bool(path.stat().st_mode & stat.S_IXUSR)
-            digest.update(b"755" if executable else b"644")
+            if normalize_exec:
+                mode_bits = b"644"
+            else:
+                executable = bool(path.stat().st_mode & stat.S_IXUSR)
+                mode_bits = b"755" if executable else b"644"
+            digest.update(mode_bits)
             digest.update(b"\0")
             with path.open("rb") as handle:
                 while True:

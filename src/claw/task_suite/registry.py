@@ -193,7 +193,7 @@ class TaskSuiteManifest:
                 raise SchemaValidationError(
                     f"oracle is not a directory: {task.oracle_ref}"
                 )
-            observed = workspace_hash(template)
+            observed = workspace_hash(template, normalize_exec=True)
             if observed != task.template_hash:
                 raise SchemaValidationError(
                     f"template hash mismatch for {task.task_id}: "
@@ -204,7 +204,7 @@ class TaskSuiteManifest:
                     raise SchemaValidationError(
                         f"test assets are not a directory: {task.test_assets_ref}"
                     )
-                observed_tests = workspace_hash(test_assets)
+                observed_tests = workspace_hash(test_assets, normalize_exec=True)
                 if observed_tests != task.test_assets_hash:
                     raise SchemaValidationError(
                         f"test assets hash mismatch for {task.task_id}: "

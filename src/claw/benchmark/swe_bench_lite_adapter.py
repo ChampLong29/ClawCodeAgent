@@ -693,14 +693,14 @@ class SweBenchLiteEpisodeTaskMaterializer:
                 + task.problem_statement
             ),
             template_ref=str(template),
-            template_hash=workspace_hash(template),
+            template_hash=workspace_hash(template, normalize_exec=True),
             initial_checks=[command],
             test_commands=[command],
             timeout_seconds=timeout_seconds,
             source=f"SWE-bench Lite@{task.dataset_revision}",
             license=task.license,
             test_assets_ref=str(evaluator),
-            test_assets_hash=workspace_hash(evaluator),
+            test_assets_hash=workspace_hash(evaluator, normalize_exec=True),
             resource_limits={"processes": 8},
             tags=["swe-bench-lite", "real-repository", task.repo],
         )

@@ -123,7 +123,9 @@ class EpisodeOrchestrator:
                 symlinks=True,
             )
 
-            actual_template_hash = workspace_hash(self.workspace)
+            actual_template_hash = workspace_hash(
+                self.workspace, normalize_exec=True
+            )
             if verify_template_hash and actual_template_hash != task.template_hash:
                 raise InitialValidationError(
                     f"template hash mismatch: expected {task.template_hash}, "
@@ -481,7 +483,7 @@ class EpisodeOrchestrator:
         if not source.is_absolute():
             source = self.project_root / source
         source = source.resolve()
-        observed_hash = workspace_hash(source)
+        observed_hash = workspace_hash(source, normalize_exec=True)
         if observed_hash != task.test_assets_hash:
             raise InitialValidationError(
                 f"test assets hash mismatch: expected {task.test_assets_hash}, "

@@ -728,3 +728,37 @@ Repair 第 2 轮编辑，16 轮、15 次工具调用、7768 Token；Control 第 
 结论是不确定并保持 Repair 默认关闭。该结果不支持 Repair 改善动作恢复或正确性，也不是官方
 SWE-bench Harness 分数或模型能力估计。逐臂事件 ID、不可变归档哈希和结论边界见
 `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-result.json`。
+
+## 2026-08-22：任务集模板哈希跨平台校验修复
+
+### 失败现象
+
+接续设备（WSL 访问 Windows 挂载盘）上 `tools/validate_task_suite.py` 对核心与 Medium
+两个 Manifest 的全部任务报 `template hash mismatch`；`test_task_suite_m1` 与
+`test_medium_task_suite` 在 `setUpClass` 阶段整体错误。此前被归为"环境差异"，实为代码
+缺陷。`workspace_hash` 把可执行位（`st_mode & S_IXUSR`）混入模板哈希：Windows 原生
+Python 的文件没有可执行位（记为 `644`），WSL 挂载盘把所有文件报告为 777（记为 `755`），
+因此原机生成的 Manifest（`644` 基准）在任何 WSL/drvfs 检出上都无法通过校验。
+
+### 处理
+
+`workspace_hash` 增加可选参数 `normalize_exec`：开启时普通文件一律按 `644` 参与哈希，
+与文件系统如何报告 mode 无关。凡是对 `TaskSpec.template_hash` / `test_assets_hash`
+做计算或比对的位置统一开启（两个生成器、`registry.verify_asset_hashes`、
+`orchestrator.prepare` 的模板校验与隐藏测试暂存校验、SWE-bench Adapter、相关测试
+Fixture）；Episode 检查点完整性保留 mode 敏感默认值不变，历史检查点语义不受影响。
+重新生成两个 Manifest 后逐字节与已提交版本一致，证明 Manifest 本身始终正确，缺陷只在
+校验/生成代码的跨平台性。
+
+### 验证结果
+
+- 核心 32 题、Medium 2 题 `validate_task_suite.py` 均 `passed: true`。
+- 全量 unittest：563 项运行，仅剩 4 项错误，全部来自按交接范围只重建了 2/17 个忽略
+  Pilot 仓库（Marshmallow-1343 等工作区缺失），与本次修复无关；失败数由 9 降为 0。
+- 顺带确认"缺 `python` 命令别名"的失败根因是相对路径 `.venv/bin` 的 PATH 条目在
+  `cwd=临时目录` 的子进程里解析失效；使用绝对 venv 路径后相关测试通过，属调用方式
+  问题而非代码缺陷。
+
+支持与不支持的主张：支持"模板哈希现在与检出文件系统无关、Manifest 可在任意平台
+校验"；不支持把该修复描述为模型质量或实验结论变化。后续生成或新增任务集时沿用
+`normalize_exec=True`，并在提交前运行两个 Manifest 的校验。
