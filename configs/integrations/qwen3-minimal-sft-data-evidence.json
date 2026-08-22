@@ -1,0 +1,82 @@
+{
+  "schema_version": "qwen3_minimal_sft_data_evidence.v1",
+  "captured_at": "2026-08-23",
+  "status": "data_and_contract_stage_complete",
+  "purpose": "Minimal static LoRA comparison prerequisite: family-safe Train episodes, Silver/Gold governance, LlamaFactory export, tokenization check, train-split dataset, and DryRun contract validation (training_verified=false).",
+  "generation_commit": "097986a4be9705fca308cf241e8c92d64020bac6",
+  "base_model": {
+    "base_model_ref": "Qwen/Qwen3-1.7B",
+    "local_snapshot_path": "/home/longwanzhou/.cache/modelscope/models/Qwen--Qwen3-1.7B/snapshots/master",
+    "model_revision_pin": "19eb19731e592e3e1a6e546ee87f0ef9f27d1c3e8508b3e2e5c6e6c97ae73b24a",
+    "model_files_pinned": 13,
+    "source": "modelscope local download (user-provided; not transferred by Git)"
+  },
+  "collection": {
+    "collection_id": "episode_collection_df9eb5b6e96ca4be63a8",
+    "result_content_hash": "14cda2a5cace8028d2e8ce5eee6ef047db8e19749e8b267e44efaa09c7e116c6",
+    "model": "deepseek-v4-flash",
+    "prompt_version": "training-contract-batch.deepseek-v4-flash.v1",
+    "split": "train",
+    "task_count": 6,
+    "success_count": 6,
+    "task_ids": [
+      "python-cli-add_feature-01",
+      "python-cli-add_feature-05",
+      "python-cli-fix_bug-03",
+      "python-library-add_feature-02",
+      "python-library-fix_bug-04",
+      "python-library-fix_bug-05"
+    ]
+  },
+  "silver": {
+    "dataset_id": "silver_39b5ffb65ea120fa7249",
+    "record_count": 6,
+    "content_hash": "ca0b4104f12b35007f965e56bc3983347d5b7aefd17452d7f9daa4e21babd9d3"
+  },
+  "gold": {
+    "dataset_id": "gold_9a6aba398ac6064dbd91",
+    "record_count": 6,
+    "excluded_record_count": 0,
+    "content_hash": "287e6bd4db407aa137bb2072a88a710f6fe540c56d739f72032f9941a307cc14",
+    "governance": "pure-python AgentSFTGovernancePipeline (identical M2 operators; DataFlow execution layer not re-run on this device, its pinned package was not transferred)",
+    "quality_threshold": 0.7
+  },
+  "llamafactory_export": {
+    "export_id": "lf_export_606dbf4734b751b283d8",
+    "sample_count": 6,
+    "format": "sharegpt_tool_use",
+    "content_hash": "6157f2f083b4ef1f76a4b4f6ff257020fe4298e95666cf573369d1bdfffc3032"
+  },
+  "tokenization_check": {
+    "schema_version": "qwen3_tokenization_check.v1",
+    "status": "passed",
+    "tokenizer": "transformers.AutoTokenizer (Qwen2Tokenizer, vocab 151643)",
+    "max_sample_tokens": 1728,
+    "cutoff_len": 8192,
+    "all_within_cutoff": true,
+    "note": "transformers-native check on the same tokenizer files; the pinned LlamaFactory 0.9.4 loader was not re-run on this device"
+  },
+  "train_dataset": {
+    "dataset_id": "dataset_3ee2a9f3079c38d441e8",
+    "version": "1.0.0",
+    "strategy": "verifier_filtered",
+    "split": "train",
+    "sample_count": 6,
+    "exclusion_count": 0,
+    "content_hash": "488fd9dfe53dc6b483df16791de8e31402a533c7e6229833094f15c130c002b7"
+  },
+  "dry_run": {
+    "backend": "dry_run",
+    "status": "completed",
+    "contract_verified": true,
+    "training_verified": false,
+    "sample_count": 6,
+    "output": ".port_sessions/train-batch-20260823/dry-run"
+  },
+  "claim_boundary": [
+    "Data and contract stage only; no real training or checkpoint exists yet.",
+    "training_verified=false is mandatory until a real PEFT run produces a validated checkpoint and artifacts.",
+    "The real LoRA run requires a GPU (RTX 5080 on the Windows host; the agent sandbox has no GPU access) and must pin this base-model revision with the frozen training config.",
+    "Six deterministic train episodes are a minimal contract batch, not a statistically meaningful SFT dataset."
+  ]
+}

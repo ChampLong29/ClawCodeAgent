@@ -831,3 +831,37 @@ H1 机制激活成立（提示在首次允许路径编辑后立即送达）；H2
 `swe-bench-lite-pvlib-1072-local-calibration.json` 与
 `swe-bench-lite-post-edit-container-return-type-validation-result.json`。下一步按路线图
 扩充 family-safe Train 数据前，机制与准入门槛均已具备。
+
+## 2026-08-23：Qwen3-1.7B 最小 SFT 数据与契约阶段
+
+### 目的
+
+按路线图推进最小静态 LoRA 对照的前置阶段：采集 family-safe Train Episode、固化
+Silver/Gold、LlamaFactory 导出、Tokenization 验证、train-split 数据集与 DryRun 契约
+验证。基座模型为用户通过 modelscope 本地下载的 `Qwen/Qwen3-1.7B`
+（`/home/longwanzhou/.cache/modelscope/models/Qwen--Qwen3-1.7B/snapshots/master`，
+13 个文件，内容寻址 pin `19eb1973…`）；该路径不随 Git 迁移。
+
+### 采集与治理
+
+从核心任务集 train split 确定性选择 6 题（两域 × 两类型 × 易/中难度），
+`deepseek-v4-flash`、温度 0、prompt `training-contract-batch.deepseek-v4-flash.v1`
+采集 6/6 成功 Episode（`episode_collection_df9eb5b6e96ca4be63a8`）。Silver 6 条 →
+纯 Python `AgentSFTGovernancePipeline`（与 DataFlow 包装层同一组 M2 算子）→ Gold
+6 条、0 排除、0 泄漏 → ShareGPT tool-use 导出 6 条。本机未重跑 DataFlow 执行层
+（其固定包版本属未迁移环境），证据中已注明；Tokenization 用 transformers +
+本地 Qwen3 tokenizer（vocab 151643）验证：最长样本 1728 token < 8192 cutoff。
+train-split 数据集 `dataset_3ee2a9f3079c38d441e8`（verifier_filtered、6 样本、
+0 排除）。DryRunBackend 契约验证通过：`contract_verified=true`、
+`training_verified=false`（符合不变量，真实训练未发生）。
+
+### 环境约束与下一步
+
+本 agent 沙箱为只读根文件系统容器、无 GPU 设备节点；真实 LoRA 需在 GPU 机器执行
+（Windows 宿主 RTX 5080 16GB 或启用 WSL CUDA 直通）。已备好 `run_peft_lora.py`
+（冻结配置：lora/qlora、seed 42、lr 2e-4、lora_r 16/alpha 32、bf16、target
+q/k/v/o_proj、max_seq 4096、epochs 3）与数据路径。下一步门槛：用户在 GPU 环境
+安装 CUDA torch/peft/accelerate/bitsandbytes 后运行真实 PEFT，产出校验过的
+Checkpoint 与产物（training_verified=true），随后立即对固定独立 Test Manifest
+跑 Base/Adapter 对照。机器证据见
+`configs/integrations/qwen3-minimal-sft-data-evidence.json`。
