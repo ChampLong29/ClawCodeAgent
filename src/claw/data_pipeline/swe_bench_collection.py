@@ -237,7 +237,10 @@ def collect_swe_bench_lite_dev_episode(
         raise BenchmarkError("SWE-bench collection requires explicit allowed paths")
 
     benchmark = SweBenchLiteDevAdapter(benchmark_root)
-    tasks = {task.instance_id: task for task in benchmark.load_agent_tasks()}
+    tasks = {
+        task.instance_id: task
+        for task in benchmark.load_agent_tasks(instance_id=instance_id)
+    }
     if instance_id not in tasks:
         raise BenchmarkError(f"instance is not in selected pilot: {instance_id}")
     public_task = tasks[instance_id]
