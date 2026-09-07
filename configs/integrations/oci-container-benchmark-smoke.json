@@ -1,0 +1,59 @@
+{
+  "schema_version": "claw_container_benchmark_evidence.v1",
+  "captured_at": "2026-09-06",
+  "status": "containerized_smoke_benchmark_verified",
+  "run": {
+    "run_id": "benchmark_344afc7d4dd12084f146",
+    "episode_id": "benchmark-5312bad2e906404d88b6",
+    "task_id": "python-cli-add_feature-07",
+    "suite": "task_suites/manifest.json",
+    "group": "base",
+    "sample_count": 1,
+    "model_ref": "deepseek-v4-flash",
+    "protocol_fingerprint": "387e6df6dd8979c7f4d00468bbb04f8d02b1c80aa0ceae4ce61aef252e1e955b"
+  },
+  "execution_backend": {
+    "kind": "oci-container",
+    "product": "Docker Desktop 4.89.0",
+    "engine_version": "29.7.2",
+    "image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+    "effective_user": "1000:1000",
+    "network": "none",
+    "read_only_root": true
+  },
+  "metrics": {
+    "task_success_rate": 1.0,
+    "test_pass_rate": 1.0,
+    "tool_selection_validity": 1.0,
+    "tool_argument_validity": 1.0,
+    "schema_format_validity": 1.0,
+    "process_violation_rate": 0.0,
+    "turns": 8,
+    "tokens": 3616
+  },
+  "artifacts": {
+    "benchmark_report": {
+      "path": ".port_sessions/benchmark-container-smoke-uid/base/benchmark-run.json",
+      "sha256": "a67a19ac0724e35b56b979ec581881d30e961eb9904f602ac750b1b208fe867e"
+    },
+    "trajectory": {
+      "path": ".port_sessions/benchmark-container-smoke-uid/episodes/benchmark-5312bad2e906404d88b6/trajectory.json",
+      "sha256": "cdfd49f4d9a0333a43ed570465355fbf0250f176525a95ac339eae541e3165cf"
+    },
+    "verification": {
+      "path": ".port_sessions/benchmark-container-smoke-uid/episodes/benchmark-5312bad2e906404d88b6/verification.json",
+      "sha256": "d8b2b6818e8f56de365eb1d7f7ae35d0b781a6c1311946127fa62a0f2858757f"
+    }
+  },
+  "known_observation": {
+    "detail": "The first model-requested shell command used the host workspace path and failed inside the container; the Agent recovered using relative paths and the Episode passed.",
+    "remediation": "Host workspace paths are now translated to /workspace before container dispatch and are recorded as effective_command.",
+    "remediation_verification": "Focused unit tests and the model-free real-engine path-mapping probe passed after the change; this model Episode was not rerun."
+  },
+  "claim_boundary": [
+    "This is a one-task deterministic Core Smoke result, not a capability Benchmark or statistically meaningful model comparison.",
+    "The run is not an official SWE-bench result.",
+    "The ignored .port_sessions artifacts are local and must be reconstructed or transferred separately for cross-device verification.",
+    "The model endpoint was used for this Episode; no training occurred."
+  ]
+}

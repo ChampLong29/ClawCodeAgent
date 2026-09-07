@@ -60,6 +60,12 @@ OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
 
 Any `ANTHROPIC_*` variable selects Anthropic mode. Use only `OPENAI_*` variables for OpenAI-compatible mode. Never commit `.env` or credentials.
 
+For repeated local Qwen3 Episodes, use the pinned, persistent vLLM service in
+`tools/start_vllm_qwen3.sh`. The in-process Transformers client is a protocol
+smoke/reference path only; do not use it to report benchmark throughput or
+SWE-bench success rates. Record server startup/JIT time separately from warm
+request latency.
+
 ## Common Commands
 
 Run the Agent:
@@ -95,6 +101,9 @@ claw benchmark-run \
   --output .port_sessions/benchmark-medium
 ```
 
+Use `--api-config-root <dir>` when benchmark arms need isolated model-provider
+configuration. It changes API configuration discovery only, not the task workspace.
+
 Before committing:
 
 ```bash
@@ -122,6 +131,7 @@ Important modules:
 - `src/claw/main.py` — CLI parser and command routing.
 - `src/claw/agent_runtime.py` — main model/tool loop, retries, budgets, permissions, and session save.
 - `src/claw/agent_tools.py` — built-in tool schemas, handlers, registry, and execution results.
+- `src/claw/container_runtime.py` — cross-platform Docker/Podman execution boundary for Agent shell commands and Episode checks.
 - `src/claw/openai_compat.py` — Anthropic and OpenAI-compatible clients, including streaming.
 - `src/claw/agent_context.py` — Git, environment, `AGENTS.md`, and runtime context collection.
 - `src/claw/agent_prompting.py` — system-prompt assembly.
@@ -201,6 +211,16 @@ path-localization evidence without being counted as an executed inspection or mu
 
 `benchmarks/swe_bench_lite/repos/` contains ignored local working copies. Commit the versioned raw snapshot, selection metadata, and repository snapshot metadata only. Do not accidentally add nested repository `.git` data.
 
+`tools/probe_container_runtime.py` performs a model-free real-engine smoke test
+for the OCI boundary. Its output is runtime evidence, not a task Benchmark.
+
+The official SWE-bench evaluator is a separate boundary implemented by
+`src/claw/benchmark/swe_bench_official.py`. Keep it in `.venv-swebench`, pin the
+package through `configs/benchmarks/swebench-harness.txt`, require both CLI and
+Python Docker SDK preflight, and never expose its frozen raw row to the Agent.
+Prepared inputs are not an official result; archive the Harness report before
+claiming Benchmark verification.
+
 ## Runtime and Extension Rules
 
 ### Tool registry
@@ -220,9 +240,20 @@ When changing tool execution:
 - Preserve provider finish reasons. A token-limited response without a tool call is a stopped run, and its `runtime_stop` fact must remain valid in Trajectory v2.
 - Apply blocked tools and aliases before dispatch.
 - Keep permission checks intact.
+- Tool schema v2 keeps code retrieval bounded and model-usable: `code_outline`
+  accepts a literal symbol query, and `grep_search` returns deterministic relative
+  paths with bounded pagination, optional file filtering, and limited context.
+  Preserve pagination metadata before match payloads so result truncation cannot
+  hide whether another page exists. SWE collection exposes only its explicit local
+  filesystem, edit, search, and shell allowlist.
 - Keep optional implementation-deadline, escalation, and post-edit contract
   guidance traceable as `runtime_guidance`; guidance is not a tool-policy bypass
   or proof of model improvement.
+- Keep the optional repeated-read-only guard fail-closed and traceable: reject an
+  exact normalized observation only after the same deterministic read-only action
+  succeeded with no intervening dispatched `write_file`, `edit_file`, or `bash`.
+  At most one no-new-information repair may be configured; a second duplicate must
+  stop explicitly. A blocked loop is not evidence of task-quality improvement.
 - Keep optional forced-action requests visible in `model_request`: direct-mutation
   constraints may expose only explicit edit tools, or one allowlisted target-file
   read followed by an edit-only request; final-response constraints expose no tools.
@@ -269,6 +300,14 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Hidden test assets are available only during verification and must be removed before Agent execution.
 - Benchmark Diff allowlists default to paths represented by the task Oracle; explicit `--allow-path` replaces that default.
 - SWE collection uses the same allowlist as its implementation-progress boundary: scratch-file edits must not suppress implementation guidance or trigger post-edit contract guidance.
+- SWE collection also passes that allowlist into `allowed_write_paths`; explicit
+  `write_file` and `edit_file` calls outside it must be rejected before filesystem
+  mutation. While an allowlist is active, Shell fails closed unless its command runner
+  advertises disposable-workspace execution. The OCI runner copies the current Episode
+  workspace, mounts only that copy, and discards all Shell-side changes.
+- SWE candidate verification must rebuild from the Episode Git `HEAD`, overlay only
+  allowlisted candidate files, and then inject hidden tests. Never copy a possibly
+  contaminated Agent test tree into the verifier workspace.
 - Generators must be deterministic.
 
 ## Training and Evidence Invariants
@@ -281,13 +320,35 @@ When changing session schemas, maintain backward-compatible loading or provide a
   has 2/4 hard successes, identical within-task outcomes, and no Repair trigger;
   keep the repair disabled and do not claim causal improvement or quality-retry
   those Dev Episodes.
-- Verifier policy v2 records `final_response_quality` as a zero-weight Soft signal
+- Supplemental clean verification of the frozen pvlib-1154 Control and Treatment
+  candidates passes 1 FAIL_TO_PASS and 97 PASS_TO_PASS tests for both arms. Preserve
+  the original Diff Scope failures and Verification records: this proves the prior
+  zero test scores came from evaluator preparation conflict, not that the original
+  Episodes were policy-compliant successes.
+- The preregistered fresh pvlib-1854 local Dev Episode is a hard success: one
+  FAIL_TO_PASS and 281 PASS_TO_PASS tests pass with only `pvlib/pvsystem.py`
+  changed. It is one local Dev sample, not an official SWE-bench score or a
+  success-rate estimate. Its two Shell calls exposed a Docker Desktop WSL `/tmp`
+  bind failure. After enabling distro integration, the same-volume disposable-copy
+  fix read the archived candidate through the real Docker engine and discarded a
+  container-created marker; it was not followed by a model quality retry.
+- Verifier policy v3 keeps `final_response_quality` as a zero-weight Soft signal and
+  adds a required zero-weight `evaluation_integrity` Hard gate. Evaluation preparation
+  failures leave `test_pass_rate` unknown instead of converting them to a zero score.
+  Policy v2 introduced `final_response_quality`
   derived from immutable termination detail. It detects only obvious delivery
   defects and does not override hard test, Diff, permission, format, or termination
   results.
 - Non-base benchmark groups require matching Dataset, Training Run, and Experiment references.
 - Completed Registry evidence is immutable; do not overwrite it to make a run appear consistent.
 - A screened SWE-bench item is not an official result until run through the official isolated Harness.
+- Harness comparisons use three distinct arms: a pinned external minimal profile,
+  Claw Minimal for protocol/tool parity, and Claw Controlled for preregistered
+  policy changes. Keep raw Resolved visible alongside policy-compliant and
+  budgeted resolution; do not select metrics after viewing outcomes.
+- Under a limited budget, run one fresh Episode per task/arm first. Repeat paired
+  disagreements and a preregistered sample of agreements for stability; never
+  replace first-run outcomes with best-of-N quality retries.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

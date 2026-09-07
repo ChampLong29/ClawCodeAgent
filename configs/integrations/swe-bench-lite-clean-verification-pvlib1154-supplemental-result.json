@@ -1,0 +1,69 @@
+{
+  "schema_version": "swe_bench_clean_verification_task_validation.v1",
+  "captured_at": "2026-09-07",
+  "status": "supplemental_task_verified",
+  "hypothesis": "A verifier workspace rebuilt from Episode Git HEAD and overlaid only pvlib/irradiance.py should evaluate the frozen candidates without inheriting their test-file contamination.",
+  "instance_result": "supported",
+  "instance_id": "pvlib__pvlib-python-1154",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "allowed_path_patterns": [
+    "pvlib/irradiance.py"
+  ],
+  "evaluator_fingerprint": {
+    "test_patch_sha256": "1bda72f0d7e4124e8fd8465f4721c52a5152474fd1fd3665e0875b8e25f0f02c",
+    "test_ids_hash": "365729bb2cf231bff9155bbcd6ca4e0c446bfed1d624509a13a036f04d86d5ae",
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 97
+  },
+  "environment": {
+    "python_version": "3.8.20",
+    "official_swebench_harness": false,
+    "execution": "WSL local historical environment",
+    "candidate_workspace_mutated": false
+  },
+  "runs": {
+    "control": {
+      "episode_ref": ".port_sessions/swe-ablation-20260907-pvlib1154-control/episodes/training-0972cecc57f642359066",
+      "candidate_source_sha256": "db0f5b427bd4b19704c425fe9f4fafafa9176e0f8172e4efbbd3194f59f62867",
+      "evaluation_prepared": true,
+      "tests_executed": true,
+      "fail_to_pass": {
+        "passed": true,
+        "test_count": 1,
+        "returncode": 0,
+        "stdout_sha256": "2c15c7ac12a48814b9675af01235dca667370694a5d6988aaab88e512d5f7d61"
+      },
+      "pass_to_pass": {
+        "passed": true,
+        "test_count": 97,
+        "returncode": 0,
+        "stdout_sha256": "cb40d899c44f4ed5307620e974846ae40b43d1005f220db831a74bf8e8970d35"
+      }
+    },
+    "treatment": {
+      "episode_ref": ".port_sessions/swe-ablation-20260907-pvlib1154-treatment/episodes/training-4ec721ade58c4a53a552",
+      "candidate_source_sha256": "9a9323f1b88d62028a93496a5b8b06c9e5eeaeef43d7216d55b9959f38c7dabc",
+      "evaluation_prepared": true,
+      "tests_executed": true,
+      "fail_to_pass": {
+        "passed": true,
+        "test_count": 1,
+        "returncode": 0,
+        "stdout_sha256": "2c15c7ac12a48814b9675af01235dca667370694a5d6988aaab88e512d5f7d61"
+      },
+      "pass_to_pass": {
+        "passed": true,
+        "test_count": 97,
+        "returncode": 0,
+        "stdout_sha256": "cb40d899c44f4ed5307620e974846ae40b43d1005f220db831a74bf8e8970d35"
+      }
+    }
+  },
+  "interpretation": {
+    "functional_candidate_result": "Both frozen source candidates pass the selected target and regression tests after clean reconstruction.",
+    "original_failure_cause": "The original evaluator copied the Agent-modified test tree, so hidden Test Patch preparation failed before tests executed.",
+    "unchanged_historical_findings": "Both original Episodes still contain an out-of-scope test edit and retain their immutable Diff Scope failure and original Verification records.",
+    "deadline_effect": "The task result does not establish a correctness difference between Deadline=12 and Deadline=4; both candidates pass the selected tests."
+  },
+  "claim_boundary": "Supplemental local task verification of the clean candidate reconstruction path. No model call was made, the archived Episodes were not rewritten, Shell isolation was not exercised, and this is not an official SWE-bench score."
+}

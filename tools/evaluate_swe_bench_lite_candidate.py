@@ -23,6 +23,14 @@ def main() -> int:
     parser.add_argument("--asset", required=True)
     parser.add_argument("--python", required=True)
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--allow-path",
+        action="append",
+        help=(
+            "Override the evaluator asset's candidate overlay allowlist. "
+            "Intended for immutable supplemental evaluation of legacy Episodes."
+        ),
+    )
     args = parser.parse_args()
     try:
         result = evaluate_swe_bench_lite_candidate(
@@ -30,6 +38,7 @@ def main() -> int:
             args.asset,
             python_executable=args.python,
             timeout_seconds=args.timeout,
+            allowed_path_patterns=args.allow_path,
         )
         print(json.dumps(result.to_evidence(), ensure_ascii=False, sort_keys=True))
         return 0 if result.passed else 1
@@ -39,6 +48,8 @@ def main() -> int:
                 {
                     "status": "evaluation_error",
                     "error_type": type(exc).__name__,
+                    "evaluation_prepared": False,
+                    "tests_executed": False,
                     "official_swebench_harness": False,
                 },
                 sort_keys=True,

@@ -24,6 +24,7 @@ BAD_CASE_CATEGORIES = {
     "budget_or_timeout",
     "review_quality",
     "environment_or_infra",
+    "evaluation_preparation_failure",
 }
 
 
@@ -123,6 +124,7 @@ class BadCaseRecord:
 
 class BadCaseClassifier:
     _PRIORITY = [
+        "evaluation_preparation_failure",
         "environment_or_infra",
         "permission_violation",
         "action_constraint_violation",
@@ -139,6 +141,10 @@ class BadCaseClassifier:
     ]
 
     _SUGGESTIONS = {
+        "evaluation_preparation_failure": (
+            "Repair evaluator preparation or hidden-test staging before judging "
+            "candidate correctness."
+        ),
         "environment_or_infra": "Repair the task environment and rerun verification.",
         "permission_violation": "Enforce phase tool visibility and permission checks.",
         "action_constraint_violation": (
@@ -171,7 +177,13 @@ class BadCaseClassifier:
         if report.verdict == "success" and not low_reviewer:
             return None
         candidates: Dict[str, List[str]] = {}
+        evaluation_failed = any(
+            signal.name == "evaluation_integrity" and signal.status == "fail"
+            for signal in report.signals
+        )
         for signal in report.signals:
+            if evaluation_failed and signal.name == "test_pass_rate":
+                continue
             self._from_signal(signal, candidates)
         self._from_trajectory(trajectory, candidates)
         if not candidates:
@@ -221,6 +233,7 @@ class BadCaseClassifier:
         mapping = {
             "trajectory_schema": "format_or_schema",
             "environment": "environment_or_infra",
+            "evaluation_integrity": "evaluation_preparation_failure",
             "test_pass_rate": "test_failure",
             "build": "environment_or_infra",
             "static_check": "format_or_schema",

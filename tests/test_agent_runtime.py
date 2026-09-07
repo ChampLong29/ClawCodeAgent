@@ -283,6 +283,81 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertIsNotNone(agent.cwd)
         self.assertEqual(agent.cwd, self.tempdir)
 
+    def test_configured_tool_allowlist_limits_model_visible_schema(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={
+                "allow_write": False,
+                "allow_shell": False,
+                "allowed_tools": ["read_file", "bash"],
+                "denied_tools": ["bash"],
+            },
+        )
+        names = {
+            (
+                item["function"]["name"]
+                if "function" in item
+                else item["name"]
+            )
+            for item in agent._get_toolspec()
+        }
+        self.assertEqual(names, {"read_file"})
+        self.assertFalse(agent._tool_is_blocked("read_file"))
+        self.assertTrue(agent._tool_is_blocked("bash"))
+        self.assertTrue(agent._tool_is_blocked("web_fetch"))
+
+    def test_unadvertised_tool_call_is_rejected_before_dispatch(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={
+                "allow_write": False,
+                "allow_shell": True,
+                "allowed_tools": ["read_file"],
+            },
+        )
+
+        class FabricatingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    return {
+                        "role": "assistant",
+                        "content": "",
+                        "finish_reason": "tool_calls",
+                        "tool_calls": [{
+                            "id": "call-hidden",
+                            "type": "function",
+                            "function": {
+                                "name": "bash",
+                                "arguments": {"command": "echo should-not-run"},
+                            },
+                        }],
+                        "usage": {},
+                    }
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        agent.client = FabricatingClient()
+        result = agent.run("test policy", max_turns=2)
+
+        self.assertEqual(result.stop_reason, "completed")
+        tool_message = next(
+            message for message in agent.session.messages
+            if message.get("role") == "tool"
+        )
+        self.assertIn("blocked by policy", tool_message["content"])
+
     def test_decoding_config_is_sent_to_model_client(self):
         config = ModelConfig(
             name="benchmark-model",
@@ -444,6 +519,16 @@ class TestAgentConfiguration(unittest.TestCase):
         with self.assertRaises(ValueError):
             LocalCodingAgent(
                 cwd=self.tempdir,
+                repeated_action_repair_attempts=2,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                repeated_action_repair_attempts=1,
+            )
+        with self.assertRaises(ValueError):
+            LocalCodingAgent(
+                cwd=self.tempdir,
                 implementation_deadline_turns=1,
                 implementation_escalation_turns=1,
                 force_direct_mutation_after_escalation=True,
@@ -519,6 +604,223 @@ class TestAgentConfiguration(unittest.TestCase):
         ]
         self.assertEqual(len(notices), 1)
         self.assertIn("1 tool-bearing turns", notices[0]["content"])
+
+    def test_repeated_readonly_action_is_rejected_then_repaired_into_edit(self):
+        target = Path(self.tempdir) / "fixed.py"
+        target.write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            reject_repeated_readonly_actions=True,
+            repeated_action_repair_attempts=1,
+        )
+
+        class CapturingObserver:
+            def __init__(self):
+                self.events = []
+
+            def on_run_start(self, *args, **kwargs):
+                pass
+
+            def on_run_finish(self, *args, **kwargs):
+                pass
+
+            def record(self, event_type, **kwargs):
+                self.events.append((event_type, copy.deepcopy(kwargs)))
+                return f"event-{len(self.events)}"
+
+        class RepairingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.requests = []
+
+            def complete(self, **kwargs):
+                self.requests.append(copy.deepcopy(kwargs))
+                request_number = len(self.requests)
+                if request_number == 1:
+                    name, arguments = "read_file", '{"path": "fixed.py"}'
+                elif request_number == 2:
+                    name, arguments = "read_file", '{"path": "./fixed.py"}'
+                elif request_number == 3:
+                    name = "write_file"
+                    arguments = '{"path": "fixed.py", "content": "VALUE = 1\\n"}'
+                else:
+                    return {"content": "done", "usage": {}}
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{request_number}",
+                        "function": {"name": name, "arguments": arguments},
+                    }],
+                    "usage": {},
+                }
+
+        observer = CapturingObserver()
+        client = RepairingClient()
+        agent.runtime_observer = observer
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(target.read_text(), "VALUE = 1\n")
+        correction_messages = [
+            item
+            for item in client.requests[2]["messages"]
+            if "Runtime repeated-action correction"
+            in str(item.get("content"))
+        ]
+        self.assertEqual(len(correction_messages), 1)
+        dispatched_reads = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "tool_call"
+            and kwargs["payload"].get("tool_name") == "read_file"
+        ]
+        self.assertEqual(len(dispatched_reads), 1)
+        rejected_results = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "tool_result"
+            and kwargs["payload"].get("repeated_action")
+        ]
+        self.assertEqual(len(rejected_results), 1)
+        self.assertTrue(rejected_results[0]["rejected_before_dispatch"])
+        self.assertIsNotNone(rejected_results[0]["prior_result_sha256"])
+
+    def test_observation_fingerprint_normalizes_tool_ux_v2_defaults(self):
+        agent = LocalCodingAgent(cwd=self.tempdir)
+        implicit = agent._observation_fingerprint(
+            "grep_search",
+            {"pattern": "to_json_dict"},
+        )
+        explicit = agent._observation_fingerprint(
+            "grep_search",
+            {
+                "pattern": "to_json_dict",
+                "path": ".",
+                "recursive": False,
+                "file_pattern": None,
+                "max_results": 10,
+                "offset": 0,
+                "context_lines": 0,
+            },
+        )
+        self.assertEqual(implicit, explicit)
+
+    def test_repeated_readonly_action_stops_after_repair_is_exhausted(self):
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            reject_repeated_readonly_actions=True,
+            repeated_action_repair_attempts=1,
+        )
+
+        class CapturingObserver:
+            def __init__(self):
+                self.events = []
+
+            def on_run_start(self, *args, **kwargs):
+                pass
+
+            def on_run_finish(self, *args, **kwargs):
+                pass
+
+            def record(self, event_type, **kwargs):
+                self.events.append((event_type, copy.deepcopy(kwargs)))
+                return f"event-{len(self.events)}"
+
+        class RepeatingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **_kwargs):
+                self.calls += 1
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{self.calls}",
+                        "function": {
+                            "name": "list_dir",
+                            "arguments": '{"path": "."}',
+                        },
+                    }],
+                    "usage": {},
+                }
+
+        observer = CapturingObserver()
+        client = RepeatingClient()
+        agent.runtime_observer = observer
+        agent.client = client
+
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        self.assertEqual(client.calls, 3)
+        self.assertIn("repeated a successful read-only action", result.error)
+        dispatched = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "tool_call"
+        ]
+        self.assertEqual(len(dispatched), 1)
+        stops = [
+            kwargs["payload"]
+            for event_type, kwargs in observer.events
+            if event_type == "runtime_stop"
+        ]
+        self.assertEqual(stops[-1]["reason"], "repeated_readonly_action")
+        self.assertEqual(stops[-1]["repeated_action_repairs_used"], 1)
+        self.assertTrue(stops[-1]["repeated_action_repairs_exhausted"])
+
+    def test_possible_workspace_mutation_invalidates_observation_cache(self):
+        target = Path(self.tempdir) / "fixed.py"
+        target.write_text("VALUE = 0\n")
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            permissions={"allow_write": True},
+            reject_repeated_readonly_actions=True,
+        )
+
+        class SequencedClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, **_kwargs):
+                self.calls += 1
+                if self.calls == 1:
+                    name, arguments = "read_file", '{"path": "fixed.py"}'
+                elif self.calls == 2:
+                    name = "write_file"
+                    arguments = '{"path": "fixed.py", "content": "VALUE = 1\\n"}'
+                elif self.calls == 3:
+                    name, arguments = "read_file", '{"path": "fixed.py"}'
+                else:
+                    return {"content": "done", "usage": {}}
+                return {
+                    "content": "",
+                    "tool_calls": [{
+                        "id": f"call-{self.calls}",
+                        "function": {"name": name, "arguments": arguments},
+                    }],
+                    "usage": {},
+                }
+
+        client = SequencedClient()
+        agent.client = client
+        result = agent.run(prompt="fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(client.calls, 4)
+        self.assertEqual(target.read_text(), "VALUE = 1\n")
 
     def test_implementation_escalation_follows_ignored_deadline_once(self):
         agent = LocalCodingAgent(

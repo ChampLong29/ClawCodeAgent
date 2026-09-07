@@ -1,0 +1,132 @@
+{
+  "schema_version": "early_deadline_ablation_result.v1",
+  "captured_at": "2026-09-07",
+  "status": "completed_2_of_2_valid_episodes",
+  "protocol_version": "early-deadline-pvlib1154.v1",
+  "protocol_sha256": "1e7d6306f899c37d454b68cca558624ef3f7041443eabe5d7c96898c0bcc9c1f",
+  "calibration_record": "configs/integrations/swe-bench-lite-pvlib-1154-local-calibration.json",
+  "calibration_record_sha256": "d966e5696530b8f4c195c564da535f35a4042ee03b844c54bb69ebbddd70873f",
+  "environment_lock": "configs/integrations/pvlib-1154-py38-lock.txt",
+  "environment_lock_sha256": "42d4bd3ce0c42d429ff716711f43015a32eb19f2d25fbf28534055380b1d4dfa",
+  "instance_id": "pvlib__pvlib-python-1154",
+  "generation_commit": "5d337c46cbb3a6872ad85a2851acb762799d66f5",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-flash",
+  "shared_settings": {
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 0,
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "post_edit_contract_guidance": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "allowed_paths": [
+      "pvlib/irradiance.py"
+    ],
+    "evaluator_timeout_seconds": 300
+  },
+  "arms": {
+    "control": {
+      "implementation_deadline_turns": 12,
+      "collection_id": "episode_collection_64ae6f69edfd13d9f2bd",
+      "episode_id": "training-0972cecc57f642359066",
+      "success": false,
+      "test_pass_rate": 0.0,
+      "verdict": "failure",
+      "hard_gate_passed": false,
+      "aggregate_score": 0.23076923076923078,
+      "failed_hard_signals": [
+        "test_pass_rate",
+        "diff_scope"
+      ],
+      "bad_cases": [
+        "over_editing"
+      ],
+      "final_response_quality": "fail",
+      "turns": 18,
+      "tool_calls": 17,
+      "input_tokens": 17996,
+      "output_tokens": 4674,
+      "total_tokens": 22670,
+      "latency_seconds": 139.731285038,
+      "first_target_path_turn": 2,
+      "first_direct_mutation_turn": 11,
+      "target_to_mutation_turn_lag": 9,
+      "investigation_without_edit_ratio": 0.5882352941176471,
+      "direct_mutation_calls": 3,
+      "process_violations": 0,
+      "observed_off_allowlist_mutation": "pvlib/tests/test_irradiance.py",
+      "hashes": {
+        "collection_manifest_sha256": "e2ee0a4e76d2e9652f868006e20eac1c34c94c3ecfa029003b08d12e4aeb499f",
+        "episode_results_sha256": "14c9cffab6faae17dc5c0878303d383630d16746392b92ca72629082eb83fdd2",
+        "trajectory_sha256": "f232f427769028429d6dcd2514c1b50fea2a8668ef1bb40eb31d098bd67622e6",
+        "verification_sha256": "5419f40e15f18e714552d4cd15353793e262733d16ec523e67f95abf28186a7c"
+      }
+    },
+    "treatment": {
+      "implementation_deadline_turns": 4,
+      "collection_id": "episode_collection_1b03f69ae8e90589af93",
+      "episode_id": "training-4ec721ade58c4a53a552",
+      "success": false,
+      "test_pass_rate": 0.0,
+      "verdict": "failure",
+      "hard_gate_passed": false,
+      "aggregate_score": 0.23076923076923078,
+      "failed_hard_signals": [
+        "test_pass_rate",
+        "diff_scope"
+      ],
+      "bad_cases": [
+        "over_editing"
+      ],
+      "final_response_quality": "pass",
+      "turns": 15,
+      "tool_calls": 14,
+      "input_tokens": 4261,
+      "output_tokens": 2325,
+      "total_tokens": 6586,
+      "latency_seconds": 118.74784083200001,
+      "first_target_path_turn": 2,
+      "first_direct_mutation_turn": 5,
+      "target_to_mutation_turn_lag": 3,
+      "investigation_without_edit_ratio": 0.2857142857142857,
+      "direct_mutation_calls": 2,
+      "process_violations": 0,
+      "observed_off_allowlist_mutation": "pvlib/tests/test_irradiance.py",
+      "hashes": {
+        "collection_manifest_sha256": "6f674cb5249bf9f01b233844230e15664d0d813d7f07d3e49c02251ffdfd7dce",
+        "episode_results_sha256": "c6f62568b60b52d4a8673b554968839086c4ac0f3895a6d0790148a845c65385",
+        "trajectory_sha256": "8104ec948e7ea426be38788f63f278a0f39834f910461bb56d87940dceba8f9e",
+        "verification_sha256": "47c0220447adc09aeaac0026315ff1e31c59f0cc682de71d03b8012db0d65b91"
+      }
+    }
+  },
+  "comparison": {
+    "same_hard_outcome": true,
+    "hard_gate_successes": "0/2",
+    "treatment_turn_delta": -3,
+    "treatment_tool_call_delta": -3,
+    "treatment_total_token_delta": -16084,
+    "treatment_total_token_reduction_fraction": 0.7094847816497574,
+    "treatment_first_mutation_turn_delta": -6,
+    "treatment_target_to_mutation_lag_delta": -6,
+    "treatment_latency_delta_seconds": -20.983444205999987
+  },
+  "decision": {
+    "result": "earlier_editing_without_correctness_improvement",
+    "prefer_early_deadline_for_success": false,
+    "supported": "With every other frozen setting held constant, the earlier Deadline reduced turns, tool calls, tokens, latency, and time-to-first-edit on this task.",
+    "not_supported": "Both arms failed the target test and Diff Scope, so the pair provides no evidence that the earlier Deadline improves task success.",
+    "harness_gap": "The model was able to dispatch edit_file against pvlib/tests/test_irradiance.py even though the benchmark allowlist contained only pvlib/irradiance.py. Diff Scope detected the violation after execution, but the runtime did not make the off-allowlist mutation physically impossible.",
+    "next_step": "Implement and test dispatch-time mutation-path enforcement for benchmark Episodes before expanding the task matrix. Keep the existing immutable trajectories and do not rerun this task for quality."
+  },
+  "official_swebench_harness": false,
+  "claim_boundary": "Completed preregistered paired local Dev one-factor mechanism ablation. Descriptive single-task evidence only; not an official SWE-bench score, a statistical estimate, model-level improvement evidence, or a LoRA readiness result."
+}

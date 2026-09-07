@@ -48,6 +48,7 @@ class LocalAgentBenchmarkAdapter:
         output_token_price: float = 0.0,
         require_model_match: bool = True,
         episode_prefix: str = "benchmark",
+        command_runner: Optional[Any] = None,
     ):
         for name, value in (
             ("model_ref", model_ref),
@@ -81,6 +82,7 @@ class LocalAgentBenchmarkAdapter:
         self.output_token_price = output_token_price
         self.require_model_match = require_model_match
         self.episode_prefix = str(episode_prefix)
+        self.command_runner = command_runner
 
     def run(
         self,
@@ -110,6 +112,7 @@ class LocalAgentBenchmarkAdapter:
         orchestrator = EpisodeOrchestrator(
             self.episodes_root,
             project_root=self.project_root,
+            command_runner=self.command_runner,
         )
         orchestrator.prepare(
             task,
@@ -124,6 +127,11 @@ class LocalAgentBenchmarkAdapter:
             str(orchestrator.workspace),
             dict(inference_config),
         )
+        if self.command_runner is not None:
+            setattr(agent, "command_runner", self.command_runner)
+            permissions = getattr(agent, "permissions", None)
+            if isinstance(permissions, dict):
+                permissions["restrict_workspace"] = True
         observed_model = str(
             getattr(getattr(agent, "client", None), "model", "")
         )
@@ -200,6 +208,7 @@ class LocalAgentBenchmarkAdapter:
         trajectory = runtime_adapter.recorder.trajectory
         signals = {signal.name: signal for signal in report.signals}
         test_signal = signals.get("test_pass_rate")
+        integrity_signal = signals.get("evaluation_integrity")
         process_signal = signals.get("process_permission")
         format_signal = signals.get("format_schema")
         tool_calls = [
@@ -246,10 +255,10 @@ class LocalAgentBenchmarkAdapter:
             domain=task.domain,
             difficulty=task.difficulty,
             success=report.verdict == "success",
-            test_pass_rate=float(
-                test_signal.score
+            test_pass_rate=(
+                float(test_signal.score)
                 if test_signal is not None and test_signal.score is not None
-                else 0.0
+                else None
             ),
             tool_calls=len(tool_calls),
             valid_tool_selections=min(valid_selections, len(tool_calls)),
@@ -270,6 +279,14 @@ class LocalAgentBenchmarkAdapter:
             ),
             latency_seconds=max(0.0, latency_seconds),
             bad_cases=bad_cases,
+            evaluation_prepared=bool(
+                integrity_signal is None
+                or integrity_signal.details.get("evaluation_prepared", True)
+            ),
+            tests_executed=bool(
+                integrity_signal is None
+                or integrity_signal.details.get("tests_executed", True)
+            ),
             verification_ref=verification_ref,
             trajectory_ref=str(runtime_adapter.recorder.path),
             error=run_result.error,

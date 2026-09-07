@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import glob
+import fnmatch
 import json
 import os
 import re
@@ -40,6 +41,7 @@ class ToolExecutionContext:
     cwd: str
     runtime_context: Optional[Dict[str, Any]] = None
     permissions: Optional[Dict[str, Any]] = None
+    command_runner: Optional[Any] = None
 
 
 @dataclass
@@ -111,14 +113,19 @@ def _build_default_registry() -> ToolRegistry:
         name="code_outline",
         description=(
             "Return a compact code structure outline (classes/functions with line numbers) "
-            "without reading the full file. Use read_file with offset/limit after this "
-            "when only a specific section is needed."
+            "without reading the full file. When the issue names a class or function, pass "
+            "that literal name as query so late-file symbols are not lost to truncation. "
+            "Use read_file with offset/limit around the returned line."
         ),
         parameters={
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "File path to outline"},
                 "includeDocstrings": {"type": "boolean", "description": "Include first docstring line"},
+                "query": {
+                    "type": "string",
+                    "description": "Optional case-insensitive literal class/function-name filter",
+                },
             },
             "required": ["path"],
         },
@@ -175,13 +182,33 @@ def _build_default_registry() -> ToolRegistry:
     # grep_search tool
     registry.register(AgentTool(
         name="grep_search",
-        description="Search for text in files",
+        description=(
+            "Search source text with a regex and return a bounded, deterministic page of "
+            "matches. Prefer exact class/function/error names from the task over broad short "
+            "terms; use offset to request the next page when truncated."
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "pattern": {"type": "string", "description": "Regex pattern to search"},
                 "path": {"type": "string", "description": "Directory or file to search"},
                 "recursive": {"type": "boolean", "description": "Search recursively"},
+                "file_pattern": {
+                    "type": "string",
+                    "description": "Optional glob for files, for example '*.py' or 'src/**/*.py'",
+                },
+                "max_results": {
+                    "type": "integer",
+                    "description": "Maximum matches returned in one page (default 10, maximum 50)",
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Number of earlier matches to skip for pagination (default 0)",
+                },
+                "context_lines": {
+                    "type": "integer",
+                    "description": "Lines of context before and after each match (default 0, maximum 3)",
+                },
             },
             "required": ["pattern"],
         },
@@ -306,6 +333,40 @@ def _resolve_cwd_path(path: str, kwargs: Dict[str, Any]) -> str:
     return resolved
 
 
+def _enforce_allowed_write_path(
+    resolved_path: str, requested_path: str, kwargs: Dict[str, Any]
+) -> None:
+    """Reject explicit file mutations outside an optional runtime allowlist."""
+    permissions = kwargs.get("permissions") or {}
+    patterns = permissions.get("allowed_write_paths")
+    if patterns is None:
+        return
+    cwd = kwargs.get("_cwd")
+    if not cwd:
+        raise PermissionError(
+            "Write-path enforcement requires a configured workspace"
+        )
+    workspace = os.path.realpath(os.path.abspath(cwd))
+    candidate = os.path.realpath(os.path.abspath(resolved_path))
+    relative = os.path.relpath(candidate, workspace).replace(os.sep, "/")
+    normalized_patterns = []
+    for raw_pattern in patterns:
+        pattern = str(raw_pattern).replace("\\", "/")
+        if pattern.startswith("./"):
+            pattern = pattern[2:]
+        if pattern:
+            normalized_patterns.append(pattern)
+    if any(
+        relative == pattern or fnmatch.fnmatchcase(relative, pattern)
+        for pattern in normalized_patterns
+    ):
+        return
+    raise PermissionError(
+        "Write path is outside the configured mutation allowlist: "
+        f"{requested_path}"
+    )
+
+
 def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = None, **kwargs) -> Dict[str, Any]:
     """Read file contents.
 
@@ -329,7 +390,12 @@ def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = N
         return {"ok": False, "error": str(e)}
 
 
-def _code_outline(path: str, includeDocstrings: bool = False, **kwargs) -> Dict[str, Any]:
+def _code_outline(
+    path: str,
+    includeDocstrings: bool = False,
+    query: Optional[str] = None,
+    **kwargs,
+) -> Dict[str, Any]:
     """Return a compact outline of classes/functions in a source file."""
     resolved = _resolve_cwd_path(path, kwargs)
     if not os.path.isfile(resolved):
@@ -349,11 +415,41 @@ def _code_outline(path: str, includeDocstrings: bool = False, **kwargs) -> Dict[
     else:
         outline_lines = _generic_outline(lines)
 
+    normalized_query = str(query or "").strip()
+    if normalized_query:
+        query_lower = normalized_query.casefold()
+        filtered: List[str] = []
+        for index, line in enumerate(outline_lines):
+            if query_lower not in line.casefold():
+                continue
+            filtered.append(line)
+            if (
+                includeDocstrings
+                and index + 1 < len(outline_lines)
+                and outline_lines[index + 1].lstrip().startswith("→")
+            ):
+                filtered.append(outline_lines[index + 1])
+        outline_lines = filtered
+
     if not outline_lines:
-        outline = f"No structural elements found in {path} ({len(lines)} lines total)."
+        if normalized_query:
+            outline = (
+                f"No class/function definitions matching {normalized_query!r} "
+                f"found in {path} ({len(lines)} lines total)."
+            )
+        else:
+            outline = f"No structural elements found in {path} ({len(lines)} lines total)."
     else:
         outline = f"# Outline: {path} ({len(lines)} lines total)\n" + "\n".join(outline_lines)
-    return {"ok": True, "path": resolved, "outline": outline, "line_count": len(lines)}
+    return {
+        "ok": True,
+        "path": _model_visible_path(resolved, kwargs),
+        "outline": outline,
+        "line_count": len(lines),
+        "query": normalized_query or None,
+        "match_count": len(outline_lines),
+        "filtered": bool(normalized_query),
+    }
 
 
 def _python_outline(lines: List[str], include_docs: bool = False) -> List[str]:
@@ -408,8 +504,10 @@ def _write_file(path: str, content: str, **kwargs) -> Dict[str, Any]:
     if not permissions.get("allow_write", False):
         return {"ok": False, "error": "Write permission denied. Current phase does not allow file writes."}
 
+    requested_path = path
     path = _resolve_cwd_path(path, kwargs)
     try:
+        _enforce_allowed_write_path(path, requested_path, kwargs)
         # Ensure directory exists
         dir_path = os.path.dirname(path)
         if dir_path:
@@ -436,8 +534,10 @@ def _edit_file(path: str, old_string: str, new_string: str, count: int = 1, **kw
     if not permissions.get("allow_write", False):
         return {"ok": False, "error": "Write permission denied. Current phase does not allow file edits."}
 
+    requested_path = path
     path = _resolve_cwd_path(path, kwargs)
     try:
+        _enforce_allowed_write_path(path, requested_path, kwargs)
         with open(path, "r", encoding="utf-8") as f:
             content = f.read()
 
@@ -474,9 +574,39 @@ def _glob_search(pattern: str, cwd: Optional[str] = None, **kwargs) -> Dict[str,
         return {"ok": False, "error": str(e)}
 
 
-def _grep_search(pattern: str, path: Optional[str] = None, recursive: bool = False, **kwargs) -> Dict[str, Any]:
+def _model_visible_path(path: str, kwargs: Dict[str, Any]) -> str:
+    """Return a stable relative path when a result is inside the Agent workspace."""
+    agent_cwd = os.path.abspath(kwargs.get("_cwd") or os.getcwd())
+    resolved = os.path.abspath(path)
+    try:
+        if os.path.commonpath([agent_cwd, resolved]) == agent_cwd:
+            return os.path.relpath(resolved, agent_cwd).replace("\\", "/")
+    except (OSError, ValueError):
+        pass
+    return resolved.replace("\\", "/")
+
+
+def _grep_search(
+    pattern: str,
+    path: Optional[str] = None,
+    recursive: bool = False,
+    file_pattern: Optional[str] = None,
+    max_results: int = 10,
+    offset: int = 0,
+    context_lines: int = 0,
+    **kwargs,
+) -> Dict[str, Any]:
     """Search for text in files using regex."""
     try:
+        if not 1 <= int(max_results) <= 50:
+            return {"ok": False, "error": "max_results must be within [1, 50]"}
+        if int(offset) < 0:
+            return {"ok": False, "error": "offset must be non-negative"}
+        if not 0 <= int(context_lines) <= 3:
+            return {"ok": False, "error": "context_lines must be within [0, 3]"}
+        max_results = int(max_results)
+        offset = int(offset)
+        context_lines = int(context_lines)
         search_path = _resolve_cwd_path(path or ".", kwargs)
         results = []
 
@@ -487,34 +617,79 @@ def _grep_search(pattern: str, path: Optional[str] = None, recursive: bool = Fal
                 files_to_search = []
                 for root, dirs, files in os.walk(search_path):
                     # Skip hidden directories
-                    dirs[:] = [d for d in dirs if not d.startswith(".")]
-                    for file in files:
+                    dirs[:] = sorted(d for d in dirs if not d.startswith("."))
+                    for file in sorted(files):
                         if not file.startswith("."):
                             files_to_search.append(os.path.join(root, file))
             else:
-                files_to_search = [
+                files_to_search = sorted([
                     os.path.join(search_path, f)
                     for f in os.listdir(search_path)
                     if os.path.isfile(os.path.join(search_path, f)) and not f.startswith(".")
-                ]
+                ])
         else:
             return {"ok": False, "error": f"Invalid path: {search_path}"}
 
+        if file_pattern:
+            pattern_root = search_path if os.path.isdir(search_path) else os.path.dirname(search_path)
+            files_to_search = [
+                filepath
+                for filepath in files_to_search
+                if fnmatch.fnmatch(
+                    os.path.relpath(filepath, pattern_root).replace("\\", "/"),
+                    file_pattern,
+                )
+                or fnmatch.fnmatch(os.path.basename(filepath), file_pattern)
+            ]
+
         regex = re.compile(pattern)
+        seen_matches = 0
+        has_more = False
         for filepath in files_to_search:
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    for lineno, line in enumerate(f, 1):
+                    lines = f.readlines()
+                    for line_index, line in enumerate(lines):
                         if regex.search(line):
-                            results.append({
-                                "file": filepath,
-                                "line": lineno,
-                                "text": line.rstrip(),
-                            })
+                            if seen_matches < offset:
+                                seen_matches += 1
+                                continue
+                            if len(results) >= max_results:
+                                has_more = True
+                                break
+                            match = {
+                                "file": _model_visible_path(filepath, kwargs),
+                                "line": line_index + 1,
+                                "text": line.rstrip()[:300],
+                            }
+                            if context_lines:
+                                before_start = max(0, line_index - context_lines)
+                                after_end = min(len(lines), line_index + context_lines + 1)
+                                match["before"] = [
+                                    item.rstrip()[:300]
+                                    for item in lines[before_start:line_index]
+                                ]
+                                match["after"] = [
+                                    item.rstrip()[:300]
+                                    for item in lines[line_index + 1:after_end]
+                                ]
+                            results.append(match)
+                            seen_matches += 1
             except (IOError, OSError):
                 continue
+            if has_more:
+                break
 
-        return {"ok": True, "matches": results, "count": len(results)}
+        return {
+            "ok": True,
+            "count": len(results),
+            "offset": offset,
+            "max_results": max_results,
+            "truncated": has_more,
+            "next_offset": offset + len(results) if has_more else None,
+            "file_pattern": file_pattern,
+            "matches": results,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -530,26 +705,49 @@ def _bash(command: str, **kwargs) -> Dict[str, Any]:
             return {"ok": False, "need_permission": True, "command": command, "security": "ASK"}
         return {"ok": False, "error": f"Shell access not permitted. Set allow_shell=True to run: {command}"}
 
+    command_runner = kwargs.get("_command_runner")
+    if permissions.get("allowed_write_paths") is not None and (
+        command_runner is None
+        or getattr(command_runner, "persistent_workspace_mutations", True)
+    ):
+        return {
+            "ok": False,
+            "error": (
+                "Shell requires a disposable-workspace command runner when a "
+                "mutation allowlist is active"
+            ),
+            "error_type": "unsafe_shell_workspace",
+            "retryable": True,
+        }
+
     # Security validation — MUST run before subprocess.run
     security_result = validate_bash_command(command)
     if security_result == SecurityResult.DENY:
         return {"ok": False, "error": f"Command blocked by security policy: {command}"}
 
     try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            cwd=kwargs.get("_cwd"),
-        )
-        return {
+        if command_runner is not None:
+            result = command_runner.run(
+                command, cwd=kwargs.get("_cwd"), timeout=60
+            )
+        else:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                cwd=kwargs.get("_cwd"),
+            )
+        payload = {
             "ok": result.returncode == 0,
             "stdout": result.stdout,
             "stderr": result.stderr,
             "returncode": result.returncode,
         }
+        if command_runner is not None and hasattr(command_runner, "result_metadata"):
+            payload.update(command_runner.result_metadata(result))
+        return payload
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "Command timed out"}
     except Exception as e:
@@ -829,6 +1027,8 @@ def execute_tool(
             kwargs["_cwd"] = context.cwd
             if context.permissions:
                 kwargs["permissions"] = context.permissions
+            if context.command_runner is not None:
+                kwargs["_command_runner"] = context.command_runner
         result = tool.handler(**kwargs)
 
         # Normalize result to dict
@@ -908,13 +1108,38 @@ def execute_tool_streaming(
     security_result = validate_bash_command(command)
     permissions = context.permissions if context else {}
 
+    if not permissions.get("allow_shell", False):
+        yield {
+            "ok": False,
+            "tool_name": "bash",
+            "error": f"Shell access not permitted. Set allow_shell=True to run: {command}",
+        }
+        return
+
     if security_result == SecurityResult.DENY:
         yield {"ok": False, "tool_name": "bash", "error": f"Command blocked by security policy: {command}"}
         return
-    elif security_result == SecurityResult.ASK:
-        if not permissions.get("allow_shell", False):
-            yield {"ok": False, "tool_name": "bash", "error": f"Shell access not permitted. Set allow_shell=True to run: {command}"}
-            return
+
+    if context and context.command_runner is not None:
+        try:
+            result = context.command_runner.run(
+                command, cwd=context.cwd, timeout=60
+            )
+            payload = {
+                "ok": result.returncode == 0,
+                "tool_name": "bash",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode,
+            }
+            if hasattr(context.command_runner, "result_metadata"):
+                payload.update(context.command_runner.result_metadata(result))
+            yield payload
+        except subprocess.TimeoutExpired:
+            yield {"ok": False, "tool_name": "bash", "error": "Command timed out"}
+        except Exception as exc:
+            yield {"ok": False, "tool_name": "bash", "error": str(exc)}
+        return
 
     try:
         process = subprocess.Popen(

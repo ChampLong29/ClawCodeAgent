@@ -29,6 +29,12 @@ from .swe_bench_lite_adapter import (
     SweBenchLiteTestExecution,
     evaluate_swe_bench_lite_candidate,
 )
+from .swe_bench_official import (
+    OfficialSweBenchHarness,
+    OfficialSweBenchHarnessConfig,
+    OfficialSweBenchHarnessError,
+    PreparedOfficialSweBenchRun,
+)
 
 __all__ = [
     "ABLATION_GROUPS",
@@ -42,6 +48,10 @@ __all__ = [
     "LocalSweBenchLiteCalibrationRunner",
     "MaterializedSweBenchLiteEpisodeTask",
     "ModelAdapter",
+    "OfficialSweBenchHarness",
+    "OfficialSweBenchHarnessConfig",
+    "OfficialSweBenchHarnessError",
+    "PreparedOfficialSweBenchRun",
     "SweBenchLiteAgentTask",
     "SweBenchLiteCandidateEvaluation",
     "SweBenchLiteDevAdapter",

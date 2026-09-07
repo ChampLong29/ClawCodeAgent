@@ -1085,6 +1085,104 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
                 self.assertTrue(fixed.passed)
                 self.assertFalse((workspace / "tests").exists())
 
+    def test_candidate_evaluation_rebuilds_base_and_ignores_test_contamination(self):
+        test_patch = (
+            "diff --git a/tests/test_regression.py b/tests/test_regression.py\n"
+            "--- a/tests/test_regression.py\n"
+            "+++ b/tests/test_regression.py\n"
+            "@@ -1 +1 @@\n"
+            "-EXPECTED = 0\n"
+            "+EXPECTED = 1\n"
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace = root / "candidate"
+            (workspace / "tests").mkdir(parents=True)
+            (workspace / "pkg.py").write_text("VALUE = 'wrong'\n", encoding="utf-8")
+            test_file = workspace / "tests" / "test_regression.py"
+            test_file.write_text("EXPECTED = 0\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(workspace)], check=True)
+            subprocess.run(
+                ["git", "-C", str(workspace), "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(workspace), "config", "user.name", "Test"], check=True
+            )
+            subprocess.run(["git", "-C", str(workspace), "add", "."], check=True)
+            subprocess.run(
+                ["git", "-C", str(workspace), "commit", "-qm", "base"], check=True
+            )
+            (workspace / "pkg.py").write_text("VALUE = 'fixed'\n", encoding="utf-8")
+            test_file.write_text("EXPECTED = 999\n", encoding="utf-8")
+            asset = root / "evaluation.json"
+            asset.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "swe_bench_lite_episode_evaluator.v1",
+                        "instance_id": "repo__project-2",
+                        "dataset_revision": "b" * 40,
+                        "test_patch": test_patch,
+                        "fail_to_pass": ["hidden::regression"],
+                        "pass_to_pass": ["public::existing"],
+                        "allowed_path_patterns": ["pkg.py"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_tests(_runner, evaluation_root, _python, _ids, *, group, timeout_seconds):
+                self.assertGreater(timeout_seconds, 0)
+                self.assertEqual(
+                    (evaluation_root / "tests" / "test_regression.py").read_text("utf-8"),
+                    "EXPECTED = 1\n",
+                )
+                self.assertEqual(
+                    (evaluation_root / "pkg.py").read_text("utf-8"),
+                    "VALUE = 'fixed'\n",
+                )
+                return SweBenchLiteTestExecution(
+                    group=group,
+                    returncode=0,
+                    test_count=1,
+                    duration_seconds=0.01,
+                    stdout_sha256="a" * 64,
+                    stderr_sha256="b" * 64,
+                )
+
+            with mock.patch.object(
+                LocalSweBenchLiteCalibrationRunner, "_run_tests", new=fake_run_tests
+            ):
+                result = evaluate_swe_bench_lite_candidate(
+                    workspace, asset, python_executable=sys.executable
+                )
+            contaminated_test = test_file.read_text(encoding="utf-8")
+
+        self.assertTrue(result.passed)
+        self.assertEqual(contaminated_test, "EXPECTED = 999\n")
+
+    def test_pvlib_1154_clean_verification_preserves_original_policy_failure(self):
+        evidence = json.loads(
+            (
+                ROOT
+                / "configs"
+                / "integrations"
+                / "swe-bench-lite-clean-verification-pvlib1154-supplemental-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(evidence["status"], "supplemental_task_verified")
+        for arm in ("control", "treatment"):
+            result = evidence["runs"][arm]
+            self.assertTrue(result["evaluation_prepared"])
+            self.assertTrue(result["tests_executed"])
+            self.assertTrue(result["fail_to_pass"]["passed"])
+            self.assertTrue(result["pass_to_pass"]["passed"])
+        self.assertIn(
+            "Diff Scope failure",
+            evidence["interpretation"]["unchanged_historical_findings"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

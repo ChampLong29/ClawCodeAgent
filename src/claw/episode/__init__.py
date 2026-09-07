@@ -19,18 +19,26 @@ from .state import (
     EpisodeState,
     EpisodeStateError,
 )
+from ..container_runtime import (
+    ContainerRuntimeError,
+    OCIContainerConfig,
+    OCIContainerRunner,
+)
 
 __all__ = [
     "EPISODE_SCHEMA_VERSION",
     "CheckpointIntegrityError",
     "CheckpointManager",
     "CheckpointSnapshot",
+    "ContainerRuntimeError",
     "EpisodeManifest",
     "EpisodeOrchestrator",
     "EpisodeRecoveryManager",
     "EpisodeState",
     "EpisodeStateError",
     "InitialValidationError",
+    "OCIContainerConfig",
+    "OCIContainerRunner",
     "RerunMode",
     "RuntimeAdapter",
     "workspace_hash",

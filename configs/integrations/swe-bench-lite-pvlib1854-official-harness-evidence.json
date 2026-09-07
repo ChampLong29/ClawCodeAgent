@@ -1,0 +1,47 @@
+{
+  "schema_version": "claw.official_swebench_comparison.v1",
+  "recorded_at": "2026-09-07",
+  "instance_id": "pvlib__pvlib-python-1854",
+  "candidate": {
+    "model_name_or_path": "deepseek-v4-flash-claw-clean-e2e",
+    "model_patch_sha256": "4b1e09205e711d152c90bc353421eb88ccc670526f9271e7923deccee8ca77c3",
+    "new_model_calls": 0
+  },
+  "frozen_dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "official_harness": {
+    "package": "swebench==5.0.2",
+    "docker_engine": "29.7.2",
+    "task_repo_head": "3d07b464b7b311a0cbfb5ed5b2d8a3b96f84a33d",
+    "run_id": "pvlib1854-clean-e2e-taskrepo-r10-20260907",
+    "status": "completed_unresolved",
+    "resolved": false,
+    "tests_executed": false,
+    "failure": "Published task image contains NumPy 2.0.2; pvlib import fails because np.Inf was removed.",
+    "report_sha256": "a42a5d6cb2cb1c63f6ccd8f8b8fb915076015b6614a65e17f78caea2d7778f67",
+    "test_output_sha256": "7d96d41f0386b567d68427d8cda2fa6102741dfd2310858d559850c97c77e4aa",
+    "claim_boundary": "This is the unmodified official-task-repository result. It is unresolved because the published execution environment fails before pytest collection; it is not evidence that the candidate logic failed."
+  },
+  "compatibility_repair": {
+    "run_id": "pvlib1854-clean-e2e-numpy1-r14-20260907",
+    "status": "completed_resolved",
+    "resolved": true,
+    "patch_successfully_applied": true,
+    "tests": {
+      "total_passed": 282,
+      "fail_to_pass": 1,
+      "pass_to_pass": 281,
+      "exit_code": 0
+    },
+    "derived_task_repo_head": "f43ac8862079f6a333dfe5f4e791b86a2c8ac157",
+    "derived_dockerfile_sha256": "d0124a830f8476ed21fe4d0e24b130e7b56d1159a9936e2f5286f0aec6a873be",
+    "base_image": {
+      "source": "swebench/sweb.eval.x86_64.pvlib_1776_pvlib-python-1854:latest",
+      "local_base_id": "sha256:f62b71ab45fcb517347f95cac86241e5a8d342daeb93319dcc9ca368d93ab92e"
+    },
+    "environment_delta": "One derived image layer replaces NumPy 2.0.2 with NumPy 1.26.4; task.yaml, tests.json, eval.sh, candidate patch, and test selection are unchanged.",
+    "report_sha256": "9507b6472396828c5f4c25cd0fbb1a0b568374d68c6fd56d8215355e1f02aeee",
+    "test_output_sha256": "5b1b54fbf005a3741e057ddc7064091d230aebd12f7f25a90a8eaced63b3b1f9",
+    "claim_boundary": "This is a successful SWE-bench v5 Harness compatibility evaluation with a disclosed dependency repair. It must not be reported as an unmodified official SWE-bench score."
+  },
+  "conclusion": "The candidate behavior is independently reproduced under the SWE-bench v5 Harness once the task image dependency drift is repaired: 1/1 FAIL_TO_PASS and 281/281 PASS_TO_PASS."
+}

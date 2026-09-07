@@ -1,0 +1,123 @@
+{
+  "schema_version": "swe_bench_lite_clean_e2e_result.v1",
+  "captured_at": "2026-09-07",
+  "status": "local_dev_episode_success",
+  "protocol": {
+    "ref": "configs/integrations/swe-bench-lite-pvlib1854-clean-e2e-protocol.json",
+    "sha256": "ccc371ca44ce83976905cb09936fbd35ffd68ffbeca14225b3ae6d0db8f3bfeb",
+    "quality_retries": 0
+  },
+  "task": {
+    "instance_id": "pvlib__pvlib-python-1854",
+    "base_commit": "27a3a07ebc84b11014d3753e4923902adf9a38c0",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "allowed_paths": [
+      "pvlib/pvsystem.py"
+    ],
+    "calibration_ref": ".port_sessions/swe-bench-lite-pvlib1854-calibration/local-calibration-result.json",
+    "calibration_sha256": "5b0d34516e82e7fbdc5bbf6b450b9d0e5231e7b3a8ba4668b05c92af940d6628"
+  },
+  "episode": {
+    "collection_id": "episode_collection_98b0c2cf2b7c3996e82e",
+    "episode_id": "training-ac671634f14b4174b19e",
+    "model": "deepseek-v4-flash",
+    "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.clean-e2e-pvlib1854.v1",
+    "success": true,
+    "archived": true,
+    "termination_reason": "completed",
+    "turns": 12,
+    "model_calls": 12,
+    "tool_calls": 11,
+    "input_tokens": 3854,
+    "output_tokens": 1743,
+    "total_tokens": 5597,
+    "latency_seconds": 138.80250591,
+    "changed_files": [
+      "pvlib/pvsystem.py"
+    ],
+    "candidate_change": "Added a single-Array isinstance branch that stores the value as a one-element tuple.",
+    "candidate_source_sha256": "91a03f8f3ac5ee158f86a2028b832c7722e621718835e7ff77531313ec52eff5"
+  },
+  "verification": {
+    "verdict": "success",
+    "hard_gate_passed": true,
+    "aggregate_score": 1.0,
+    "evaluation_prepared": true,
+    "tests_executed": true,
+    "fail_to_pass": {
+      "passed": true,
+      "test_count": 1,
+      "returncode": 0,
+      "stdout_sha256": "29525134e810f6c7d642be71c7512721f8266455ef1c7c5d10c4c33f741fe68b"
+    },
+    "pass_to_pass": {
+      "passed": true,
+      "test_count": 281,
+      "returncode": 0,
+      "stdout_sha256": "5930132647448767b73877d68284c1462f5288e3c24636cc41cd1c8a83ab5489"
+    },
+    "diff_scope": "pass",
+    "process_permission": "pass",
+    "format_schema": "pass",
+    "termination_compliance": "pass",
+    "bad_cases": []
+  },
+  "behavior": {
+    "first_target_path_turn": 1,
+    "first_direct_mutation_turn": 4,
+    "target_to_mutation_turn_lag": 3,
+    "direct_mutation_calls": 1,
+    "investigation_without_edit_ratio": 0.2727272727272727,
+    "post_edit_contract_guidance_turn": 4,
+    "implementation_deadline_triggered": false,
+    "implementation_escalation_triggered": false,
+    "rejected_tool_calls": 0,
+    "off_target_path_inspection_calls": 0
+  },
+  "shell_observation": {
+    "requested_calls": 2,
+    "successful_calls": 0,
+    "failed_calls": 2,
+    "execution_backend": "oci-container",
+    "image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+    "workspace_mutations": "discarded",
+    "failure": "Docker Desktop could not bind the disposable copy from the WSL /tmp path because Ubuntu-24.04 distro integration was disabled.",
+    "impact": "The model could not execute its local probes, but persistent direct editing remained allowlisted and the independent Python 3.8 verifier executed successfully."
+  },
+  "post_episode_remediation": {
+    "model_rerun": false,
+    "change": "Create disposable Shell workspaces beside the Episode workspace so docker.exe receives a host-drive bind path instead of a WSL distro mount.",
+    "source_ref": "src/claw/container_runtime.py",
+    "source_sha256": "24e8aa6a9f4dbcc724f44966004f372c91840775ef32936a07b7a671e89f512e",
+    "test_ref": "tests/test_container_runtime.py",
+    "test_sha256": "8b9f8de7b5b651c179343450af127c99ef8d8a862e742f36f570fd9a2627d4d2",
+    "focused_tests": {
+      "run": 15,
+      "passed": 15
+    },
+    "full_tests": {
+      "run": 600,
+      "passed": 600
+    },
+    "real_container_check": {
+      "workspace": "archived pvlib-1854 Episode workspace",
+      "image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+      "candidate_source_read": true,
+      "returncode": 0,
+      "marker_persisted": false,
+      "workspace_mutations": "discarded"
+    },
+    "evidence_boundary": "Verified after the Episode against its archived workspace with the real Docker engine; not validated by another model Episode because the protocol allowed no quality retry."
+  },
+  "artifact_hashes": {
+    "collection_manifest": "ea8a8803344b3b8fc924196bff2133ba8be04b45005ae7dc53fc591eb5d4db5a",
+    "trajectory": "83f3072d4fc8ba21a3a673d863d55a31bf9f67e364ada47ea24eb870b928003f",
+    "verification": "44f625d3992ee4957510702895bba90f090fcba210e8ea9f2ff87e0dc7c27cb3"
+  },
+  "claim_boundary": [
+    "This is one successful local SWE-bench Lite Dev Episode, not an official SWE-bench score.",
+    "One selected success cannot estimate model-level or Harness-level success rate.",
+    "The task validates clean candidate reconstruction, independent hidden-test execution, write-path enforcement, trajectory capture, and hard-gate aggregation.",
+    "The Episode exposed the Docker Desktop WSL bind failure; after enabling distro integration, the post-Episode fix read the archived candidate and discarded a Shell-created marker through the real Docker engine, but no second model Episode was run."
+  ]
+}

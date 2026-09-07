@@ -18,7 +18,7 @@ class BenchmarkEpisodeResult:
     domain: str
     difficulty: str
     success: bool
-    test_pass_rate: float
+    test_pass_rate: Optional[float]
     tool_calls: int
     valid_tool_selections: int
     valid_tool_arguments: int
@@ -33,14 +33,23 @@ class BenchmarkEpisodeResult:
     verification_ref: Optional[str] = None
     trajectory_ref: Optional[str] = None
     error: Optional[str] = None
+    evaluation_prepared: bool = True
+    tests_executed: bool = True
     behavior_diagnostics: Dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         for name in ("task_id", "family_id", "domain", "difficulty"):
             if not str(getattr(self, name)).strip():
                 raise SchemaValidationError(f"{name} must not be empty")
-        if not 0.0 <= self.test_pass_rate <= 1.0:
+        if (
+            self.test_pass_rate is not None
+            and not 0.0 <= self.test_pass_rate <= 1.0
+        ):
             raise SchemaValidationError("test_pass_rate must be within [0, 1]")
+        if self.test_pass_rate is not None and not self.tests_executed:
+            raise SchemaValidationError(
+                "test_pass_rate must be null when tests_executed is false"
+            )
         for name in (
             "tool_calls",
             "valid_tool_selections",
@@ -108,13 +117,22 @@ def _aggregate(results: List[BenchmarkEpisodeResult]) -> Dict[str, Any]:
     format_valid = sum(result.format_valid for result in results)
     violated = sum(result.process_violations > 0 for result in results)
     costs = cost_summary(results)
+    evaluated = [
+        result for result in results
+        if result.tests_executed and result.test_pass_rate is not None
+    ]
     return {
         "sample_count": count,
         "task_success_rate": successful / count if count else 0.0,
         "test_pass_rate": (
-            sum(result.test_pass_rate for result in results) / count
-            if count
-            else 0.0
+            sum(float(result.test_pass_rate) for result in evaluated) / len(evaluated)
+            if evaluated
+            else None
+        ),
+        "test_evaluated_count": len(evaluated),
+        "evaluation_error_count": sum(
+            not result.evaluation_prepared or not result.tests_executed
+            for result in results
         ),
         "tool_selection_validity": (
             sum(result.valid_tool_selections for result in results) / tool_calls

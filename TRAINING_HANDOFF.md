@@ -11,7 +11,7 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   backend are implemented.
 - SWE-bench Lite Dev is pinned at dataset revision
   `69611d31007e1c6731db8bd5b5c3f2d33f5bab6e`.
-- The Pilot contains 17 selected tasks from six repositories. Fifteen pass the
+- The Pilot contains 20 selected tasks from six repositories. Eighteen pass the
   local baseline/Oracle admission gate. SQLFluff-1517 and Astroid-1866 remain
   recorded zero-model-call admission failures because truncated historical
   parameter IDs cannot isolate target and regression groups.
@@ -23,7 +23,20 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   complete: four valid Episodes, 2/4 hard successes, and identical hard outcomes
   within both pairs. Repair never triggered, so the result is inconclusive and it
   remains disabled by default.
-- No real LoRA/QLoRA run or official SWE-bench Harness score is claimed yet.
+- The OCI boundary, official SWE-bench v5 runner/adapter, local Qwen3-1.7B vLLM
+  configuration, repeated-read guard, and dispatch-time write allowlist are
+  implemented with focused tests and versioned integration evidence.
+- Tool UX v2 has a frozen ten-task complete-stack comparison: Qwen3-1.7B 0/10 and
+  DeepSeek-V4-Flash 8/10. It is local suite evidence, not SWE-bench.
+- `pvlib__pvlib-python-1854` reached 1/1 FAIL_TO_PASS and 281/281 PASS_TO_PASS under
+  the official v5 Harness after a disclosed `numpy<2` compatibility layer. The
+  unmodified published image failed before pytest collection because of NumPy 2
+  dependency drift; neither result is reported as an aggregate official score.
+- The resource-bounded comparison protocol separates DSH Minimal, Claw Minimal,
+  and Claw Controlled and fixes policy-compliant resolution plus budgeted
+  resolution as primary metrics.
+- No real LoRA/QLoRA training effect or aggregate official SWE-bench score is
+  claimed.
 
 The authoritative evidence files are:
 
@@ -33,6 +46,9 @@ The authoritative evidence files are:
 - `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-calibration-result.json`
 - `configs/integrations/swe-bench-lite-read-to-edit-repair-admissible-result.json`
 - `docs/roadmap/swe-bench-lite-experiment-log.md`
+- `docs/roadmap/harness-comparison-experiment-design.md`
+- `configs/integrations/tool-ux-v2-cross-model-smoke-result.json`
+- `configs/integrations/swe-bench-lite-pvlib1854-official-harness-evidence.json`
 
 ## 2. What Git does not transfer
 
@@ -219,3 +235,26 @@ Append to `docs/roadmap/swe-bench-lite-experiment-log.md`:
 
 Update machine-readable evidence under `configs/integrations/`, then run
 `git diff --check` and the full test suite before the next commit.
+
+## 7. Resource-bounded Harness comparison
+
+Read `docs/roadmap/harness-comparison-experiment-design.md` before adding a new
+comparison arm. Preserve the three-way separation:
+
+1. pinned DeepSeek Harness `sdk-minimal` as the external reference;
+2. Claw Minimal with advanced controls disabled as the parity baseline;
+3. Claw Controlled with only preregistered runtime-policy changes.
+
+Use the same DeepSeek-V4-Flash version, effort, prompt, task text, container,
+allowlist, token/turn/tool/time budget, and independent verifier. Freeze the DSH
+commit and complete profile tree in a versioned protocol before any model call.
+Run one fresh Episode per task/arm in the first pass. Repeat paired disagreements
+and a preregistered random sample of agreements; never replace the first-run table
+with best-of-N results. Report raw Resolved even when policy-compliant Resolved is
+the primary metric.
+
+Git transfers source, protocols, small evidence summaries, dependency locks, and
+container recipes. It does not transfer DeepSeek Harness checkouts, Docker images,
+raw `.port_sessions`, model weights, or credentials. Recreate those assets on the
+new host, record their exact commits/digests, and re-run zero-model-call admission
+before spending API budget.

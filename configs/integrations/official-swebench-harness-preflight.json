@@ -1,0 +1,47 @@
+{
+  "schema_version": "official_swebench_harness_preflight_evidence.v1",
+  "captured_at": "2026-09-06",
+  "status": "blocked_before_evaluation",
+  "official_swebench_harness": true,
+  "environment": {
+    "execution_host": "Ubuntu-24.04 WSL2",
+    "package": "swebench==5.0.2",
+    "package_environment": ".venv-swebench",
+    "docker_product": "Docker Desktop 4.89.0",
+    "docker_engine_version": "29.7.2"
+  },
+  "verified": {
+    "pinned_package_installed": true,
+    "official_module_imported": true,
+    "v5_cli_contract_detected": true,
+    "docker_cli_reachable_via_docker_exe": true,
+    "frozen_dev_rows_hash_matched": true,
+    "official_prediction_schema_prepared": true,
+    "candidate_patch_export_non_mutating": true,
+    "model_called": false,
+    "instance_image_built_or_pulled": false,
+    "evaluation_executed": false
+  },
+  "blocked": {
+    "stage": "docker_sdk_connection",
+    "reason": "docker.from_env() cannot find /var/run/docker.sock because Docker Desktop WSL integration is disabled for Ubuntu-24.04.",
+    "required_action": "Enable Docker Desktop Resources > WSL integration for Ubuntu-24.04, apply/restart, then rerun tools/probe_official_swebench.py."
+  },
+  "prepared_input": {
+    "instance_id": "pydicom__pydicom-1694",
+    "source_episode_id": "training-86ae9885149746c69fa7",
+    "source_arm": "read-to-edit repair",
+    "run_id": "pydicom-1694-repair-prepared-20260906",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "dataset_sha256": "8f722f4b1a9eed34e008b74d7a4eae08bbd77a04a839f035f79e3af6bb33809e",
+    "model_patch_sha256": "b3ebf9ca8f436a80d546189f8f71a16cb87d877fa737cc4c043d4e038eddc861",
+    "prediction_sha256": "c24058a7b84be3bc3afc2c560d6a794bce0d3d2f66440795e1c7ed035553afc7",
+    "local_manifest": ".port_sessions/official-swebench-prepared/pydicom-1694-repair-prepared-20260906/input-manifest.json"
+  },
+  "claim_boundary": [
+    "The official package and input contract are installed and prepared, but the Docker SDK preflight failed before evaluation.",
+    "Prepared is not Benchmark verified and is not an official SWE-bench result.",
+    "The candidate is an existing Dev Episode patch; no quality retry or new model call occurred.",
+    "The ignored prepared inputs contain evaluator-only fields and must never enter Agent context or training data."
+  ]
+}

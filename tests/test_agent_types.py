@@ -13,9 +13,11 @@ class TestAgentPermissions(unittest.TestCase):
             allow_write=True,
             allow_shell=True,
             restrict_workspace=True,
+            allowed_write_paths=["src/**"],
         )
         restored = AgentPermissions.from_dict(permissions.to_dict())
         self.assertTrue(restored.restrict_workspace)
+        self.assertEqual(restored.allowed_write_paths, ["src/**"])
 
 
 class TestModelPricing(unittest.TestCase):

@@ -180,6 +180,26 @@
       "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
       "tracked_bytes": 9547070,
       "tracked_files": 478
+    },
+    {
+      "clean": true,
+      "head": "0b8f24c265d76320067a5ee908a57d475cd1bb24",
+      "instance_id": "pvlib__pvlib-python-1154",
+      "license": "BSD-3-Clause",
+      "license_path": "LICENSE",
+      "license_sha256": "0879a8f5924c1939bf14fb7bbc974efd69e92c016a20ec400aa2644ca0a616b6",
+      "tracked_bytes": 56762688,
+      "tracked_files": 258
+    },
+    {
+      "clean": true,
+      "head": "27a3a07ebc84b11014d3753e4923902adf9a38c0",
+      "instance_id": "pvlib__pvlib-python-1854",
+      "license": "BSD-3-Clause",
+      "license_path": "LICENSE",
+      "license_sha256": "b01e68d055e9dcdd5d446efe3d655e948ddcb73a0ea3bf1b2e451db0c7d93816",
+      "tracked_bytes": 70553146,
+      "tracked_files": 356
     }
   ],
   "schema_version": "swe_bench_repo_snapshots.v1"

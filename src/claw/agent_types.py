@@ -103,6 +103,7 @@ class AgentPermissions:
     restrict_workspace: bool = False
     allowed_tools: Optional[List[str]] = None
     denied_tools: Optional[List[str]] = None
+    allowed_write_paths: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -111,6 +112,7 @@ class AgentPermissions:
             "restrict_workspace": self.restrict_workspace,
             "allowed_tools": self.allowed_tools,
             "denied_tools": self.denied_tools,
+            "allowed_write_paths": self.allowed_write_paths,
         }
 
     @classmethod
@@ -121,6 +123,7 @@ class AgentPermissions:
             restrict_workspace=data.get("restrict_workspace", False),
             allowed_tools=data.get("allowed_tools"),
             denied_tools=data.get("denied_tools"),
+            allowed_write_paths=data.get("allowed_write_paths"),
         )
 
 

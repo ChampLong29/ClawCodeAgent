@@ -436,6 +436,13 @@ def cmd_benchmark_run(args) -> int:
             if os.path.isabs(args.episodes_root)
             else os.path.join(cwd, args.episodes_root)
         )
+    api_config_root = None
+    if args.api_config_root:
+        api_config_root = os.path.abspath(
+            args.api_config_root
+            if os.path.isabs(args.api_config_root)
+            else os.path.join(cwd, args.api_config_root)
+        )
 
     try:
         from .benchmark import run_local_benchmark
@@ -446,9 +453,17 @@ def cmd_benchmark_run(args) -> int:
             episodes_root=episodes_root,
             group_name=args.group,
             model_ref=args.model,
+            api_config_root=api_config_root,
             temperature=args.temperature,
             max_tokens=args.max_tokens,
+            thinking_mode=args.thinking_mode,
             max_turns=args.max_turns,
+            reject_repeated_readonly_actions=(
+                args.reject_repeated_readonly_actions
+            ),
+            repeated_action_repair_attempts=(
+                args.repeated_action_repair_attempts
+            ),
             seed=args.seed,
             runtime_version=args.runtime_version,
             prompt_version=args.prompt_version,
@@ -463,6 +478,12 @@ def cmd_benchmark_run(args) -> int:
             experiment_ref=args.experiment_ref or "",
             input_token_price_per_million=args.input_price_per_million,
             output_token_price_per_million=args.output_price_per_million,
+            container_image=args.container_image,
+            container_engine=args.container_engine,
+            container_cpus=args.container_cpus,
+            container_memory=args.container_memory,
+            container_pids_limit=args.container_pids_limit,
+            container_user=args.container_user,
         )
     except Exception as exc:
         print(
@@ -763,9 +784,41 @@ def main(argv: Optional[List[str]] = None) -> int:
         default="base",
     )
     benchmark_parser.add_argument("--model", default=None)
+    benchmark_parser.add_argument(
+        "--api-config-root",
+        default=None,
+        help=(
+            "Directory used only for model API configuration discovery; "
+            "defaults to the task-suite project root"
+        ),
+    )
     benchmark_parser.add_argument("--temperature", type=float, default=0.0)
     benchmark_parser.add_argument("--max-tokens", type=int, default=None)
+    benchmark_parser.add_argument(
+        "--thinking-mode",
+        choices=["auto", "enabled", "disabled"],
+        default=None,
+        help="Explicit per-request thinking mode for a frozen benchmark",
+    )
     benchmark_parser.add_argument("--max-turns", type=int, default=50)
+    benchmark_parser.add_argument(
+        "--reject-repeated-readonly-actions",
+        action="store_true",
+        help=(
+            "Reject an identical successful read-only tool request before "
+            "dispatch"
+        ),
+    )
+    benchmark_parser.add_argument(
+        "--repeated-action-repair-attempts",
+        type=int,
+        choices=[0, 1],
+        default=0,
+        help=(
+            "Allow one model correction after a repeated read-only request; "
+            "requires --reject-repeated-readonly-actions"
+        ),
+    )
     benchmark_parser.add_argument("--seed", type=int, default=42)
     benchmark_parser.add_argument("--limit", type=int, default=None)
     benchmark_parser.add_argument("--task-id", action="append", default=[])
@@ -776,9 +829,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     benchmark_parser.add_argument(
         "--prompt-version", default="agent-system-prompt.v1"
     )
-    benchmark_parser.add_argument("--tool-version", default="tool-schema.v1")
+    benchmark_parser.add_argument("--tool-version", default="tool-schema.v3")
     benchmark_parser.add_argument(
-        "--verifier-version", default="verifier-policy.v2"
+        "--verifier-version", default="verifier-policy.v3"
     )
     benchmark_parser.add_argument(
         "--config-version", default="benchmark-cli.v1"
@@ -792,6 +845,22 @@ def main(argv: Optional[List[str]] = None) -> int:
     benchmark_parser.add_argument("--dataset-manifest-ref", default=None)
     benchmark_parser.add_argument("--training-run-ref", default=None)
     benchmark_parser.add_argument("--experiment-ref", default=None)
+    benchmark_parser.add_argument(
+        "--container-image",
+        default=None,
+        help="Run Agent shell and task checks in a local Docker/Podman image",
+    )
+    benchmark_parser.add_argument(
+        "--container-engine",
+        choices=["auto", "docker", "podman"],
+        default="auto",
+    )
+    benchmark_parser.add_argument("--container-cpus", type=float, default=2.0)
+    benchmark_parser.add_argument("--container-memory", default="4g")
+    benchmark_parser.add_argument(
+        "--container-pids-limit", type=int, default=256
+    )
+    benchmark_parser.add_argument("--container-user", default=None)
 
     train_parser = subparsers.add_parser("train", help="Run agent training episodes")
     train_parser.add_argument("--cwd", default=None)

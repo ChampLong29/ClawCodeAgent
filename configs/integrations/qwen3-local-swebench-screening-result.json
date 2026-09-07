@@ -1,0 +1,37 @@
+{
+  "schema_version": "local_swebench_screening_result.v1",
+  "protocol_ref": "configs/integrations/qwen3-local-swebench-screening-protocol.json",
+  "recorded_at": "2026-09-06T19:15:05+08:00",
+  "status": "stopped_at_first_task_gate",
+  "backend_probe_ref": "configs/integrations/qwen3-vllm-tool-probe.json",
+  "episode": {
+    "instance_id": "pydicom__pydicom-1694",
+    "local_manifest": ".port_sessions/qwen3-vllm-screen/pydicom-1694/collection-manifest.json",
+    "success": false,
+    "test_pass_rate": 0.0,
+    "model_turns": 9,
+    "tool_calls": 8,
+    "model_requested_tool_calls": 8,
+    "direct_mutation_calls": 0,
+    "first_target_path_turn": 1,
+    "investigation_without_edit_ratio": 1.0,
+    "total_tokens": 39332,
+    "latency_seconds": 86.31918981400008,
+    "tool_selection_validity": 1.0,
+    "tool_argument_validity": 1.0,
+    "process_violation_rate": 0.0,
+    "termination": "The final model response contained a malformed edit_file XML/JSON payload, so the provider returned it as text and no mutation was dispatched."
+  },
+  "observations": [
+    "The model localized pydicom/dataset.py on turn 1.",
+    "It then repeated the same grep_search for IS seven times without obtaining new information.",
+    "vLLM logged one Hermes tool-parser failure on the malformed final edit attempt.",
+    "The Harness preserved the failure faithfully but did not block repeated identical, no-new-information inspection calls before the implementation deadline."
+  ],
+  "decision": {
+    "remaining_frozen_tasks_executed": false,
+    "larger_sample_gate_passed": false,
+    "next_action": "Add and test a runtime duplicate-action/no-new-information guard before resuming the frozen screen. Do not change task order or reinterpret this Episode as a retryable sample."
+  },
+  "claim_boundary": "One stopped local Dev Episode is evidence of a concrete loop failure, not an official SWE-bench result and not an estimate of model or Harness success rate."
+}

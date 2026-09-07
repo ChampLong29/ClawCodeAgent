@@ -64,6 +64,7 @@ docs/roadmap/*
 !docs/roadmap/interview-evidence-summary.md
 !docs/roadmap/swe-bench-lite-experiment-log.md
 !docs/roadmap/post-edit-container-return-type-fresh-validation-protocol.md
+!docs/roadmap/harness-comparison-experiment-design.md
 images/
 PROJECT_REPRODUCTION_GUIDE.md
 repro_evidence/
@@ -86,6 +87,8 @@ parking_system/
 # Logs
 # ============================================================
 *.log
+/bc_*.db
+/runner-result.txt
 
 # ============================================================
 # Stale / broken session data

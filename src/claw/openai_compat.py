@@ -103,6 +103,13 @@ class OpenAICompatClient:
                     "role": message.get("role", "assistant"),
                     "content": message.get("content", ""),
                     "finish_reason": choice.get("finish_reason"),
+                    "_provider_metadata": {
+                        "protocol": "openai_chat_completions",
+                        "response_id": data.get("id"),
+                        "response_model": data.get("model"),
+                        "response_object": data.get("object"),
+                        "system_fingerprint": data.get("system_fingerprint"),
+                    },
                 }
 
                 # Handle tool_calls
@@ -497,6 +504,12 @@ class AnthropicClient:
                     "role": "assistant",
                     "content": content_text,
                     "finish_reason": data.get("stop_reason"),
+                    "_provider_metadata": {
+                        "protocol": "anthropic_messages",
+                        "response_id": data.get("id"),
+                        "response_model": data.get("model"),
+                        "response_type": data.get("type"),
+                    },
                 }
 
                 if tool_calls:

@@ -1,0 +1,71 @@
+{
+  "schema_version": "local_swebench_mechanism_validation_result.v1",
+  "protocol_ref": "configs/integrations/qwen3-local-swebench-loop-guard-validation-protocol.json",
+  "recorded_at": "2026-09-06T23:10:06+08:00",
+  "status": "mechanism_verified_task_unsuccessful",
+  "carrier_task": "pydicom__pydicom-1694",
+  "effective_episode": {
+    "local_manifest": ".port_sessions/qwen3-vllm-loop-guard-validation/pydicom-1694-effective/collection-manifest.json",
+    "collection_id": "episode_collection_6532e4ca2ee6b4eded04",
+    "episode_id": "training-3e434d128b4c4c929686",
+    "success": false,
+    "test_pass_rate": 0.0,
+    "model_turns": 6,
+    "model_requested_tool_calls": 6,
+    "dispatched_tool_calls": 4,
+    "rejected_tool_calls": 2,
+    "direct_mutation_calls": 0,
+    "total_tokens": 20854,
+    "latency_seconds": 87.95701741799996,
+    "first_target_path_turn": 1,
+    "termination_reason": "repeated_readonly_action"
+  },
+  "mechanism_evidence": {
+    "first_duplicate": {
+      "tool": "grep_search",
+      "scope": "pydicom/dataset.py",
+      "rejected_before_dispatch": true,
+      "repair_guidance_recorded": true,
+      "new_task_information_provided": false
+    },
+    "post_repair_behavior": [
+      "The model dispatched list_dir on pydicom, a materially different observation.",
+      "The model dispatched grep_search on the broader pydicom directory, a different normalized request."
+    ],
+    "second_duplicate": {
+      "tool": "grep_search",
+      "scope": "pydicom",
+      "rejected_before_dispatch": true,
+      "runtime_stop_recorded": true,
+      "repair_attempts_used": 1,
+      "repair_attempts_exhausted": true
+    }
+  },
+  "comparison_to_prior_failure_carrier": {
+    "prior_result_ref": "configs/integrations/qwen3-local-swebench-screening-result.json",
+    "prior_dispatched_tool_calls": 8,
+    "current_dispatched_tool_calls": 4,
+    "prior_total_tokens": 39332,
+    "current_total_tokens": 20854,
+    "token_reduction_fraction": 0.4697981287501271,
+    "interpretation": "Descriptive resource comparison only; the mechanism validation is not a paired quality experiment."
+  },
+  "excluded_preflight_attempt": {
+    "path": ".port_sessions/qwen3-vllm-loop-guard-validation/pydicom-1694",
+    "model_turns": 0,
+    "model_requested_tool_calls": 0,
+    "reason": "The project .env selected Anthropic mode and produced a local /v1/v1/messages HTTP 401 before sampling. It is configuration evidence, not an Episode under the frozen mechanism protocol."
+  },
+  "artifact_hashes": {
+    "collection_manifest_sha256": "91f4cf7b7c7b456516afa873543aa74b18d787490df206e4be70b7f14ffe42a2",
+    "trajectory_sha256": "9a9a13a626f162c42ae536dab4f7a11679834f2a1ad503921981b167c1c642a4",
+    "verification_sha256": "821e63168731b46e407f4d5f647cb57249535c37499807f52fc00bfc23f1c20d"
+  },
+  "decision": {
+    "loop_guard_contract_verified": true,
+    "task_quality_verified": false,
+    "minimum_success_rate_gate_passed": false,
+    "next_action": "Do not resume the larger SWE-bench sample yet. Improve small-model action grounding or tool-result usability on non-Dev training/smoke tasks before another frozen success-rate screen."
+  },
+  "claim_boundary": "This local Dev follow-up validates runtime loop suppression only. It is not a quality retry, does not alter the original three-task denominator, and is not an official SWE-bench score."
+}

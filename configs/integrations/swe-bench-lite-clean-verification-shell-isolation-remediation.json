@@ -1,0 +1,47 @@
+{
+  "schema_version": "swe_bench_clean_verification_remediation.v1",
+  "captured_at": "2026-09-07",
+  "status": "implemented_and_contract_verified",
+  "trigger_evidence": "configs/integrations/swe-bench-lite-early-deadline-pvlib1154-result.json",
+  "remediations": {
+    "agent_shell": {
+      "tool_version": "tool-schema.v3",
+      "fail_closed_condition": "An active allowed_write_paths policy requires a runner that declares non-persistent workspace mutations.",
+      "oci_behavior": "Each command receives a copied Episode workspace; only the copy is mounted read-write and all command-side changes are discarded.",
+      "audit_metadata": "workspace_mutations=discarded"
+    },
+    "candidate_verification": {
+      "base": "Episode Git HEAD",
+      "candidate_overlay": "Only files matching the frozen implementation allowlist",
+      "hidden_test_order": "The Test Patch is injected after the clean candidate overlay.",
+      "scope_behavior": "Out-of-scope Agent changes remain visible to Diff Scope but cannot contaminate hidden-test preparation."
+    },
+    "result_semantics": {
+      "verifier_policy": "verifier-policy.v3",
+      "integrity_signal": "evaluation_integrity",
+      "preparation_failure": "evaluation_prepared=false, tests_executed=false, test_pass_rate=null",
+      "aggregation": "Episodes without executed tests are excluded from the test-pass-rate denominator and counted by evaluation_error_count."
+    },
+    "model_visible_contract": "The SWE task prompt lists persistent-write paths and states that tests and all other repository paths are read-only.",
+    "prompt_version": "swe-bench-lite-dev.v2"
+  },
+  "verification": {
+    "focused_contracts": [
+      "Shell fails closed without a disposable runner while a write allowlist is active.",
+      "OCI shell writes affect only the disposable mounted copy.",
+      "A contaminated Agent test file cannot collide with the hidden Test Patch.",
+      "Evaluation preparation failure produces an unknown test score and a failed integrity gate.",
+      "Benchmark aggregation excludes non-executed tests from test-pass-rate."
+    ],
+    "full_suite": {
+      "tests_run": 600,
+      "tests_passed": 600,
+      "tests_failed": 0,
+      "tests_skipped": 2,
+      "skip_reason": "Windows host did not grant symbolic-link creation privilege."
+    }
+  },
+  "historical_episode_policy": "Archived pvlib-1154 Episodes and their original Verification records remain immutable and are not reclassified in place.",
+  "supplemental_task_validation_ref": "configs/integrations/swe-bench-lite-clean-verification-pvlib1154-supplemental-result.json",
+  "claim_boundary": "Implemented and contract verified. No model Episode was rerun, so this is not evidence of higher SWE-bench task success or an official SWE-bench score."
+}

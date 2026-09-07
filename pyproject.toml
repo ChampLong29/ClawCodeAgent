@@ -24,7 +24,7 @@ sft = [
     "bitsandbytes>=0.43",
     "peft>=0.13",
     "torch>=2.1",
-    "transformers>=4.45",
+    "transformers>=4.49,<5",
 ]
 web = [
     "fastapi>=0.100",

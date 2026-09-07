@@ -1,0 +1,74 @@
+{
+  "schema_version": "swe_bench_lite_clean_e2e_protocol.v1",
+  "registered_at": "2026-09-07",
+  "status": "preregistered_after_admission_before_model_call",
+  "instance": {
+    "instance_id": "pvlib__pvlib-python-1854",
+    "base_commit": "27a3a07ebc84b11014d3753e4923902adf9a38c0",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "allowed_paths": [
+      "pvlib/pvsystem.py"
+    ],
+    "fail_to_pass_count": 1,
+    "pass_to_pass_count": 281,
+    "selection_note": "The lighter pydicom-901 row was rejected before calibration because its five FAIL_TO_PASS tests exceeded the frozen Pilot limit of three. pvlib-1854 was the only remaining row with policy eligibility and non-empty regression coverage."
+  },
+  "admission": {
+    "result": "passed",
+    "evidence_ref": ".port_sessions/swe-bench-lite-pvlib1854-calibration/local-calibration-result.json",
+    "baseline_fail_to_pass": false,
+    "baseline_pass_to_pass": true,
+    "reference_fail_to_pass": true,
+    "reference_pass_to_pass": true,
+    "model_calls_before_admission": 0
+  },
+  "model_policy": {
+    "provider_protocol": "anthropic-compatible",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18
+  },
+  "runtime_policy": {
+    "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.clean-e2e-pvlib1854.v1",
+    "tool_schema_version": "tool-schema.v3",
+    "verifier_version": "verifier-policy.v3",
+    "implementation_deadline_turns": 4,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 1,
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "post_edit_contract_guidance": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "evaluator_timeout_seconds": 600
+  },
+  "shell_environment": {
+    "image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+    "workspace_mutations": "discarded",
+    "task_dependencies_installed": false,
+    "purpose": "isolated source inspection and lightweight commands only; authoritative tests run in the calibrated Python 3.8 evaluator environment",
+    "py38_image_build_failure": "Docker Hub authorization endpoint connection timeout before dependency installation"
+  },
+  "harness_source": {
+    "generation_commit": "5d337c46cbb3a6872ad85a2851acb762799d66f5",
+    "working_tree_note": "The remediation is not yet committed; exact task-relevant file hashes freeze the executed implementation.",
+    "file_sha256": {
+      "src/claw/agent_runtime.py": "f76f575590e39bafd9e4de5cebc7031ef11640efdeee392dbbbf7e25c29f702a",
+      "src/claw/agent_tools.py": "223e5f4df9e10249922f19c77454c0a583da67b473920b524d6e9762d9b9f211",
+      "src/claw/benchmark/swe_bench_lite_adapter.py": "887c57fe11f0c7023ef220012494026b6b0ca5073fdc9c41c145dba45678e6a1",
+      "src/claw/container_runtime.py": "549fc43fc9d792c65aca8e987ae06de8216fff834386c278d3ce155d75f92b42",
+      "src/claw/episode/orchestrator.py": "dd784fd91021e118c0ede69fdc1d348ef092925ca359b979e7eeb0384692413d",
+      "src/claw/verification/hard_signals.py": "559fe7e6ae46c2e8d00b2b60bc92fcf7fd4424b7bc4f17474cb9f3a7a5ebec99",
+      "tools/collect_swe_bench_lite_episode.py": "ace8f3dc6fad53a9db3f5550dcac26b7385ed82c7b1a2105bffda0bc56210356",
+      "tools/evaluate_swe_bench_lite_candidate.py": "48fa05ef6677b5c660bd03ab610644d82bbc6f74d87279cff0e650f4e097a6a6"
+    }
+  },
+  "maximum_valid_episodes": 1,
+  "quality_retries": 0,
+  "claim_boundary": "One preregistered local SWE-bench Lite Dev Episode. It tests end-to-end Harness behavior on a fresh task but is not an official SWE-bench result or a model-level success-rate estimate."
+}

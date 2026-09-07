@@ -84,7 +84,7 @@ class TestPassVerifier:
             context, "test_result", "test_result"
         )
         score = None
-        if result is not None:
+        if result is not None and result.get("tests_executed", True):
             total = int(result.get("total_tests") or 0)
             passed = int(result.get("passed_tests") or 0)
             if total > 0:
@@ -102,6 +102,33 @@ class TestPassVerifier:
         )
 
 
+class EvaluationIntegrityVerifier:
+    name = "evaluation_integrity"
+
+    def evaluate(self, context: VerificationContext) -> VerificationSignal:
+        result, evidence = _result_payload(context, "test_result", "test_result")
+        prepared = None if result is None else result.get("evaluation_prepared", True)
+        executed = None if result is None else result.get("tests_executed", True)
+        if prepared is None or executed is None:
+            status, score = "unknown", None
+        else:
+            valid = bool(prepared) and bool(executed)
+            status, score = ("pass", 1.0) if valid else ("fail", 0.0)
+        return VerificationSignal(
+            name=self.name,
+            kind="hard",
+            status=status,
+            score=score,
+            weight=context.policy.signal_weights.get(self.name, 0.0),
+            evidence_event_ids=evidence,
+            details={
+                "evaluation_prepared": prepared,
+                "tests_executed": executed,
+                "errors": (result or {}).get("evaluation_errors", []),
+            },
+            required=context.is_required(self.name),
+            verifiable=False,
+        )
 class BuildVerifier:
     def __init__(self, name: str):
         self.name = name
@@ -351,6 +378,7 @@ class TerminationVerifier:
 DEFAULT_HARD_VERIFIERS = [
     SchemaVerifier(),
     EnvironmentVerifier(),
+    EvaluationIntegrityVerifier(),
     TestPassVerifier(),
     BuildVerifier("build"),
     BuildVerifier("static_check"),

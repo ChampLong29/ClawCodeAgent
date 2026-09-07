@@ -40,6 +40,10 @@ class ModelClientFinishReasonTests(unittest.TestCase):
             result = client.complete(messages=[{"role": "user", "content": "x"}])
 
         self.assertEqual(result["finish_reason"], "length")
+        self.assertEqual(
+            result["_provider_metadata"]["protocol"],
+            "openai_chat_completions",
+        )
 
     def test_anthropic_client_preserves_max_tokens_stop_reason(self):
         payload = {
@@ -61,6 +65,10 @@ class ModelClientFinishReasonTests(unittest.TestCase):
 
         self.assertEqual(result["finish_reason"], "max_tokens")
         self.assertEqual(result["usage"]["output_tokens"], 4096)
+        self.assertEqual(
+            result["_provider_metadata"]["protocol"],
+            "anthropic_messages",
+        )
 
     def test_anthropic_client_disables_thinking_and_requires_any_tool(self):
         payload = {

@@ -1,0 +1,51 @@
+{
+  "schema_version": "local_swebench_mechanism_validation_protocol.v1",
+  "frozen_at": "2026-09-06T22:48:18+08:00",
+  "purpose": "Validate that the repeated-read-only Action Guard blocks the concrete Qwen3-1.7B loop observed in the prior frozen screen without reclassifying or retrying that screen result.",
+  "prior_result_ref": "configs/integrations/qwen3-local-swebench-screening-result.json",
+  "runtime_source": {
+    "head_commit": "5d337c46cbb3a6872ad85a2851acb762799d66f5",
+    "task_related_diff_hash": "b9e4540c68e9c83b51210154a61e03f1f8ff10f2",
+    "state": "uncommitted_worktree"
+  },
+  "backend": {
+    "config": "configs/inference/qwen3-1.7b-vllm.json",
+    "model": "Qwen/Qwen3-1.7B",
+    "temperature": 0.0,
+    "max_tokens_per_turn": 768,
+    "thinking_mode": "server-disabled",
+    "warm_server_required": true
+  },
+  "harness": {
+    "max_turns": 18,
+    "completion_reminder_turns": 5,
+    "completion_critical_turns": 2,
+    "force_final_response_at_critical": true,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 3,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 0,
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "post_edit_contract_guidance": true
+  },
+  "carrier_task": {
+    "instance_id": "pydicom__pydicom-1694",
+    "allowed_paths": ["pydicom/dataset.py"]
+  },
+  "success_criteria": {
+    "required": [
+      "The first exact repeated successful read-only request is rejected before dispatch.",
+      "The rejection and one no-new-information correction are recorded in Trajectory v2.",
+      "If the model repeats the request again, the Episode stops explicitly with repeated_readonly_action."
+    ],
+    "not_required": [
+      "An implementation edit",
+      "Passing task tests",
+      "A successful SWE-bench result"
+    ]
+  },
+  "stopping_rule": "Run exactly one mechanism-validation Episode on the prior failure carrier. Do not add it to the original three-task denominator and do not continue sampling this task for quality.",
+  "claim_boundary": "This follow-up can validate runtime loop suppression only. It cannot estimate model success rate, establish a causal quality gain, or produce an official SWE-bench score."
+}

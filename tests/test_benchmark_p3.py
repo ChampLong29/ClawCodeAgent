@@ -131,6 +131,12 @@ class TestBenchmarkRunnerAndReport(unittest.TestCase):
         self.assertFalse(failed.success)
         self.assertEqual(failed.bad_cases, ["environment_or_infra"])
         self.assertIn("RuntimeError", failed.error)
+        self.assertIsNone(failed.test_pass_rate)
+        self.assertFalse(failed.evaluation_prepared)
+        self.assertFalse(failed.tests_executed)
+        self.assertEqual(result.metrics["test_evaluated_count"], 1)
+        self.assertEqual(result.metrics["evaluation_error_count"], 1)
+        self.assertEqual(result.metrics["test_pass_rate"], 1.0)
         for name in (
             "results.jsonl",
             "metrics.json",

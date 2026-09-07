@@ -1,14 +1,17 @@
 """Tests for task runtime."""
 
+import tempfile
 import unittest
 from claw.task_runtime import TaskRuntime
 
 
 class TestTaskRuntime(unittest.TestCase):
     def setUp(self):
-        self.tempdir = "/tmp/test_task_runtime"
-        import os
-        os.makedirs(self.tempdir, exist_ok=True)
+        self.temporary = tempfile.TemporaryDirectory()
+        self.tempdir = self.temporary.name
+
+    def tearDown(self):
+        self.temporary.cleanup()
 
     def test_create_task(self):
         runtime = TaskRuntime(cwd=self.tempdir)

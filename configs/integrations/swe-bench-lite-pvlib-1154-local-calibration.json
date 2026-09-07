@@ -1,0 +1,41 @@
+{
+  "schema_version": "swe_bench_lite_local_calibration_record.v1",
+  "captured_at": "2026-09-07",
+  "status": "admitted",
+  "protocol_version": "early-deadline-pvlib1154.v1",
+  "protocol_sha256": "1e7d6306f899c37d454b68cca558624ef3f7041443eabe5d7c96898c0bcc9c1f",
+  "instance_id": "pvlib__pvlib-python-1154",
+  "base_commit": "0b8f24c265d76320067a5ee908a57d475cd1bb24",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "model_calls_before_admission": 0,
+  "environment": {
+    "python_version": "3.8.20",
+    "lock": "configs/integrations/pvlib-1154-py38-lock.txt",
+    "dependency_repair": "A dedicated environment replaced the reused pvlib-1072 environment after NumPy 1.24.4 caused a historical floating-point regression. NumPy 1.19.5, Pandas 1.3.5, SciPy 1.7.3, and setuptools 70.3.0 were pinned without changing task code, tests, evaluator semantics, or model policy."
+  },
+  "runs": {
+    "baseline_fail_to_pass": {
+      "passed": false,
+      "returncode": 1,
+      "test_count": 1
+    },
+    "baseline_pass_to_pass": {
+      "passed": true,
+      "returncode": 0,
+      "test_count": 97
+    },
+    "reference_fail_to_pass": {
+      "passed": true,
+      "returncode": 0,
+      "test_count": 1
+    },
+    "reference_pass_to_pass": {
+      "passed": true,
+      "returncode": 0,
+      "test_count": 97
+    }
+  },
+  "local_calibration_result_sha256": "f44e8d80a459a10530def8d7b1384a59fe25fa4e3af32e76bf6b248ed0d771ee",
+  "official_swebench_harness": false,
+  "claim_boundary": "Zero-model-call local compatibility admission only; not an official SWE-bench result and not intervention-effect evidence."
+}

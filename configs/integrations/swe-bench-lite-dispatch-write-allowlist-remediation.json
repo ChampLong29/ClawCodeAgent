@@ -1,0 +1,33 @@
+{
+  "schema_version": "dispatch_write_allowlist_remediation.v1",
+  "captured_at": "2026-09-07",
+  "status": "implemented_and_contract_verified",
+  "trigger_evidence": "configs/integrations/swe-bench-lite-early-deadline-pvlib1154-result.json",
+  "observed_gap": "Both archived pvlib-1154 arms used edit_file on pvlib/tests/test_irradiance.py although the Episode allowlist contained only pvlib/irradiance.py. The verifier caught the resulting Diff Scope failure after mutation.",
+  "implementation": {
+    "permission_field": "allowed_write_paths",
+    "enforced_tools": [
+      "write_file",
+      "edit_file"
+    ],
+    "collector_behavior": "The SWE-bench Lite Collector passes its explicit allowed_path_patterns into AgentPermissions.allowed_write_paths.",
+    "failure_mode": "The tool resolves the real workspace-relative path and returns a permission error before creating or modifying a non-matching file."
+  },
+  "verification": {
+    "focused_test_modules": [
+      "tests.test_agent_runtime",
+      "tests.test_agent_tools",
+      "tests.test_agent_types",
+      "tests.test_training_episode_collection",
+      "tests.test_runtime_adapter_p5",
+      "tests.test_swe_bench_lite_selection",
+      "tests.test_swe_bench_lite_adapter"
+    ],
+    "tests_run": 119,
+    "tests_passed": 119,
+    "tests_failed": 0
+  },
+  "historical_episode_policy": "The two pvlib-1154 Episodes remain immutable and are not quality-retried after the runtime change.",
+  "remaining_boundary": "Shell commands remain side-effect-capable. This remediation proves dispatch-time path enforcement only for explicit write_file and edit_file calls; OCI isolation, shell policy, trajectory evidence, and final Diff Scope remain required.",
+  "claim_boundary": "Implemented and contract-verified explicit file-tool mutation boundary; not proof of shell immutability, task-success improvement, or an official SWE-bench result."
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import hashlib
 import json
 import os
 import time
@@ -58,6 +59,28 @@ from .skill_runtime import SkillRuntime
 MAX_RETRIES = 3
 RETRY_BACKOFF_BASE = 1.5  # seconds
 _DIRECT_MUTATION_TOOLS = {"write_file", "edit_file"}
+_SIDE_EFFECT_POSSIBLE_TOOLS = _DIRECT_MUTATION_TOOLS | {"bash"}
+_REPEATABLE_OBSERVATION_TOOLS = {
+    "list_dir",
+    "read_file",
+    "code_outline",
+    "glob_search",
+    "grep_search",
+}
+_PATH_ARGUMENT_NAMES = {"path", "file_path", "directory", "cwd"}
+_OBSERVATION_ARGUMENT_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "read_file": {"limit": None, "offset": 0},
+    "code_outline": {"includeDocstrings": False, "query": None},
+    "glob_search": {"cwd": "."},
+    "grep_search": {
+        "path": ".",
+        "recursive": False,
+        "file_pattern": None,
+        "max_results": 10,
+        "offset": 0,
+        "context_lines": 0,
+    },
+}
 
 
 @dataclass
@@ -83,8 +106,11 @@ class LocalCodingAgent:
     force_direct_mutation_after_escalation: bool = False
     implementation_target_read_allowance: int = 0
     implementation_constraint_repair_attempts: int = 0
+    reject_repeated_readonly_actions: bool = False
+    repeated_action_repair_attempts: int = 0
     post_edit_contract_guidance: bool = False
     implementation_path_patterns: Sequence[str] = ()
+    command_runner: Optional[Any] = None
 
     # Internal state
     session: Optional[AgentSession] = None
@@ -144,6 +170,18 @@ class LocalCodingAgent:
         if self.implementation_constraint_repair_attempts not in {0, 1}:
             raise ValueError(
                 "implementation_constraint_repair_attempts must be 0 or 1"
+            )
+        if self.repeated_action_repair_attempts not in {0, 1}:
+            raise ValueError(
+                "repeated_action_repair_attempts must be 0 or 1"
+            )
+        if (
+            self.repeated_action_repair_attempts > 0
+            and not self.reject_repeated_readonly_actions
+        ):
+            raise ValueError(
+                "repeated_action_repair_attempts requires "
+                "reject_repeated_readonly_actions"
             )
         if (
             self.implementation_target_read_allowance > 0
@@ -334,6 +372,60 @@ class LocalCodingAgent:
             return None
         return arguments.get("path")
 
+    @staticmethod
+    def _decode_tool_arguments(tool_call: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Decode one model tool-call argument object without dispatching it."""
+        function = tool_call.get("function") or {}
+        arguments = function.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (TypeError, ValueError):
+                return None
+        return arguments if isinstance(arguments, dict) else None
+
+    def _observation_fingerprint(
+        self,
+        tool_name: str,
+        arguments: Dict[str, Any],
+    ) -> Optional[str]:
+        """Return a stable identity for a deterministic, read-only observation."""
+        actual_tool_name = self._tool_aliases.get(tool_name, tool_name)
+        if actual_tool_name not in _REPEATABLE_OBSERVATION_TOOLS:
+            return None
+
+        canonical_arguments = dict(
+            _OBSERVATION_ARGUMENT_DEFAULTS.get(actual_tool_name, {})
+        )
+        canonical_arguments.update(arguments)
+
+        def normalize(value: Any, key: Optional[str] = None) -> Any:
+            if isinstance(value, dict):
+                return {
+                    str(item_key): normalize(item_value, str(item_key))
+                    for item_key, item_value in sorted(
+                        value.items(), key=lambda item: str(item[0])
+                    )
+                }
+            if isinstance(value, list):
+                return [normalize(item) for item in value]
+            if key in _PATH_ARGUMENT_NAMES and isinstance(value, str):
+                candidate = value
+                if not os.path.isabs(candidate):
+                    candidate = os.path.join(self.cwd, candidate)
+                return os.path.normcase(os.path.normpath(candidate)).replace(
+                    "\\", "/"
+                )
+            return value
+
+        canonical = json.dumps(
+            normalize(canonical_arguments),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return f"{actual_tool_name}:{canonical}"
+
     @classmethod
     def from_session(
         cls,
@@ -464,6 +556,8 @@ class LocalCodingAgent:
             target_reads_remaining = self.implementation_target_read_allowance
             target_read_consumed = False
             constraint_repairs_used = 0
+            repeated_action_repairs_used = 0
+            successful_observations: Dict[str, Dict[str, Any]] = {}
             force_final_response_request = False
             while self.turns < max_turns:
                 # Check budget
@@ -771,6 +865,9 @@ class LocalCodingAgent:
                         "tool_calls": response.get("tool_calls") or [],
                         "usage": response.get("usage", {}),
                         "finish_reason": response.get("finish_reason"),
+                        "provider_metadata": response.get(
+                            "_provider_metadata", {}
+                        ),
                         "duration_seconds": time.monotonic() - model_started,
                     },
                     parent_event_id=model_request_event_id,
@@ -798,6 +895,151 @@ class LocalCodingAgent:
                 # Handle response
                 content = response.get("content", "")
                 tool_calls = response.get("tool_calls")
+
+                duplicate_observations: List[Dict[str, Any]] = []
+                if (
+                    self.reject_repeated_readonly_actions
+                    and tool_calls
+                    and not any(
+                        self._tool_aliases.get(
+                            str((item.get("function") or {}).get("name", "")),
+                            str((item.get("function") or {}).get("name", "")),
+                        )
+                        in _SIDE_EFFECT_POSSIBLE_TOOLS
+                        for item in tool_calls
+                    )
+                ):
+                    for item in tool_calls:
+                        function = item.get("function") or {}
+                        requested_name = str(function.get("name", ""))
+                        decoded_arguments = self._decode_tool_arguments(item)
+                        if decoded_arguments is None:
+                            continue
+                        fingerprint = self._observation_fingerprint(
+                            requested_name, decoded_arguments
+                        )
+                        prior = successful_observations.get(fingerprint or "")
+                        if fingerprint and prior:
+                            duplicate_observations.append(
+                                {
+                                    "call_id": str(item.get("id", "")),
+                                    "requested_tool_name": requested_name,
+                                    "actual_tool_name": self._tool_aliases.get(
+                                        requested_name, requested_name
+                                    ),
+                                    "arguments": decoded_arguments,
+                                    "fingerprint_sha256": hashlib.sha256(
+                                        fingerprint.encode("utf-8")
+                                    ).hexdigest(),
+                                    "prior": prior,
+                                }
+                            )
+
+                if duplicate_observations:
+                    duplicate_names = sorted(
+                        {
+                            item["requested_tool_name"]
+                            for item in duplicate_observations
+                        }
+                    )
+                    repair_available = (
+                        repeated_action_repairs_used
+                        < self.repeated_action_repair_attempts
+                    )
+                    for duplicate in duplicate_observations:
+                        self._trace(
+                            "tool_result",
+                            payload={
+                                "call_id": duplicate["call_id"],
+                                "requested_tool_name": duplicate[
+                                    "requested_tool_name"
+                                ],
+                                "actual_tool_name": duplicate[
+                                    "actual_tool_name"
+                                ],
+                                "ok": False,
+                                "error": (
+                                    "rejected repeated read-only action with no "
+                                    "intervening possible workspace mutation"
+                                ),
+                                "policy_blocked": True,
+                                "repeated_action": True,
+                                "rejected_before_dispatch": True,
+                                "selection_valid": True,
+                                "arguments_valid": True,
+                                "arguments": duplicate["arguments"],
+                                "fingerprint_sha256": duplicate[
+                                    "fingerprint_sha256"
+                                ],
+                                "prior_tool_call_event_id": duplicate["prior"].get(
+                                    "tool_call_event_id"
+                                ),
+                                "prior_result_sha256": duplicate["prior"].get(
+                                    "result_sha256"
+                                ),
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
+                    if repair_available:
+                        repeated_action_repairs_used += 1
+                        repair_guidance = (
+                            "[Runtime repeated-action correction] Your previous "
+                            "tool request was not executed because the identical "
+                            "read-only action already succeeded and no possible "
+                            "workspace mutation occurred afterward. Reuse the prior "
+                            "result. In the next response, choose a materially "
+                            "different inspection, make the smallest justified edit, "
+                            "or finish. Do not repeat the blocked action."
+                        )
+                        messages.append(
+                            {"role": "user", "content": repair_guidance}
+                        )
+                        self._trace(
+                            "runtime_guidance",
+                            payload={
+                                "guidance_type": "repeated_readonly_action_repair",
+                                "repair_attempt": repeated_action_repairs_used,
+                                "maximum_repair_attempts": (
+                                    self.repeated_action_repair_attempts
+                                ),
+                                "rejected_before_dispatch": True,
+                                "new_task_information_provided": False,
+                                "requested_tool_names": duplicate_names,
+                                "duplicate_count": len(duplicate_observations),
+                            },
+                            parent_event_id=model_request_event_id,
+                        )
+                        self.turns += 1
+                        continue
+
+                    detail = (
+                        "provider repeated a successful read-only action without "
+                        "an intervening possible workspace mutation"
+                    )
+                    self._trace(
+                        "runtime_stop",
+                        payload={
+                            "reason": "repeated_readonly_action",
+                            "detail": detail,
+                            "requested_tool_names": duplicate_names,
+                            "duplicate_count": len(duplicate_observations),
+                            "repeated_action_repairs_used": (
+                                repeated_action_repairs_used
+                            ),
+                            "repeated_action_repairs_exhausted": (
+                                repeated_action_repairs_used
+                                >= self.repeated_action_repair_attempts
+                            ),
+                        },
+                        parent_event_id=model_request_event_id,
+                    )
+                    self.session.stop_reason = "stopped"
+                    return AgentRunResult(
+                        stop_reason="stopped",
+                        final_message=content or None,
+                        error=detail,
+                        usage=self.usage,
+                    )
 
                 if force_direct_mutation_request:
                     force_direct_mutation_request = False
@@ -1059,7 +1301,7 @@ class LocalCodingAgent:
                         self._print_tool_call(tool_name, args)
 
                         # Hook point 3: Tool preflight — check blocked tools and apply aliases
-                        if tool_name in self._blocked_tools:
+                        if self._tool_is_blocked(tool_name):
                             result_str = f"Error: Tool '{tool_name}' is blocked by policy"
                             self.session.add_tool_message(
                                 tool_call_id=tc["id"],
@@ -1089,6 +1331,12 @@ class LocalCodingAgent:
                         # Apply tool alias mapping
                         actual_tool_name = self._tool_aliases.get(tool_name, tool_name)
 
+                        # Any dispatched side-effect-capable action may change what a
+                        # later inspection observes, even if it ultimately reports an
+                        # error. Invalidate the read-only observation cache first.
+                        if actual_tool_name in _SIDE_EFFECT_POSSIBLE_TOOLS:
+                            successful_observations.clear()
+
                         # Build permissions context with callback flag
                         tool_perms = dict(self.permissions) if self.permissions else {}
                         if self.permission_callback is not None:
@@ -1099,7 +1347,11 @@ class LocalCodingAgent:
                         result = execute_tool(
                             actual_tool_name,
                             args,
-                            context=ToolExecutionContext(cwd=self.cwd, permissions=tool_perms),
+                            context=ToolExecutionContext(
+                                cwd=self.cwd,
+                                permissions=tool_perms,
+                                command_runner=self.command_runner,
+                            ),
                         )
 
                         # Check if tool needs interactive permission
@@ -1131,7 +1383,11 @@ class LocalCodingAgent:
                                     result = execute_tool(
                                         actual_tool_name,
                                         args,
-                                        context=ToolExecutionContext(cwd=self.cwd, permissions=tool_perms),
+                                        context=ToolExecutionContext(
+                                            cwd=self.cwd,
+                                            permissions=tool_perms,
+                                            command_runner=self.command_runner,
+                                        ),
                                     )
                                 else:
                                     # User denied permission — skip this tool call
@@ -1196,6 +1452,20 @@ class LocalCodingAgent:
                             payload=result_payload,
                             parent_event_id=tool_call_event_id,
                         )
+                        if result.ok:
+                            observation_fingerprint = self._observation_fingerprint(
+                                actual_tool_name, args
+                            )
+                            if observation_fingerprint:
+                                successful_observations[
+                                    observation_fingerprint
+                                ] = {
+                                    "tool_call_event_id": tool_call_event_id,
+                                    "turn": self.turns + 1,
+                                    "result_sha256": hashlib.sha256(
+                                        result_str.encode("utf-8", errors="replace")
+                                    ).hexdigest(),
+                                }
                         if (
                             result.ok
                             and actual_tool_name in _DIRECT_MUTATION_TOOLS
@@ -1493,6 +1763,16 @@ class LocalCodingAgent:
 
         # Collect blocked tool names from policy and plugins
         blocked_names = set(self._blocked_tools)
+        permissions = self.permissions or {}
+        blocked_names.update(permissions.get("denied_tools") or ())
+        configured_allowed = permissions.get("allowed_tools")
+        if configured_allowed is not None:
+            configured_names = set(configured_allowed)
+            allowed_names = (
+                configured_names
+                if allowed_names is None
+                else allowed_names & configured_names
+            )
 
         for tool in registry.list_tools():
             # Skip blocked tools — the model should not see them
@@ -1541,6 +1821,16 @@ class LocalCodingAgent:
                 })
 
         return tools
+
+    def _tool_is_blocked(self, tool_name: str) -> bool:
+        """Fail closed for policy and permission filters before dispatch."""
+        if tool_name in self._blocked_tools:
+            return True
+        permissions = self.permissions or {}
+        if tool_name in set(permissions.get("denied_tools") or ()):
+            return True
+        allowed = permissions.get("allowed_tools")
+        return allowed is not None and tool_name not in set(allowed)
 
     def _compact_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Compact messages using HYBRID strategy: summarize middle, keep head and tail."""

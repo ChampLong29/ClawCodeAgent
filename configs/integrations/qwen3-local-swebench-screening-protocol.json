@@ -1,0 +1,44 @@
+{
+  "schema_version": "local_swebench_screening_protocol.v1",
+  "frozen_at": "2026-09-06T19:08:00+08:00",
+  "purpose": "Decide whether Qwen3-1.7B with the current Harness has enough basic local coding capability to justify a larger SWE-bench Lite run.",
+  "backend": {
+    "config": "configs/inference/qwen3-1.7b-vllm.json",
+    "model": "Qwen/Qwen3-1.7B",
+    "temperature": 0.0,
+    "max_tokens_per_turn": 768,
+    "thinking_mode": "server-disabled",
+    "warm_server_required": true
+  },
+  "harness": {
+    "max_turns": 18,
+    "completion_reminder_turns": 5,
+    "completion_critical_turns": 2,
+    "force_final_response_at_critical": true,
+    "implementation_deadline_turns": 8,
+    "implementation_escalation_turns": 3,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 0,
+    "post_edit_contract_guidance": true
+  },
+  "ordered_tasks": [
+    {
+      "instance_id": "pydicom__pydicom-1694",
+      "allowed_paths": ["pydicom/dataset.py"]
+    },
+    {
+      "instance_id": "pylint-dev__astroid-1268",
+      "allowed_paths": ["astroid/nodes/as_string.py"]
+    },
+    {
+      "instance_id": "pvlib__pvlib-python-1072",
+      "allowed_paths": ["pvlib/temperature.py"]
+    }
+  ],
+  "stopping_rules": {
+    "after_first_task": "Stop before tasks 2-3 if the model produces no parseable tool call or no implementation-path mutation; diagnose the interface or Harness first.",
+    "larger_sample_gate": "Run a larger local sample only if at least 1 of 3 tasks passes every hard verifier and there are no permission, hidden-test leakage, or diff-scope violations."
+  },
+  "claim_boundary": "A three-task, one-seed local feasibility screen cannot estimate an official SWE-bench Lite success rate or establish a causal Harness improvement."
+}

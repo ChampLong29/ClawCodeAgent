@@ -1,0 +1,77 @@
+{
+  "schema_version": "early_deadline_ablation_protocol.v1",
+  "registered_at": "2026-09-07",
+  "status": "preregistered_before_repository_acquisition_and_model_calls",
+  "protocol_version": "early-deadline-pvlib1154.v1",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "official_swebench_harness": false,
+  "research_question": "Does moving the implementation deadline from turn 12 to turn 4 reduce investigation cost without reducing hard-verifier success when every other Harness and model setting is fixed?",
+  "instances": [
+    {
+      "order": 1,
+      "instance_id": "pvlib__pvlib-python-1154",
+      "repo": "pvlib/pvlib-python",
+      "base_commit": "0b8f24c265d76320067a5ee908a57d475cd1bb24",
+      "implementation_paths": [
+        "pvlib/irradiance.py"
+      ],
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 97,
+      "oracle_patch_file_count": 1,
+      "oracle_patch_changed_lines": 5,
+      "arm_order": [
+        "control",
+        "treatment"
+      ]
+    }
+  ],
+  "admission": {
+    "repository_snapshot_must_match_base_commit": true,
+    "baseline_fail_to_pass_must_fail": true,
+    "baseline_pass_to_pass_must_pass": true,
+    "reference_fail_to_pass_must_pass": true,
+    "reference_pass_to_pass_must_pass": true,
+    "model_calls_before_admission": 0,
+    "no_task_replacement_after_admission_observation": true
+  },
+  "shared_policy": {
+    "model": "deepseek-v4-flash",
+    "prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.early-deadline-pvlib1154.v1",
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "implementation_escalation_turns": 2,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 0,
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "post_edit_contract_guidance": true,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "evaluator_timeout_seconds": 300,
+    "allowed_paths": [
+      "pvlib/irradiance.py"
+    ],
+    "verifier_version": "verifier-policy.v2"
+  },
+  "arms": {
+    "control": {
+      "implementation_deadline_turns": 12
+    },
+    "treatment": {
+      "implementation_deadline_turns": 4
+    }
+  },
+  "maximum_valid_episodes_per_task_arm": 1,
+  "maximum_valid_episodes": 2,
+  "quality_retries": 0,
+  "analysis_after_both_arms": true,
+  "separate_model_upper_bound": {
+    "qwen3_1_7b_included": false,
+    "reason": "Qwen sampling and thinking settings are a separate model-policy intervention and would confound this one-factor Harness comparison."
+  },
+  "claim_boundary": "Preregistered paired local Dev one-factor mechanism ablation; not an official SWE-bench score, not a population success-rate estimate, not model-level improvement evidence, and not a LoRA readiness result."
+}

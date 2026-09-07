@@ -192,6 +192,24 @@ PILOT = {
             "twenty-six regressions from a distinct repository."
         ),
     },
+    "pvlib__pvlib-python-1154": {
+        "role": "early-deadline one-factor paired ablation",
+        "rationale": (
+            "A previously unrun one-file irradiance boundary issue with one "
+            "target and ninety-seven regressions; selected before repository "
+            "acquisition to compare only the implementation Deadline timing."
+        ),
+    },
+    "pvlib__pvlib-python-1854": {
+        "role": "clean-verifier end-to-end fresh-task validation",
+        "rationale": (
+            "Selected before repository acquisition, calibration, or model calls "
+            "after the lighter pydicom candidate failed the frozen one-to-three "
+            "FAIL_TO_PASS admission rule. Its one-file PVSystem input-normalization "
+            "change has one target test and 281 regressions, making it the only "
+            "remaining row with both policy eligibility and regression coverage."
+        ),
+    },
 }
 
 FALLBACK = None
@@ -341,7 +359,7 @@ def generate(root: Path = DEFAULT_ROOT) -> Dict[str, Path]:
         "dataset_revision": metadata["sha"],
         "split": "dev",
         "policy": {
-            "max_instances": 18,
+            "max_instances": 20,
             "one_instance_per_repository": False,
             "minimum_distinct_repositories": 6,
             "maximum_instances_per_repository": 5,

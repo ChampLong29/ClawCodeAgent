@@ -148,17 +148,21 @@ def collect_swe_bench_lite_dev_episode(
     force_direct_mutation_after_escalation: bool = False,
     implementation_target_read_allowance: int = 0,
     implementation_constraint_repair_attempts: int = 0,
+    reject_repeated_readonly_actions: bool = False,
+    repeated_action_repair_attempts: int = 0,
     post_edit_contract_guidance: bool = True,
     timeout_seconds: float = 300.0,
     runtime_version: str = "local-agent-runtime.v1",
-    prompt_version: str = "swe-bench-lite-dev.v1",
-    tool_version: str = "tool-schema.v1",
-    verifier_version: str = "verifier-policy.v2",
+    prompt_version: str = "swe-bench-lite-dev.v2",
+    tool_version: str = "tool-schema.v3",
+    verifier_version: str = "verifier-policy.v3",
     config_version: str = "swe-bench-lite-collection.v1",
     allowed_path_patterns: Sequence[str] = (),
     input_token_price_per_million: float = 0.0,
     output_token_price_per_million: float = 0.0,
     agent_factory: Optional[AgentFactory] = None,
+    model_client: Optional[Any] = None,
+    agent_command_runner: Optional[Any] = None,
 ) -> TrainingEpisodeCollectionResult:
     """Run one Dev issue while keeping evaluator assets outside agent context."""
     if not str(generation_commit).strip():
@@ -203,6 +207,15 @@ def collect_swe_bench_lite_dev_episode(
     if implementation_constraint_repair_attempts not in {0, 1}:
         raise BenchmarkError(
             "implementation_constraint_repair_attempts must be 0 or 1"
+        )
+    if repeated_action_repair_attempts not in {0, 1}:
+        raise BenchmarkError(
+            "repeated_action_repair_attempts must be 0 or 1"
+        )
+    if repeated_action_repair_attempts > 0 and not reject_repeated_readonly_actions:
+        raise BenchmarkError(
+            "repeated_action_repair_attempts requires "
+            "reject_repeated_readonly_actions"
         )
     if (
         implementation_target_read_allowance > 0
@@ -257,6 +270,7 @@ def collect_swe_bench_lite_dev_episode(
         output_root=output / "materialized",
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
+        allowed_path_patterns=patterns,
     )
     task = materialized.task_spec
     config_root = Path(api_config_root or Path.cwd()).resolve()
@@ -282,6 +296,8 @@ def collect_swe_bench_lite_dev_episode(
         "implementation_constraint_repair_attempts": (
             implementation_constraint_repair_attempts
         ),
+        "reject_repeated_readonly_actions": reject_repeated_readonly_actions,
+        "repeated_action_repair_attempts": repeated_action_repair_attempts,
         "post_edit_contract_guidance": post_edit_contract_guidance,
         "implementation_path_patterns": patterns,
     }
@@ -294,7 +310,7 @@ def collect_swe_bench_lite_dev_episode(
     original_factory = agent_factory
     if original_factory is None:
         def original_factory(cwd: str, inference_config: Dict[str, Any]):
-            return LocalCodingAgent(
+            agent = LocalCodingAgent(
                 cwd=cwd,
                 api_config_cwd=str(config_root),
                 model_config=ModelConfig(
@@ -311,6 +327,17 @@ def collect_swe_bench_lite_dev_episode(
                     allow_write=True,
                     allow_shell=True,
                     restrict_workspace=True,
+                    allowed_write_paths=list(patterns),
+                    allowed_tools=[
+                        "list_dir",
+                        "read_file",
+                        "code_outline",
+                        "write_file",
+                        "edit_file",
+                        "glob_search",
+                        "grep_search",
+                        "bash",
+                    ],
                 ).to_dict(),
                 completion_reminder_turns=int(
                     inference_config.get("completion_reminder_turns", 0)
@@ -342,13 +369,27 @@ def collect_swe_bench_lite_dev_episode(
                         "implementation_constraint_repair_attempts", 0
                     )
                 ),
+                reject_repeated_readonly_actions=bool(
+                    inference_config.get(
+                        "reject_repeated_readonly_actions", False
+                    )
+                ),
+                repeated_action_repair_attempts=int(
+                    inference_config.get(
+                        "repeated_action_repair_attempts", 0
+                    )
+                ),
                 post_edit_contract_guidance=bool(
                     inference_config.get("post_edit_contract_guidance", False)
                 ),
                 implementation_path_patterns=tuple(
                     inference_config.get("implementation_path_patterns", ())
                 ),
+                command_runner=agent_command_runner,
             )
+            if model_client is not None:
+                agent.client = model_client
+            return agent
 
     environment_before = {
         name: os.environ.get(name) for name in ("PATH", "PYTHONPATH", "VIRTUAL_ENV")
@@ -391,7 +432,10 @@ def collect_swe_bench_lite_dev_episode(
             }
             raise
         assert original_factory is not None
-        return original_factory(cwd, inference_config)
+        agent = original_factory(cwd, inference_config)
+        if agent_command_runner is not None:
+            setattr(agent, "command_runner", agent_command_runner)
+        return agent
 
     adapter = LocalAgentTrainingAdapter(
         output / "episodes",

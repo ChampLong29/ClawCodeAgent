@@ -865,3 +865,42 @@ q/k/v/o_proj、max_seq 4096、epochs 3）与数据路径。下一步门槛：用
 Checkpoint 与产物（training_verified=true），随后立即对固定独立 Test Manifest
 跑 Base/Adapter 对照。机器证据见
 `configs/integrations/qwen3-minimal-sft-data-evidence.json`。
+
+## 2026-09-07: Early-Deadline single-factor pair on pvlib-1154
+
+The `early-deadline-pvlib1154.v1` protocol was frozen before repository
+acquisition and model calls. A dedicated Python 3.8 environment was admitted
+after pinning historical NumPy/Pandas/SciPy versions: baseline failed the one
+target and passed all 97 regressions, while the Oracle passed both groups.
+
+Both DeepSeek arms failed the target and Diff Scope. Moving only the
+implementation Deadline from turn 12 to turn 4 advanced the first direct edit
+from turn 11 to turn 5 and reduced total tokens from 22,670 to 6,586, but did
+not improve correctness. Both arms dispatched an edit to
+`pvlib/tests/test_irradiance.py` even though only `pvlib/irradiance.py` was in
+the benchmark allowlist. This demonstrates that the current allowlist is a
+post-execution verifier boundary rather than a dispatch-time physical mutation
+boundary. The task will not be quality-retried; dispatch-time path enforcement
+is the next Harness change to validate.
+
+Evidence is recorded in
+`configs/integrations/swe-bench-lite-early-deadline-pvlib1154-result.json`.
+This is local Dev mechanism evidence, not an official SWE-bench score.
+
+## 2026-09-08：资源受限 Harness 对照路线冻结
+
+对三条候选路线完成取舍：Claw 自身消融因果最清楚但缺少外部基线；研究传统 Resolved
+较少表达的合规、恢复和审计属性具有差异化，但自定义任务/指标容易自证；只挑 Claw
+可能领先的指标与 DeepSeek Harness 比较则存在事后选指标和多因素混杂。最终采用组合
+设计：固定 DeepSeek Harness `sdk-minimal`、Claw Minimal 和 Claw Controlled 三组，
+以外部参考、实现等价性检查和内部机制消融分别承担不同职责。
+
+主指标在模型调用前冻结为 Policy-compliant Resolved 与固定 Token/Turn/Tool/时间预算下
+的 Resolved；原始 Resolved、Token、工具调用、时延和成本为必须同时报告的反向约束，
+不得因 Claw 不占优而省略。首轮每任务/臂运行一次，优先扩大独立任务覆盖；仅对配对结果
+分歧项和预注册的相同结果随机样本重复 2-3 次，并保留首次运行表，不做 best-of-N。
+
+该路线不宣称 DeepSeek Harness 缺少策略扩展能力，也不以完整 Verified-500 或排行榜
+复现为前提。比较对象限定为固定 Commit 的 `sdk-minimal` Profile，结论限定在冻结子集与
+预算。完整协议、准入/停止规则和可接受表述见
+`docs/roadmap/harness-comparison-experiment-design.md`。

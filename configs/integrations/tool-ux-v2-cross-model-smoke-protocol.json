@@ -1,0 +1,112 @@
+{
+  "schema_version": "cross_model_tool_ux_smoke_protocol.v2",
+  "frozen_at": "2026-09-07T09:30:43+08:00",
+  "purpose": "Measure whether Tool Schema v2 supports basic coding success and separate a practical local-small-model ceiling from a shared Harness failure.",
+  "runtime_source": {
+    "head_commit": "5d337c46cbb3a6872ad85a2851acb762799d66f5",
+    "task_related_diff_hash": "9a5770d48c74fcea947d2eab167a270b294ee92d5e1ac2fa0252642e85e2bd78",
+    "fingerprint_method": "sha256 of newline-joined ordered SHA-256 values below",
+    "files": {
+      "src/claw/agent_runtime.py": "f76f575590e39bafd9e4de5cebc7031ef11640efdeee392dbbbf7e25c29f702a",
+      "src/claw/agent_tools.py": "30a9deb94c6d01a39d085d6212b6ea4faffad2d7329586ef54f223be4791dba7",
+      "src/claw/openai_compat.py": "600fdee967ec4a7436d3a1f1b23d0f52bf1d081304543fe54f06340fbdd8ff02",
+      "src/claw/benchmark/local_command.py": "901f4ae7232990ecdf2e761af34187c3b09986aca3092a4b3157adcd88a778a0",
+      "src/claw/benchmark/local_agent_adapter.py": "1ddcf0db7ada0261b7ec4a56bbf779396d785c4ef13a48a2dd71c33fbad26781",
+      "src/claw/container_runtime.py": "f4164ecbbe4720de96072c34748010f1ae8ed28a1d8942c7491b542ebcf3accc",
+      "src/claw/main.py": "bfbd179ebcef724284a736a2129d595666793d670e97cdd591b17748160453a6",
+      "configs/inference/qwen3-1.7b-vllm.json": "9dae05d305e9e823392624cdfa74e2edcf17ae5f7c6840b1f40ed0e45cd600b0"
+    },
+    "state": "uncommitted_worktree",
+    "invalidated_pre_freeze_runs": [
+      ".port_sessions/tool-ux-v2-cross-model-smoke/qwen/core-gate",
+      ".port_sessions/tool-ux-v2-cross-model-smoke/qwen/core-rest",
+      ".port_sessions/tool-ux-v2-cross-model-smoke/qwen/medium"
+    ],
+    "invalidation_reason": "Provider configuration isolation was implemented after the v1 freeze; those local runs are retained only as preflight evidence."
+  },
+  "task_sets": [
+    {
+      "manifest": "task_suites/manifest.json",
+      "file_sha256": "7f5d76ba92b2767bf207885880078608dde9ab7acf83ea2c3dce4e63bb0ccc1a",
+      "content_hash": "91db1087953160fb354e6dfb9429dc4a92ce4f92e34bd1c37355053f00698169",
+      "ordered_tasks": [
+        "python-cli-add_feature-07",
+        "python-cli-add_feature-08",
+        "python-cli-fix_bug-07",
+        "python-cli-fix_bug-08",
+        "python-library-add_feature-07",
+        "python-library-add_feature-08",
+        "python-library-fix_bug-07",
+        "python-library-fix_bug-08"
+      ]
+    },
+    {
+      "manifest": "task_suites/medium/manifest.json",
+      "file_sha256": "e7a635a96cd7af6e1bd8c45bdd8c4fa70d339baeb58decd1c071cbf9fa928331",
+      "content_hash": "ca8ef5b9866927b0ef7d98a611c5219374aa039826f1de59b4e514501fabc562",
+      "ordered_tasks": [
+        "python-service-atomic-order-01",
+        "python-library-layered-config-01"
+      ]
+    }
+  ],
+  "common_protocol": {
+    "temperature": 0.0,
+    "thinking_mode": "disabled",
+    "max_tokens_per_turn": 1024,
+    "max_turns": 12,
+    "seed": 42,
+    "tool_version": "tool-schema.v2",
+    "runtime_version": "local-agent-runtime.v1",
+    "prompt_version": "tool-ux-v2-cross-model-smoke.v1",
+    "verifier_version": "verifier-policy.v2",
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "provider_config_isolation": "Each arm uses an explicit --api-config-root; the task workspace remains unchanged.",
+    "execution_backend": {
+      "kind": "oci-container",
+      "image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+      "engine": "docker",
+      "cpus": 2.0,
+      "memory": "4g",
+      "pids_limit": 256,
+      "user": "1000:1000",
+      "network": "none",
+      "read_only_root": true
+    }
+  },
+  "arms": [
+    {
+      "name": "qwen3_1_7b_vllm_openai",
+      "model": "Qwen/Qwen3-1.7B",
+      "provider_protocol": "openai_chat_completions",
+      "backend_ref": "configs/inference/qwen3-1.7b-vllm.json"
+    },
+    {
+      "name": "deepseek_v4_flash_anthropic",
+      "model": "deepseek-v4-flash",
+      "provider_protocol": "anthropic_messages",
+      "provider_probe_ref": "configs/integrations/deepseek-v4-flash-anthropic-tool-probe.json"
+    }
+  ],
+  "preflight": [
+    "Validate both task manifests before any model call.",
+    "Probe the pinned OCI image and effective non-root user.",
+    "Require the Qwen OpenAI tool probe and DeepSeek Anthropic tool probe to pass before their respective arm."
+  ],
+  "stopping_rules": {
+    "interface_failure": "Stop an arm if its first two Core tasks produce zero structured model-requested tool calls in total or any provider authentication/protocol failure.",
+    "safety_failure": "Stop immediately on hidden-test leakage, permission violation, or a changed path outside the task-derived allowlist.",
+    "otherwise": "Run all ten ordered tasks exactly once per arm. Do not retry task-quality failures."
+  },
+  "decision_matrix": {
+    "qwen_basic_gate": "At least 3 of 10 tasks pass every hard verifier, with no safety failure.",
+    "deepseek_reference_gate": "At least 7 of 10 tasks pass every hard verifier, with no safety failure.",
+    "interpretation": [
+      "DeepSeek passes its gate while Qwen fails: treat local-model capacity or post-training as the primary next bottleneck.",
+      "Both fail their gates with shared retrieval/edit patterns: continue Harness remediation before training.",
+      "Both pass: proceed to a separately frozen, family-safe external-repository screen."
+    ]
+  },
+  "claim_boundary": "This compares two complete inference stacks on local versioned tasks. Different provider protocols remain a confound; results are not a pure model-size ablation and are not SWE-bench scores."
+}

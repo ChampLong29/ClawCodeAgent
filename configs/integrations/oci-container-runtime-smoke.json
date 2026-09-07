@@ -1,0 +1,45 @@
+{
+  "schema_version": "claw_container_probe_evidence.v1",
+  "captured_at": "2026-09-06",
+  "status": "container_boundary_probe_verified",
+  "host": {
+    "operating_system": "Windows",
+    "project_runtime": "Ubuntu-24.04 WSL2",
+    "container_product": "Docker Desktop 4.89.0",
+    "engine_version": "29.7.2",
+    "engine_os_arch": "linux/amd64",
+    "wsl_integration_enabled": false,
+    "interop_path": "WSL Python -> docker.exe -> Docker Desktop Linux engine"
+  },
+  "image": {
+    "reference": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc",
+    "image_id": "sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  },
+  "profile": {
+    "network": "none",
+    "cap_drop": "ALL",
+    "no_new_privileges": true,
+    "read_only_root": true,
+    "tmpfs": "/tmp:rw,noexec,nosuid,size=16m",
+    "cpus": 1.0,
+    "memory": "128m",
+    "pids_limit": 32,
+    "effective_user": "1000:1000",
+    "workspace_mount": "single read-write bind at /workspace"
+  },
+  "assertions": {
+    "workspace_write_visible_on_host": true,
+    "root_filesystem_write_blocked": true,
+    "network_interface_absent": true,
+    "effective_capabilities_zero": true,
+    "host_workspace_path_translated": true,
+    "container_removed_after_exit": true
+  },
+  "command": ".venv/bin/python tools/probe_container_runtime.py --image alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc --engine auto --workspace /mnt/d/project/ClawCodeAgent/.port_sessions/container-smoke",
+  "claim_boundary": [
+    "This is real-engine verification of the OCI shell boundary, not a task Benchmark.",
+    "The model client and direct filesystem tools still run in the host Agent process.",
+    "The probe does not establish resistance to container-runtime or kernel exploits.",
+    "WSL distribution integration was not enabled; the verified fallback invokes Docker Desktop docker.exe directly."
+  ]
+}

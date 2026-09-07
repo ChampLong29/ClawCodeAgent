@@ -66,6 +66,13 @@ python -m pip install -e ".[dev]"
 
 真实 LoRA/QLoRA 训练还需要相应的 PyTorch、Transformers、PEFT、Accelerate；QLoRA 另外需要 BitsAndBytes。是否可用以 `PeFTSFTBackend.prepare()` 的依赖检查为准，不应仅凭包已安装就宣称训练可用。
 
+训练框架与推理框架是两条独立边界。PEFT/Transformers/BitsAndBytes 用于
+LoRA/QLoRA 训练；多轮 Agent Episode 的本地推理使用常驻 vLLM 服务，通过现有
+OpenAI-compatible client 接入。不要因训练端需要 Transformers，就让 Benchmark
+逐 Episode 使用 `generate()` 加载和解码。Qwen3-1.7B 的固定服务配置与 WSL2
+回退见 `configs/inference/qwen3-1.7b-vllm.json` 和
+`tools/start_vllm_qwen3.sh`。
+
 ## 3. 快速 Rollout
 
 仓库提供最小示例 [`examples/training/sample_suite.json`](examples/training/sample_suite.json)。先用 Mock 模式确认通路：
@@ -201,7 +208,46 @@ claw benchmark-run \
 
 显式 `--allow-path` 会替代默认推导结果，应保持最小范围。临时文件、缓存或隐藏测试泄漏都应作为 Diff 违规处理。
 
-### 6.4 固定实验变量
+### 6.4 跨平台 OCI 执行边界
+
+安装 Docker 或 Podman 后，可用固定镜像运行 Agent Shell 与任务检查：
+
+```bash
+claw benchmark-run \
+  --manifest task_suites/medium/manifest.json \
+  --group base \
+  --limit 1 \
+  --container-image ghcr.io/example/claw-task@sha256:<digest> \
+  --container-engine auto \
+  --container-cpus 2 \
+  --container-memory 4g \
+  --container-pids-limit 256 \
+  --output .port_sessions/benchmark-container
+```
+
+`auto` 依次发现 Docker 与 Podman。Runner 在开始前检查 daemon 和本地镜像，
+不会隐式拉取；建议始终使用 digest 引用。容器默认 `network=none`、只读根文件
+系统、临时 `/tmp`、`cap-drop=ALL`、`no-new-privileges` 和 PID/CPU/内存限制，
+只挂载当前 Episode workspace。超时后会按随机生成的精确容器名强制清理。
+Linux/WSL 调用时会默认使用宿主 UID:GID，避免容器写入的文件阻断后续 Git
+checkpoint/reset；`--container-user` 可覆盖这个默认值。
+
+这不是完整的宿主系统调用审计：直接文件工具仍运行在宿主 Agent 进程内，并由
+`restrict_workspace` 做路径限制；模型 API 调用也在容器之外。对外应描述为
+“Agent Shell 与任务检查的 OCI 隔离边界”，除非后续把整个 Agent 进程及所有外部
+工具也迁入容器并完成逃逸测试。
+
+固定 Alpine digest 的 Windows + WSL2 + Docker Desktop 实机探针已完成，机器可读
+证据位于 `configs/integrations/oci-container-runtime-smoke.json`。该证据只将 OCI
+Shell 边界标记为真实引擎验证，不将其升级为 Benchmark verified。
+
+固定 Python digest 的一条 Core Smoke 容器化 Episode 也已通过硬测试、Diff 范围与
+权限检查，摘要位于 `configs/integrations/oci-container-benchmark-smoke.json`。这是
+单样本链路验证，不是能力评测；该 Episode 首次绝对路径命令失败后由 Agent 自行恢复，
+其后新增的宿主路径到 `/workspace` 映射只经过聚焦测试与无模型实机探针验证，未用同一
+模型 Episode 做结果重试。
+
+### 6.5 固定实验变量
 
 Benchmark 至少固定并记录：
 
@@ -217,7 +263,7 @@ Benchmark 至少固定并记录：
 claw benchmark-run --help
 ```
 
-### 6.5 结果解释
+### 6.6 结果解释
 
 每个结果应至少检查：
 
@@ -228,7 +274,20 @@ claw benchmark-run --help
 - 输入/输出 Token、时延和估算成本。
 - Reviewer 分数是否有明确 Rubric 和证据引用。
 
-一次成功 Episode 只是个案。模型质量结论至少需要多任务、多 Seed、相同预算和独立 Test Split。
+一次成功 Episode 只是个案。模型质量结论至少需要多任务、相同预算和独立 Test Split；
+多次运行用于估计轨迹方差，不作为每个小规模实验的机械要求。
+
+### 6.7 资源受限的 Harness 对照
+
+Harness 评测采用三层分离：固定 Commit 的 DeepSeek Harness `sdk-minimal` 是外部参考，
+Claw Minimal 检查 Prompt、协议和 Tool UX 是否等价，Claw Controlled 只加入预注册的
+运行时控制。不得直接用完整 Claw 对比外部 Minimal 后把全部差异归因于某一项策略。
+
+主指标为 Policy-compliant Resolved 与固定 Token/Turn/Tool/时间预算下的 Resolved；
+原始 Resolved、Token、工具调用、时延和成本必须同时报告，即使结果不利于 Claw。
+首轮优先增加冻结任务覆盖，每任务/臂运行一个新 Episode；配对结果分歧项和预注册的
+相同结果样本再重复 2-3 次，并单独保留首次运行表。完整的取舍、准入、停止规则和
+表述边界见 `docs/roadmap/harness-comparison-experiment-design.md`。
 
 ## 7. Episode、Trajectory 与 Verification
 
@@ -449,12 +508,16 @@ python tools/analyze_rollout_behavior.py `
 
 ```powershell
 python tools/collect_swe_bench_lite_episode.py <其余参数> `
+  --container-image <包含任务依赖的固定镜像> `
+  --container-engine auto `
   --thinking-mode disabled `
   --max-tokens 4096 `
   --implementation-deadline-turns 12 `
   --implementation-escalation-turns 4 `
   --force-direct-mutation-after-escalation `
   --implementation-target-read-allowance 1 `
+  --reject-repeated-readonly-actions `
+  --repeated-action-repair-attempts 1 `
   --completion-reminder-turns 8 `
   --completion-critical-turns 3 `
   --force-final-response-at-critical
@@ -475,6 +538,73 @@ allowlist 的 `read_file`，随后下一次工具请求只允许直接编辑。�
 非目标路径都会在分发前显式停止。在 Critical 请求可隐藏工具并要求最终响应。DeepSeek Anthropic 兼容接口忽略
 `budget_tokens`，因此本项目用 `thinking=disabled` 加单次 `max_tokens` 实现可验证的有界
 请求，而不宣称不存在的精确思考 Token 预算。
+
+SWE Collector 还会把同一实现路径 allowlist 写入 Agent 权限上下文。此后所有显式
+`write_file`/`edit_file` 请求都会在文件系统写入前解析真实工作区相对路径并匹配 allowlist；
+不匹配的请求返回权限错误且不创建或修改文件。启用 allowlist 后，`bash` 只有在 Runner
+声明使用一次性工作区时才会分发；否则以 `unsafe_shell_workspace` 安全拒绝。OCI Runner
+为每条命令复制当前 Episode，只挂载副本并在返回结果后丢弃其文件变化。采集命令可通过
+`--container-image` 和 `--container-engine` 启用该路径。
+
+SWE Verifier 不再直接复制 Agent 使用过的候选树。它从 Episode Git `HEAD` 解包干净基线，
+仅覆盖 allowlist 匹配的候选源码文件，再注入 Test Patch 并执行目标与回归测试。因此越界
+测试修改仍会触发 Diff Scope，但不会再造成隐藏补丁冲突并遮蔽源码候选的功能结果。
+Verifier Policy v3 新增必需的 `evaluation_integrity` 硬门槛：评测准备失败时记录
+`evaluation_prepared=false`、`tests_executed=false`，`test_pass_rate` 保持 `null`，聚合时
+从测试通过率分母中排除，同时单独计入 `evaluation_error_count`。
+
+该干净重建路径已直接用于冻结的 pvlib-1154 两个候选：Control 与 Treatment 均完成
+隐藏测试注入，并通过 1 条 FAIL_TO_PASS 和 97 条 PASS_TO_PASS。补充结果只纠正“源码
+候选是否通过测试”的未知状态，不覆盖原始 Episode 的测试文件越界修改、Diff Scope 失败
+或不可变 Verification。机器证据见
+`configs/integrations/swe-bench-lite-clean-verification-pvlib1154-supplemental-result.json`。
+
+在此基础上，Pilot 扩展到此前未运行的 `pvlib__pvlib-python-1854`。该任务在模型调用前
+完成本地准入：基线 1 条目标测试失败、281 条回归通过，参考补丁后两组均通过。冻结的
+单次 `deepseek-v4-flash` Episode 第 1 轮定位 `pvlib/pvsystem.py`、第 4 轮完成唯一源码
+修改，并在 12 轮内正常结束；干净验证器通过全部 282 条选定测试，Diff Scope、权限、
+格式和终止门槛也全部通过。两次 Agent Shell 调用因 Docker Desktop 未启用 WSL 发行版
+挂载而失败，未影响显式白名单编辑与独立评测；随后一次性副本改为创建在 Episode 工作区
+同一宿主卷。启用发行版集成后，真实 Docker 已在归档任务副本中读取候选源码并证明容器
+写入不会持久化；遵守零质量重试约束，未再次调用模型。协议与结果见
+`configs/integrations/swe-bench-lite-pvlib1854-clean-e2e-*.json`。这是一条本地 Dev 成功
+Episode，不是官方 SWE-bench 分数，也不能单样本估计 Harness 或模型成功率。
+
+`--reject-repeated-readonly-actions` 是独立且默认关闭的运行时策略。它只缓存成功的
+`list_dir`、`read_file`、`code_outline`、`glob_search` 和 `grep_search` 观察，并对路径参数
+做规范化；任一已分发的 `write_file`、`edit_file` 或 `bash` 会清空缓存。完全相同的观察
+再次出现时不会分发；配置 `--repeated-action-repair-attempts 1` 可给模型一次不包含新任务
+信息的纠正机会，再次重复会以 `repeated_readonly_action` 明确停止。被拒请求、纠正提示和
+停止原因都写入不可变 Trajectory。此机制只消除确定性的无信息循环，不证明模型会编辑、
+测试通过或成功率提高。
+
+新生成的 Episode 默认记录 `tool-schema.v3`；该版本继承 v2 的搜索 UX，并加入写白名单下
+Shell 必须使用一次性工作区的分发契约。其中 `code_outline` 可用 `query` 按任务中
+出现的类名或函数名过滤，即使符号位于大文件末尾也不会被通用截断丢失；`grep_search`
+默认每页最多返回 10 条，支持 `file_pattern`、`context_lines`、`offset` 和
+`next_offset`，并使用稳定的工作区相对路径。分页元数据位于匹配内容之前，即使模型可见
+结果被截断也能判断是否需要缩小搜索或读取下一页。SWE Collector 不再暴露 Web、Skill 等
+与隔离代码任务无关的工具。
+
+DeepSeek Anthropic 端点可用 `tools/probe_anthropic_tool_server.py` 做合成协议预检。探针只
+发送虚构路径和代码片段，验证 required tool call、Tool Result 回传、第二轮结构化调用、
+响应 ID 与服务端模型名，不构成任务能力评测。已验证证据见
+`configs/integrations/deepseek-v4-flash-anthropic-tool-probe.json`。
+
+冻结的本地跨模型抽检结果见 `configs/integrations/tool-ux-v2-cross-model-smoke-result.json`：
+Qwen3-1.7B 为 0/10，DeepSeek-V4-Flash 为 8/10（Core 8/8、Medium 0/2）。这只是本地
+版本化任务对照，不是 SWE-bench 成绩；Medium 失败保留隐藏测试与 token-limit 终止证据。
+
+同一任务集对照多个 Provider 时，为每个实验臂固定独立的 API 配置目录，并通过
+`claw benchmark-run --api-config-root <dir>` 选择它。该目录只参与 API 配置发现，不改变
+任务 Manifest、Episode 工作区或验证器；尤其可防止项目根目录的 Anthropic `.env` 污染
+本地 OpenAI-compatible 模型臂。
+
+Qwen3-1.7B 的冻结机制复验在 pydicom-1694 上实际触发两次 Guard：第一次拒绝后模型改用
+`list_dir` 和不同搜索范围，第二次重复新搜索时明确停止。相较此前失败载体，实际工具分发
+从 8 次降至 4 次、总 Token 从 39,332 降至 20,854；仍无源码编辑且目标测试失败。因此该
+结果只把“Runtime 可阻断重复循环”提升为已验证，不把“基本成功率”或“任务质量”提升为
+已验证。协议与机器结果位于 `configs/integrations/qwen3-local-swebench-loop-guard-validation-*`。
 
 2026-08-20 在 Marshmallow-1343 上完成首次本地真实仓库成功 Episode。配置关闭显式思考、
 单次上限 4096 Token、18 turns、Deadline/Escalation=5/2，并启用直接编辑和最终响应约束。
@@ -510,7 +640,8 @@ Token、约 2.94 秒，少一次编辑和一次失败工具调用，并生成更
 `docs/roadmap/bounded-action-confirmatory-experiment-protocol.md`，机器证据见
 `configs/integrations/swe-bench-lite-pyvista-4315-confirmatory-comparison.json`。
 
-Verifier Policy v2 将最终答复盲区拆成独立、零权重的 `final_response_quality` Soft 信号。
+Verifier Policy v2 将最终答复盲区拆成独立、零权重的 `final_response_quality` Soft 信号；
+Policy v3 在保留它的同时加入独立的评测完整性硬门槛。
 它只从 Trajectory v2 的不可变终止详情确定性识别空回答、纯思考块和裸工具调用标记，不判断
 实现正确性，也不覆盖测试、Diff、权限、格式或终止硬门槛。对上述两条历史轨迹回放后，
 Control 为 `raw_tool_call_markup/fail`，Treatment 为 `user_facing_text/pass`；原始 Episode
@@ -555,7 +686,9 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 
 当前未完成：
 
-- 官方 Docker Harness 接入。
+- 官方 Docker Harness 适配器、固定 `swebench==5.0.2` 环境、冻结输入导出与
+  fail-closed 预检已实现；Ubuntu-24.04 尚未启用 Docker Desktop WSL integration，
+  因此 Python Docker SDK 无法连接 daemon，真实评测未启动。
 - 对其余历史仓库构建固定依赖镜像。
 - FAIL_TO_PASS / PASS_TO_PASS 的正式容器化验证。
 - 已完成两条未见 Issue 的冻结多任务复现：pvlib-1606 成功，SQLFluff-1733 因直接编辑约束
@@ -568,6 +701,20 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 
 因此现阶段可以用 Pilot 做阅读、适配设计和少量受控 Rollout，但不能发布正式 SWE-bench Lite 成绩。所有本地结果只证明固定环境能观察到对应状态转换；均未使用官方 Docker Harness。不要直接在当前 Python 3.14 主机环境运行这些历史项目的完整测试。
 
+官方 Harness 继续步骤：
+
+```bash
+python3 -m venv .venv-swebench
+.venv-swebench/bin/python -m pip install -r configs/benchmarks/swebench-harness.txt
+.venv-swebench/bin/python tools/probe_official_swebench.py
+```
+
+Windows 用户需在 Docker Desktop 的 `Resources > WSL integration` 中启用实际运行
+项目的发行版（当前为 Ubuntu-24.04）并 Apply/Restart。仅有 `docker.exe` CLI 可用
+还不够：官方 Harness 通过 Python Docker SDK 调用 daemon，预检会明确验证
+`docker.from_env()`。探针通过后，才运行准备好的单任务候选；首次实例镜像可能需要
+较大磁盘与较长时间。官方文档建议为本地评测预留至少 120GB 空间。
+
 ## 13. 推荐推进顺序
 
 如果要在另一台设备继续，请先执行 [`TRAINING_HANDOFF.md`](TRAINING_HANDOFF.md) 的仓库、Python 3.8 环境、准入复跑和证据核验步骤；不要直接复制旧 `generation_commit` 或跳过准入开始模型调用。
@@ -577,7 +724,7 @@ Runtime 虽识别 `max_tokens`，但首次真实记录时发现 `runtime_stop` �
 3. 对 Episode 做人工 Reviewer，确认自动测试与主观质量信号能够分离。
 4. 从成功与失败轨迹各抽样，检查数据泄漏、Tool 对齐和无效行为。
 5. 构建小规模 Train Dataset，先运行 Dry-run 契约验证。
-6. Pilot 已扩为六仓库十八题：十六题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 与 Astroid-1268/pydicom-1694 的两组四臂配对实验均已完成并收束为不确定结果；不要重跑 Dev 题做质量重试，下一步应扩充 family-safe Train 数据。
+6. Pilot 已扩为六仓库二十题：十八题通过本地准入，两题因历史参数化测试 ID 不足以隔离目标/回归而在零模型调用阶段关闭。Astroid-1978/pydicom-1256 与 Astroid-1268/pydicom-1694 的两组四臂配对实验均已完成并收束为不确定结果；不要重跑 Dev 题做质量重试。
 7. 扩充少量真实 Train 数据后运行最小 LoRA，并立即对固定 Test Suite 跑 Base/Adapter 对比。
 8. 接入官方 SWE-bench Docker Harness，只运行筛选出的少量 Pilot。
 9. 证据链稳定后再扩大任务数、Seed 和消融组。

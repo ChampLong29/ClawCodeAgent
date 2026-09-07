@@ -200,7 +200,7 @@ class BenchmarkRunner:
                     domain=task.domain,
                     difficulty=task.difficulty,
                     success=False,
-                    test_pass_rate=0.0,
+                    test_pass_rate=None,
                     tool_calls=0,
                     valid_tool_selections=0,
                     valid_tool_arguments=0,
@@ -213,6 +213,8 @@ class BenchmarkRunner:
                     latency_seconds=0.0,
                     bad_cases=["environment_or_infra"],
                     error=f"{type(exc).__name__}: {exc}",
+                    evaluation_prepared=False,
+                    tests_executed=False,
                 )
             episode.validate()
             episodes.append(episode)

@@ -1,0 +1,109 @@
+{
+  "schema_version": "swe_bench_lite_tool_ux_v2_pilot_result.v1",
+  "captured_at": "2026-09-07",
+  "status": "completed_exploratory_pair",
+  "instance_id": "pvlib__pvlib-python-1606",
+  "generation_commit": "5d337c46cbb3a6872ad85a2851acb762799d66f5",
+  "model": "deepseek-v4-flash",
+  "shared_settings": {
+    "temperature": 0,
+    "thinking_mode": "disabled",
+    "max_tokens": 4096,
+    "max_turns": 18,
+    "completion_reminder_turns": 4,
+    "completion_critical_turns": 1,
+    "force_final_response_at_critical": true,
+    "allowed_paths": [
+      "pvlib/tools.py"
+    ],
+    "evaluator_timeout_seconds": 300
+  },
+  "arms": {
+    "control": {
+      "episode_id": "training-66fd5bd985004e26b7e2",
+      "collection_id": "episode_collection_434a4749bb47648d8e4f",
+      "implementation_deadline_turns": 12,
+      "implementation_escalation_turns": 4,
+      "force_direct_mutation_after_escalation": false,
+      "implementation_target_read_allowance": 0,
+      "reject_repeated_readonly_actions": false,
+      "repeated_action_repair_attempts": 0,
+      "success": true,
+      "test_pass_rate": 1.0,
+      "hard_gate_passed": true,
+      "aggregate_score": 1.0,
+      "final_response_quality": "fail",
+      "turns": 18,
+      "tool_calls": 17,
+      "input_tokens": 20043,
+      "output_tokens": 3941,
+      "total_tokens": 23984,
+      "latency_seconds": 146.252696445,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 13,
+      "target_to_mutation_turn_lag": 12,
+      "investigation_without_edit_ratio": 0.7058823529411765,
+      "direct_mutation_calls": 2,
+      "failed_tool_calls": 1,
+      "process_violations": 0,
+      "hashes": {
+        "collection_manifest_sha256": "e41865828ce8d83c7aef4654aff446a132370c728e4497653749553037c0c7ce",
+        "episode_results_sha256": "71eff4539a0bd53fabb4aa25cfdf4c4746cd1720ed4c92fd9acc353c67cf351e",
+        "trajectory_sha256": "96dc8903644e5023a3e25c5206c8009856b2b302ba2099d1ad499adec46c7363",
+        "verification_sha256": "0936d8c7d25f1d7f856e7febd711db4473a02d0e2eecbf43ac9904fe5339c0be"
+      }
+    },
+    "treatment": {
+      "episode_id": "training-bb32cebf0c9844bcad13",
+      "collection_id": "episode_collection_ce8cea28151687271d76",
+      "implementation_deadline_turns": 4,
+      "implementation_escalation_turns": 2,
+      "force_direct_mutation_after_escalation": true,
+      "implementation_target_read_allowance": 1,
+      "reject_repeated_readonly_actions": true,
+      "repeated_action_repair_attempts": 1,
+      "success": true,
+      "test_pass_rate": 1.0,
+      "hard_gate_passed": true,
+      "aggregate_score": 1.0,
+      "final_response_quality": "pass",
+      "turns": 13,
+      "tool_calls": 12,
+      "input_tokens": 7881,
+      "output_tokens": 2973,
+      "total_tokens": 10854,
+      "latency_seconds": 141.31022896500002,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 5,
+      "target_to_mutation_turn_lag": 4,
+      "investigation_without_edit_ratio": 0.3333333333333333,
+      "direct_mutation_calls": 1,
+      "failed_tool_calls": 0,
+      "process_violations": 0,
+      "hashes": {
+        "collection_manifest_sha256": "085bc8d1b0225ac84acb29a0ed12aad154b5860c2737c8423919a10a8ca8f0d0",
+        "episode_results_sha256": "d7e611359268b894ef0a630b63a54dbb620a925a9b06898d64ba716f716e1bb9",
+        "trajectory_sha256": "f5bdaf0cb661773b2f9146616f5dfe0fcbf324655d010a8d4040a437ffd50947",
+        "verification_sha256": "9f7b730ae9cce23c83c907d26d9c75e4ff6afda3ebd0ffa493816c6d40c580df"
+      }
+    }
+  },
+  "comparison": {
+    "same_hard_outcome": true,
+    "hard_gate_successes": "2/2",
+    "treatment_turn_delta": -5,
+    "treatment_tool_call_delta": -5,
+    "treatment_total_token_delta": -13130,
+    "treatment_total_token_reduction_fraction": 0.5474482988667445,
+    "treatment_first_mutation_turn_delta": -8,
+    "treatment_target_to_mutation_lag_delta": -8,
+    "treatment_latency_delta_seconds": -4.942467479999986
+  },
+  "interpretation": {
+    "supported": "On this repeated local Dev task, both arms passed every hard verifier. The bounded treatment reached an explicit edit eight turns earlier and used 54.7% fewer tokens, while preserving scoped changes, process compliance, and a passing final response-quality soft signal.",
+    "not_supported": "This pair does not isolate one Harness mechanism: deadline timing, forced direct mutation, target-read allowance, repeated-read rejection, and one repair attempt changed together. It also reuses a task with historical project evidence. No causal improvement, population success-rate estimate, Qwen comparison, or official SWE-bench score is claimed.",
+    "next_step": "Freeze a fresh-task, one-factor-at-a-time matrix before further model calls. Use the same model and budget, vary only one runtime mechanism per pair, and reserve Qwen sampling-policy experiments as a separate model upper-bound study."
+  },
+  "official_swebench_harness": false,
+  "claim_boundary": "Exploratory paired local Dev evidence only; not preregistered causal evidence, not an official SWE-bench result, not a statistical model estimate, and not a LoRA readiness result."
+}

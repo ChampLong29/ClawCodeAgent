@@ -1,0 +1,96 @@
+{
+  "schema_version": "cross_model_tool_ux_smoke_result.v1",
+  "protocol_ref": "configs/integrations/tool-ux-v2-cross-model-smoke-protocol.json",
+  "updated_at": "2026-09-07T10:02:00+08:00",
+  "status": "complete",
+  "runtime_source_fingerprint": "9a5770d48c74fcea947d2eab167a270b294ee92d5e1ac2fa0252642e85e2bd78",
+  "arms": {
+    "qwen3_1_7b_vllm_openai": {
+      "status": "complete",
+      "gate": {
+        "required_successes": 3,
+        "actual_successes": 0,
+        "passed": false
+      },
+      "metrics": {
+        "sample_count": 10,
+        "successes": 0,
+        "task_success_rate": 0.0,
+        "model_turns": 23,
+        "executed_tool_calls": 14,
+        "model_requested_tool_calls": 14,
+        "direct_mutation_calls": 0,
+        "target_localized_tasks": 0,
+        "zero_tool_tasks": 8,
+        "process_violations": 0,
+        "input_tokens": 36616,
+        "output_tokens": 2939
+      },
+      "evidence": [
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/qwen/core-gate/base/results.jsonl",
+          "sha256": "db8eacfc81c2e98da0ae196fc455020c134bf86fd079bf1ad41ab5464e88ccb9"
+        },
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/qwen/core-rest/base/results.jsonl",
+          "sha256": "d3bf9c69a21d5db2060433e9a613744918ebb124ae6f8a362cb7700674ddd0d4"
+        },
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/qwen/medium/base/results.jsonl",
+          "sha256": "68f95ff4354a33a5f266c98b757fd8bc0925807477cba4a54eb75cc652d1eabd"
+        }
+      ],
+      "observations": [
+        "Eight tasks stopped after one model turn without requesting any tool.",
+        "The two tool-using tasks produced structurally valid calls but never localized a task target path.",
+        "Shell commands mutated the workspace, while direct_mutation remained zero because that diagnostic intentionally counts explicit edit tools only.",
+        "No process-policy violation was recorded."
+      ]
+    },
+    "deepseek_v4_flash_anthropic": {
+      "status": "complete",
+      "gate": {
+        "required_successes": 7,
+        "actual_successes": 8,
+        "passed": true
+      },
+      "metrics": {
+        "sample_count": 10,
+        "successes": 8,
+        "task_success_rate": 0.8,
+        "core_successes": 8,
+        "medium_successes": 0,
+        "model_turns": 49,
+        "executed_tool_calls": 57,
+        "model_requested_tool_calls": 57,
+        "direct_mutation_calls": 8,
+        "target_localized_tasks": 10,
+        "zero_tool_tasks": 0,
+        "process_violations": 0,
+        "input_tokens": 14647,
+        "output_tokens": 6903
+      },
+      "evidence": [
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/deepseek/core-gate/base/results.jsonl",
+          "sha256": "6d42da7da2b8362d0b5e890c7afc7b78154ce8219024dc12c25b0e2a429812e5"
+        },
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/deepseek/core-rest/base/results.jsonl",
+          "sha256": "7c90dbc871dc47e3547d8401fe7df3aa65c72b6275dfcff2e3d918552fcbd584"
+        },
+        {
+          "ref": ".port_sessions/tool-ux-v2-cross-model-smoke/frozen-v2/deepseek/medium/base/results.jsonl",
+          "sha256": "6636afb3b4779be5e2f40ba05f4a45a42dad6893427abb228963e5433c33cf4b"
+        }
+      ],
+      "observations": [
+        "All ten tasks localized the target path; eight completed explicit edits and passed hard verification.",
+        "Both Medium tasks localized files but ended without a passing edit; reports classify the failures as environment_or_infra plus token-limit cancellation, with hidden-test failures visible in evidence.",
+        "No process-policy violation occurred."
+      ]
+    }
+  },
+  "conclusion": "DeepSeek passes the 7/10 reference gate while Qwen3-1.7B fails the 3/10 gate. On this fixed local suite, model capacity and post-training are the primary bottleneck for the small local model; Tool UX v2 and the shared Harness show valid structured execution and no process violations under the stronger arm.",
+  "claim_boundary": "This compares two complete inference stacks on ten local versioned tasks. It is not a SWE-bench score, not a pure model-size ablation, and does not prove that every Medium failure is infrastructure-only."
+}

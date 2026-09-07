@@ -123,7 +123,12 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
         )
 
         self.assertEqual(result.task_ids, ["python-cli-add_feature-07"])
-        self.assertTrue(result.episodes[0].success)
+        self.assertTrue(
+            result.episodes[0].success,
+            Path(result.episodes[0].verification_ref).read_text(
+                encoding="utf-8"
+            ),
+        )
         self.assertEqual(result.config.prompt_version, "prompt.test.v1")
         self.assertEqual(
             result.config.test_manifest_ref,
@@ -219,6 +224,18 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
 
         self.assertEqual(calls, [])
 
+    def test_repeated_action_repair_requires_guard(self):
+        with self.assertRaisesRegex(
+            BenchmarkError,
+            "requires reject_repeated_readonly_actions",
+        ):
+            run_local_benchmark(
+                manifest_path=self.manifest,
+                output_root=self.output / "benchmark",
+                model_ref=self.model,
+                repeated_action_repair_attempts=1,
+            )
+
     def test_prompt_version_changes_protocol_fingerprint(self):
         common = dict(
             group_name="base",
@@ -265,8 +282,12 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
                     "--cwd", str(self.project_root),
                     "--manifest", "task_suites/manifest.json",
                     "--model", self.model,
+                    "--api-config-root", "model-config",
                     "--limit", "1",
                     "--prompt-version", "prompt.v1",
+                    "--thinking-mode", "disabled",
+                    "--reject-repeated-readonly-actions",
+                    "--repeated-action-repair-attempts", "1",
                 ])
 
         payload = json.loads(stdout.getvalue())
@@ -275,6 +296,18 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
         self.assertEqual(payload["run_id"], "benchmark_test")
         self.assertEqual(payload["task_count"], 1)
         self.assertEqual(run.call_args.kwargs["limit"], 1)
+        self.assertTrue(
+            run.call_args.kwargs["reject_repeated_readonly_actions"]
+        )
+        self.assertEqual(
+            run.call_args.kwargs["repeated_action_repair_attempts"],
+            1,
+        )
+        self.assertEqual(run.call_args.kwargs["thinking_mode"], "disabled")
+        self.assertEqual(
+            run.call_args.kwargs["api_config_root"],
+            str(self.project_root / "model-config"),
+        )
         self.assertEqual(
             run.call_args.kwargs["manifest_path"],
             str(self.manifest),

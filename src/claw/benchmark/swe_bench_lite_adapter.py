@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import fnmatch
 import os
 import shlex
 import shutil
@@ -20,7 +21,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from ..episode.checkpoint import validate_workspace_symlinks, workspace_hash
 from ..experiment.schemas import canonical_hash
@@ -290,6 +291,8 @@ class SweBenchLiteCandidateEvaluation:
         return {
             "schema_version": "swe_bench_lite_candidate_evaluation.v1",
             "status": "passed" if self.passed else "failed",
+            "evaluation_prepared": True,
+            "tests_executed": True,
             "instance_id": self.instance_id,
             "official_swebench_harness": False,
             "runs": {
@@ -530,6 +533,7 @@ def evaluate_swe_bench_lite_candidate(
     *,
     python_executable: Path | str,
     timeout_seconds: float = 300.0,
+    allowed_path_patterns: Optional[List[str]] = None,
 ) -> SweBenchLiteCandidateEvaluation:
     """Evaluate a candidate in a disposable copy with hidden tests mounted.
 
@@ -546,6 +550,12 @@ def evaluate_swe_bench_lite_candidate(
         raise ValueError("unsupported SWE-bench episode evaluator asset")
     instance_id = str(asset.get("instance_id", ""))
     test_patch = str(asset.get("test_patch", ""))
+    asset_allowed_path_patterns = asset.get("allowed_path_patterns")
+    effective_allowed_path_patterns = (
+        list(allowed_path_patterns)
+        if allowed_path_patterns is not None
+        else asset_allowed_path_patterns
+    )
     fail_to_pass = asset.get("fail_to_pass")
     pass_to_pass = asset.get("pass_to_pass")
     if not instance_id or not test_patch.strip():
@@ -558,13 +568,22 @@ def evaluate_swe_bench_lite_candidate(
         isinstance(item, str) and item for item in pass_to_pass
     ):
         raise ValueError("evaluator pass_to_pass must contain test IDs")
+    if effective_allowed_path_patterns is not None and (
+        not isinstance(effective_allowed_path_patterns, list)
+        or not effective_allowed_path_patterns
+        or not all(
+            isinstance(item, str) and item.strip()
+            for item in effective_allowed_path_patterns
+        )
+    ):
+        raise ValueError("evaluator allowed_path_patterns must contain paths")
 
     python_path = Path(python_executable).expanduser().absolute()
     if not python_path.is_file():
         raise FileNotFoundError(python_path)
     runner = LocalSweBenchLiteCalibrationRunner()
     with tempfile.TemporaryDirectory(prefix="claw-swebench-eval-") as temporary:
-        evaluation_root = Path(temporary) / "workspace"
+        evaluation_root = (Path(temporary) / "workspace").resolve()
 
         def ignore(_directory: str, names: List[str]) -> List[str]:
             blocked = {
@@ -578,7 +597,68 @@ def evaluate_swe_bench_lite_candidate(
             return [name for name in names if name in blocked]
 
         validate_workspace_symlinks(source)
-        shutil.copytree(source, evaluation_root, ignore=ignore, symlinks=True)
+        if effective_allowed_path_patterns is None:
+            # Backward compatibility for previously materialized evaluator assets.
+            shutil.copytree(source, evaluation_root, ignore=ignore, symlinks=True)
+        else:
+            # Rebuild from the immutable Episode base and overlay only candidate
+            # files that are inside the declared implementation scope.  Hidden
+            # tests therefore never depend on an agent-contaminated test tree.
+            archived = subprocess.run(
+                ["git", "-C", str(source), "archive", "--format=tar", "HEAD"],
+                capture_output=True,
+                check=False,
+            )
+            if archived.returncode != 0:
+                raise RuntimeError(
+                    "failed to archive candidate base: "
+                    + archived.stderr.decode("utf-8", errors="replace").strip()
+                )
+            evaluation_root.mkdir(parents=True)
+            with tarfile.open(fileobj=io.BytesIO(archived.stdout), mode="r:") as archive:
+                for member in archive.getmembers():
+                    member_target = (evaluation_root / member.name).resolve()
+                    if evaluation_root != member_target and evaluation_root not in member_target.parents:
+                        raise RuntimeError("candidate archive contains an unsafe member path")
+                archive.extractall(evaluation_root)
+
+            base_files = subprocess.run(
+                ["git", "-C", str(source), "ls-tree", "-r", "--name-only", "HEAD"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=True,
+            ).stdout.splitlines()
+            candidate_files: List[str] = []
+            blocked_dirs = {
+                ".git",
+                ".claw_hidden_tests",
+                ".port_sessions",
+                "__pycache__",
+                ".pytest_cache",
+                ".mypy_cache",
+            }
+            for directory, dirnames, filenames in os.walk(source):
+                dirnames[:] = [name for name in dirnames if name not in blocked_dirs]
+                directory_path = Path(directory)
+                candidate_files.extend(
+                    (directory_path / name).relative_to(source).as_posix()
+                    for name in filenames
+                )
+            for relative in sorted(set(base_files) | set(candidate_files)):
+                if not any(
+                    fnmatch.fnmatchcase(relative, pattern)
+                    for pattern in effective_allowed_path_patterns
+                ):
+                    continue
+                candidate = source / relative
+                destination = evaluation_root / relative
+                if candidate.is_file():
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(candidate, destination)
+                elif destination.exists():
+                    destination.unlink()
         runner._apply_patch(evaluation_root, test_patch, label="test patch")
         ftp = runner._run_tests(
             evaluation_root,
@@ -623,6 +703,7 @@ class SweBenchLiteEpisodeTaskMaterializer:
         output_root: Path | str,
         python_executable: Path | str,
         timeout_seconds: float = 300.0,
+        allowed_path_patterns: Optional[List[str]] = None,
     ) -> MaterializedSweBenchLiteEpisodeTask:
         if task.instance_id != bundle.instance_id:
             raise ValueError("task and evaluator bundle instance IDs differ")
@@ -646,6 +727,11 @@ class SweBenchLiteEpisodeTaskMaterializer:
             "fail_to_pass": list(bundle.fail_to_pass),
             "pass_to_pass": list(bundle.pass_to_pass),
         }
+        if allowed_path_patterns is not None:
+            patterns = [str(item) for item in allowed_path_patterns if str(item).strip()]
+            if not patterns:
+                raise ValueError("allowed_path_patterns must contain paths")
+            asset_payload["allowed_path_patterns"] = patterns
         asset_path.write_text(
             json.dumps(asset_payload, ensure_ascii=False, indent=2, sort_keys=True)
             + "\n",
@@ -678,7 +764,10 @@ class SweBenchLiteEpisodeTaskMaterializer:
                 "Fix the reported issue in the current repository checkout. "
                 "Inspect the local source, reproduce with the configured Python "
                 "environment when useful, make the smallest correct source change, "
-                "and finish with a concise summary. Every tool already starts in the "
+                "and finish with a concise summary. Persistent writes are limited to "
+                + ", ".join(allowed_path_patterns or ["the declared implementation paths"])
+                + "; tests and every other repository path are read-only. Do not "
+                "update expected test outputs. Every tool already starts in the "
                 "working directory shown in Environment Context: use relative paths "
                 "and never guess /workspace or switch to another checkout. The "
                 "configured `python` has already passed an import-path preflight for "

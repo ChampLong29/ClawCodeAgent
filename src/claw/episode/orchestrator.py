@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -51,11 +52,13 @@ class EpisodeOrchestrator:
         *,
         project_root: Optional[Union[str, os.PathLike[str]]] = None,
         environment_allowlist: Optional[Iterable[str]] = None,
+        command_runner: Optional[Any] = None,
     ):
         self.episodes_root = Path(episodes_root).resolve()
         self.episodes_root.mkdir(parents=True, exist_ok=True)
         self.project_root = Path(project_root or os.getcwd()).resolve()
         self.environment_allowlist = tuple(environment_allowlist or ())
+        self.command_runner = command_runner
         self.manifest: Optional[EpisodeManifest] = None
         self.episode_dir: Optional[Path] = None
         self.workspace: Optional[Path] = None
@@ -99,6 +102,11 @@ class EpisodeOrchestrator:
             metadata={
                 "task_schema_version": task.schema_version,
                 "task_content_hash": task.content_hash or task.compute_content_hash(),
+                "execution_backend": (
+                    self.command_runner.describe()
+                    if self.command_runner is not None
+                    else {"kind": "native"}
+                ),
             },
         )
         self._save()
@@ -137,6 +145,10 @@ class EpisodeOrchestrator:
             initial_results = self._run_task_checks(
                 task, task.initial_checks, timeout=task.timeout_seconds
             )
+            if self.command_runner is not None:
+                self.manifest.metadata["execution_backend"] = (
+                    self.command_runner.describe()
+                )
             self.manifest.metadata["initial_check_results"] = initial_results
             if any(result.get("timed_out") for result in initial_results):
                 raise InitialValidationError("initial task validation timed out")
@@ -390,6 +402,18 @@ class EpisodeOrchestrator:
         command_results = self._run_task_checks(
             task, task.test_commands, timeout=task.timeout_seconds
         )
+        evaluator_results = [
+            result for result in command_results
+            if "evaluation_prepared" in result or "tests_executed" in result
+        ]
+        evaluation_prepared = all(
+            bool(result.get("evaluation_prepared", False))
+            for result in evaluator_results
+        ) if evaluator_results else True
+        tests_executed = all(
+            bool(result.get("tests_executed", False))
+            for result in evaluator_results
+        ) if evaluator_results else True
         passed = sum(
             1 for result in command_results
             if result.get("returncode") == 0
@@ -420,9 +444,20 @@ class EpisodeOrchestrator:
         ).stdout
         return {
             "test_result": {
-                "total_tests": len(command_results),
-                "passed_tests": passed,
-                "failed_tests": len(command_results) - passed,
+                "total_tests": len(command_results) if tests_executed else 0,
+                "passed_tests": passed if tests_executed else 0,
+                "failed_tests": len(command_results) - passed if tests_executed else 0,
+                "evaluation_prepared": evaluation_prepared,
+                "tests_executed": tests_executed,
+                "evaluation_errors": [
+                    {
+                        "error_type": result.get("evaluation_error_type", "unknown"),
+                        "returncode": result.get("returncode"),
+                    }
+                    for result in evaluator_results
+                    if not result.get("evaluation_prepared", False)
+                    or not result.get("tests_executed", False)
+                ],
                 "commands": command_results,
             },
             "diff_result": {
@@ -439,22 +474,50 @@ class EpisodeOrchestrator:
         results = []
         for command in commands:
             try:
-                completed = subprocess.run(
-                    command,
-                    shell=True,
-                    cwd=str(self.workspace),
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                )
-                results.append(
-                    {
-                        "command": command,
-                        "returncode": completed.returncode,
-                        "stdout": completed.stdout[-4000:],
-                        "stderr": completed.stderr[-4000:],
-                    }
-                )
+                if self.command_runner is not None:
+                    completed = self.command_runner.run(
+                        command, cwd=str(self.workspace), timeout=timeout
+                    )
+                else:
+                    completed = subprocess.run(
+                        command,
+                        shell=True,
+                        cwd=str(self.workspace),
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                    )
+                result = {
+                    "command": command,
+                    "returncode": completed.returncode,
+                    "stdout": completed.stdout[-4000:],
+                    "stderr": completed.stderr[-4000:],
+                }
+                for line in reversed(completed.stdout.splitlines()):
+                    try:
+                        evaluator_payload = json.loads(line)
+                    except (TypeError, json.JSONDecodeError):
+                        continue
+                    if not isinstance(evaluator_payload, dict):
+                        continue
+                    if "evaluation_prepared" in evaluator_payload:
+                        result["evaluation_prepared"] = bool(
+                            evaluator_payload["evaluation_prepared"]
+                        )
+                    if "tests_executed" in evaluator_payload:
+                        result["tests_executed"] = bool(
+                            evaluator_payload["tests_executed"]
+                        )
+                    if evaluator_payload.get("status") == "evaluation_error":
+                        result["evaluation_error_type"] = str(
+                            evaluator_payload.get("error_type", "unknown")
+                        )
+                    break
+                if self.command_runner is not None and hasattr(
+                    self.command_runner, "result_metadata"
+                ):
+                    result.update(self.command_runner.result_metadata(completed))
+                results.append(result)
             except subprocess.TimeoutExpired as exc:
                 results.append(
                     {

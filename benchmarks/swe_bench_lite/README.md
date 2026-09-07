@@ -13,11 +13,11 @@ not contain the 300-instance test split.
 - `raw/dataset-metadata.json`: dataset revision metadata.
 - `snapshot.json`: source URLs, revision, row count, and local SHA-256 hashes.
 - `dev-catalog.json`: patch-free screening metrics for all 23 dev instances.
-- `pilot-selection.json`: seventeen selected Dev instances across six repositories.
+- `pilot-selection.json`: twenty selected Dev instances across six repositories.
 - `pilot-agent-inputs.json`: sanitized Agent inputs containing issue text and
   base revision, with all gold, tests, hints, and evaluation test IDs removed.
 - `repo-snapshots.json`: exact checked-out HEADs, tracked sizes, clean-state
-  checks, and upstream license hashes for the seventeen pinned task snapshots.
+  checks, and upstream license hashes for the twenty pinned task snapshots.
 - `repos/`: ignored checkouts pinned to selected base commits.
 - `../../configs/integrations/swe-bench-lite-marshmallow-local-calibration.json`:
   versioned hashes and return codes from the first local evaluator calibration.
@@ -50,24 +50,30 @@ Selected pilot:
    target test, 114 regressions, and an explicit heavy-VTK admission gate.
 10. `pvlib__pvlib-python-1606` — golden-section equal-bound behavior with one
     target test and 10 selected regressions.
-11. `sqlfluff__sqlfluff-1733` — interacting formatter rules with one target
+11. `pvlib__pvlib-python-1072` — container/return-type validation with one
+    target test and 18 selected regressions.
+12. `sqlfluff__sqlfluff-1733` — interacting formatter rules with one target
     test and three selected regressions.
-12. `pylint-dev__astroid-1978` — NumPy deprecation behavior with one target,
+13. `pylint-dev__astroid-1978` — NumPy deprecation behavior with one target,
     twelve regressions, and Strict-first paired action-constraint evaluation.
-13. `pydicom__pydicom-1256` — nested BulkDataURI handler propagation with one
+14. `pydicom__pydicom-1256` — nested BulkDataURI handler propagation with one
     target, twenty-two regressions, and Progressive-first paired evaluation.
-14. `sqlfluff__sqlfluff-1517` — first read-to-edit repair carrier; retained as
+15. `sqlfluff__sqlfluff-1517` — first read-to-edit repair carrier; retained as
     a zero-model-call admission failure because truncated parameter IDs made
     the target and regression groups overlap after conservative normalization.
-15. `pylint-dev__astroid-1866` — second first-protocol carrier; retained as the
+16. `pylint-dev__astroid-1866` — second first-protocol carrier; retained as the
     same class of zero-model-call admission failure rather than replaced in place.
-16. `pylint-dev__astroid-1268` — independently preregistered admissible carrier
+17. `pylint-dev__astroid-1268` — independently preregistered admissible carrier
     with one target and ninety-one regressions, Control-first.
-17. `pydicom__pydicom-1694` — independently preregistered admissible carrier
+18. `pydicom__pydicom-1694` — independently preregistered admissible carrier
     with one target and twenty-six regressions, Repair-first.
+19. `pvlib__pvlib-python-1154` — previously unrun one-file irradiance issue
+    selected for a preregistered one-factor comparison of implementation
+    Deadline timing, with one target and ninety-seven regressions.
 
-The local calibration runner has admitted fifteen of seventeen selected tasks from six repositories
-under isolated historical environments. SQLFluff-1517 and Astroid-1866 remain versioned calibration
+The local calibration runner has admitted sixteen selected tasks from six
+repositories under isolated historical environments, including the newly added
+pvlib-1154 task. SQLFluff-1517 and Astroid-1866 remain versioned calibration
 failures caused by insufficient historical test-ID precision; no model was called and neither was
 silently replaced inside its frozen protocol. The independently preregistered Astroid-1268 and
 pydicom-1694 replacements satisfy baseline-fails-target/baseline-passes-regressions and
@@ -86,10 +92,18 @@ bytes/container semantics; the second Astroid task adds 46 path-resolution
 regressions. PyVista adds a pinned Python 3.8.20, VTK 9.2.6, and NumPy 1.24.4
 environment with 114 regressions. The two multi-task additions contribute 10 and
 three regressions respectively; the first paired-ablation additions contribute 12 and
-22. The admitted follow-on carriers contribute 91 and 26 regressions. All fifteen admitted
+22. The admitted follow-on carriers contribute 91 and 26 regressions; the two newest pvlib
+carriers contribute 97 and 281 regressions. All eighteen admitted
 reference patches pass both groups. Calibration
 builds exact Git Archive snapshots, applies evaluator patches outside the agent
 boundary, and stores only hashes and return codes as versioned evidence.
+
+New candidate evaluations reconstruct the verifier workspace from the Episode
+Git `HEAD`, overlay only files matching the frozen implementation allowlist,
+and inject the hidden Test Patch afterward. Agent-side test edits therefore
+remain visible to Diff Scope but cannot collide with hidden-test preparation.
+Verifier Policy v3 records preparation failure through `evaluation_integrity`;
+when tests never execute, `test_pass_rate` is unknown rather than zero.
 
 ```bash
 python tools/calibrate_swe_bench_lite.py \
@@ -99,8 +113,12 @@ python tools/calibrate_swe_bench_lite.py \
   --output-dir .port_sessions/swe-bench-lite-astroid-calibration
 ```
 
-This is a local compatibility calibration, not an agent score. Docker was
-unavailable, so official Harness execution remains pending. The selected
+This is a local compatibility calibration, not an agent score. The official
+SWE-bench v5 adapter and Docker execution path are separately versioned. For
+`pvlib__pvlib-python-1854`, the unmodified published image failed before pytest
+collection because of NumPy 2 dependency drift; a disclosed `numpy<2`
+compatibility layer passed 1 FAIL_TO_PASS and all 281 PASS_TO_PASS tests. This
+is compatibility evidence, not an aggregate official score. The selected
 PyVista heavy-VTK task is calibrated only in the pinned local WSL environment.
 
 The first two real `deepseek-v4-flash` Dev Episodes are also recorded. The

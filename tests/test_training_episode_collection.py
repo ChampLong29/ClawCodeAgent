@@ -216,6 +216,23 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
                     allowed_path_patterns=("target.py",),
                 )
 
+    def test_collection_rejects_repeated_action_repair_without_guard(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError,
+                "requires reject_repeated_readonly_actions",
+            ):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    repeated_action_repair_attempts=1,
+                    allowed_path_patterns=("target.py",),
+                )
+
     def test_workspace_pythonpath_supports_src_and_root_layouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

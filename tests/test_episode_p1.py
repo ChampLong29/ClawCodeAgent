@@ -103,6 +103,25 @@ class EpisodeTestCase(unittest.TestCase):
 
 
 class TestEpisodeStateMachine(EpisodeTestCase):
+    def test_evaluator_preparation_error_records_unknown_test_result(self):
+        orchestrator, _ = self.prepare()
+        task = self.make_task()
+        task.test_commands = [
+            'python -c "import json,sys; '
+            "print(json.dumps(dict(status='evaluation_error', "
+            "evaluation_prepared=False, tests_executed=False, "
+            "error_type='HiddenTestPatchConflict'))); sys.exit(2)\""
+        ]
+        task.content_hash = task.compute_content_hash()
+        orchestrator.start_run()
+
+        result = orchestrator.collect_verification_facts(task)["test_result"]
+
+        self.assertFalse(result["evaluation_prepared"])
+        self.assertFalse(result["tests_executed"])
+        self.assertEqual(result["total_tests"], 0)
+        self.assertEqual(result["evaluation_errors"][0]["error_type"], "HiddenTestPatchConflict")
+
     def test_prepare_preserves_safe_directory_symlink_without_following_loop(self):
         link = self.template / "loop"
         try:

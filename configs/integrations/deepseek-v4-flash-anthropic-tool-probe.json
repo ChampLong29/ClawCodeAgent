@@ -1,0 +1,66 @@
+{
+  "checks": {
+    "first_path": true,
+    "first_tool_name": true,
+    "response_ids_present": true,
+    "response_models_present": true,
+    "second_new_string": true,
+    "second_old_string": true,
+    "second_path": true,
+    "second_tool_name": true
+  },
+  "claim_boundary": "Synthetic provider-contract evidence only; no repository content was sent and no task-quality capability was evaluated.",
+  "endpoint": {
+    "host": "api.deepseek.com",
+    "path": "/anthropic"
+  },
+  "generated_at": "2026-09-06T16:58:41.831587+00:00",
+  "max_tokens_per_request": 256,
+  "provider": "anthropic",
+  "requested_model": "deepseek-v4-flash",
+  "responses": [
+    {
+      "arguments": {
+        "path": "src/example.py"
+      },
+      "finish_reason": "tool_use",
+      "provider_metadata": {
+        "protocol": "anthropic_messages",
+        "response_id": "a982c002-e96d-450a-9cce-64b1754726b0",
+        "response_model": "deepseek-v4-flash",
+        "response_type": "message"
+      },
+      "tool_name": "inspect_target",
+      "usage": {
+        "input_tokens": 300,
+        "model_calls": 1,
+        "output_tokens": 47,
+        "tool_calls": 1
+      }
+    },
+    {
+      "arguments": {
+        "new_string": "VALUE = 1",
+        "old_string": "VALUE = 0",
+        "path": "src/example.py"
+      },
+      "finish_reason": "tool_use",
+      "provider_metadata": {
+        "protocol": "anthropic_messages",
+        "response_id": "3f0d30a8-6b05-49f9-84d7-5e948821b653",
+        "response_model": "deepseek-v4-flash",
+        "response_type": "message"
+      },
+      "tool_name": "propose_patch",
+      "usage": {
+        "input_tokens": 421,
+        "model_calls": 1,
+        "output_tokens": 90,
+        "tool_calls": 1
+      }
+    }
+  ],
+  "schema_version": "anthropic_tool_provider_probe.v1",
+  "thinking_mode": "disabled",
+  "verified": true
+}

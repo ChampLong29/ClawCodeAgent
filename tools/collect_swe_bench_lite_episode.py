@@ -18,6 +18,11 @@ def main() -> int:
     parser.add_argument("--generation-commit", required=True)
     parser.add_argument("--api-config-root", type=Path, default=Path.cwd())
     parser.add_argument("--model", default="deepseek-v4-flash")
+    parser.add_argument(
+        "--local-model-path",
+        type=Path,
+        help="Use a local Transformers snapshot instead of the configured API.",
+    )
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max-tokens", type=int)
     parser.add_argument(
@@ -66,6 +71,24 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--reject-repeated-readonly-actions",
+        action="store_true",
+        help=(
+            "Reject an identical successful read/search/outline request when no "
+            "side-effect-capable action has run since the prior result."
+        ),
+    )
+    parser.add_argument(
+        "--repeated-action-repair-attempts",
+        type=int,
+        choices=(0, 1),
+        default=0,
+        help=(
+            "Allow one no-new-information corrective request after a repeated "
+            "read-only action is rejected."
+        ),
+    )
+    parser.add_argument(
         "--no-post-edit-contract-guidance",
         action="store_false",
         dest="post_edit_contract_guidance",
@@ -74,9 +97,40 @@ def main() -> int:
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--allow-path", action="append", required=True)
     parser.add_argument(
-        "--prompt-version", default="swe-bench-lite-dev.deepseek-v4-flash.v1"
+        "--container-image",
+        help=(
+            "Run Agent shell commands in a disposable Docker/Podman workspace. "
+            "Without this option, shell is fail-closed while write allowlists are active."
+        ),
+    )
+    parser.add_argument(
+        "--container-engine", choices=("auto", "docker", "podman"), default="auto"
+    )
+    parser.add_argument(
+        "--prompt-version", default="swe-bench-lite-dev.deepseek-v4-flash.v2"
     )
     args = parser.parse_args()
+    agent_command_runner = None
+    if args.container_image:
+        from claw.container_runtime import OCIContainerConfig, OCIContainerRunner
+
+        agent_command_runner = OCIContainerRunner(
+            OCIContainerConfig(
+                image=args.container_image,
+                engine=args.container_engine,
+                ephemeral_workspace=True,
+            )
+        )
+    model_client = None
+    if args.local_model_path:
+        from claw.transformers_client import TransformersToolClient
+
+        model_client = TransformersToolClient(
+            args.local_model_path,
+            model_name=args.model,
+            enable_thinking=args.thinking_mode == "enabled",
+            default_max_new_tokens=args.max_tokens or 1024,
+        )
     evaluator_script = Path(__file__).resolve().with_name(
         "evaluate_swe_bench_lite_candidate.py"
     )
@@ -107,10 +161,18 @@ def main() -> int:
         implementation_constraint_repair_attempts=(
             args.implementation_constraint_repair_attempts
         ),
+        reject_repeated_readonly_actions=(
+            args.reject_repeated_readonly_actions
+        ),
+        repeated_action_repair_attempts=(
+            args.repeated_action_repair_attempts
+        ),
         post_edit_contract_guidance=args.post_edit_contract_guidance,
         timeout_seconds=args.timeout,
         prompt_version=args.prompt_version,
         allowed_path_patterns=args.allow_path,
+        model_client=model_client,
+        agent_command_runner=agent_command_runner,
     )
     episode = result.episodes[0]
     print(

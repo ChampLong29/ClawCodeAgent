@@ -129,6 +129,39 @@ def reviewer(score):
 
 
 class TestVerifierPipeline(unittest.TestCase):
+    def test_evaluation_error_is_not_mislabeled_as_test_failure(self):
+        trajectory = make_trajectory()
+        test_event = next(
+            event for event in trajectory.events if event.event_type == "test_result"
+        )
+        test_event.payload["test_result"].update(
+            {
+                "total_tests": 0,
+                "passed_tests": 0,
+                "evaluation_prepared": False,
+                "tests_executed": False,
+                "evaluation_errors": [{"error_type": "hidden_patch_conflict"}],
+            }
+        )
+        verification_policy = policy()
+        verification_policy.required_signals.append("evaluation_integrity")
+        verification_context = context(trajectory)
+        verification_context.policy = verification_policy
+        report = VerifierPipeline().verify(verification_context)
+        signals = {signal.name: signal for signal in report.signals}
+
+        self.assertEqual(signals["evaluation_integrity"].status, "fail")
+        self.assertEqual(signals["test_pass_rate"].status, "unknown")
+        self.assertIsNone(signals["test_pass_rate"].score)
+        self.assertEqual(report.verdict, "failure")
+        self.assertEqual(
+            report.bad_cases[0]["primary_category"],
+            "evaluation_preparation_failure",
+        )
+        self.assertNotIn(
+            "test_failure", report.bad_cases[0]["secondary_categories"]
+        )
+
     def test_all_hard_signals_pass_with_versioned_reviewer(self):
         report = VerifierPipeline().verify(
             context(make_trajectory()), reviewer=reviewer(0.9)

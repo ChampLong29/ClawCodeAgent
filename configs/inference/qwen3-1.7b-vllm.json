@@ -1,0 +1,27 @@
+{
+  "schema_version": "local_inference_server.v1",
+  "framework": "vllm",
+  "framework_version": "0.28.0",
+  "model": "Qwen/Qwen3-1.7B",
+  "model_snapshot": "/home/longwanzhou/.cache/modelscope/models/Qwen--Qwen3-1.7B/snapshots/master",
+  "protocol": "openai-compatible",
+  "base_url": "http://127.0.0.1:8000/v1",
+  "server": {
+    "dtype": "bfloat16",
+    "max_model_len": 16384,
+    "gpu_memory_utilization": 0.85,
+    "enable_auto_tool_choice": true,
+    "tool_call_parser": "hermes",
+    "reasoning_parser": "qwen3",
+    "default_chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "generation_config": "vllm"
+  },
+  "wsl_compatibility": {
+    "VLLM_USE_V2_MODEL_RUNNER": "0",
+    "VLLM_USE_FLASHINFER_SAMPLER": "0",
+    "reason": "WSL reports UVA unavailable, and the FlashInfer sampler cannot identify RTX 5080 SM 12.0 with the visible toolkit."
+  },
+  "claim_boundary": "This configuration is a local inference serving contract. It is not training or SWE-bench score evidence."
+}

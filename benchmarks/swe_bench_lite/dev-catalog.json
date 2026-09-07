@@ -103,7 +103,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "pvlib.irradiance.reindl() model generates NaNs when GHI = 0",
       "total_score": 19,
@@ -184,7 +184,7 @@
         "problem_statement": 5,
         "regression_tests": 4
       },
-      "selected": false,
+      "selected": true,
       "test_patch_file_count": 1,
       "title": "PVSystem with single Array generates an error",
       "total_score": 21,

@@ -1,0 +1,45 @@
+{
+  "schema_version": "local_inference_probe.v1",
+  "recorded_at": "2026-09-06T18:50:00+08:00",
+  "framework": {
+    "name": "vllm",
+    "version": "0.28.0",
+    "torch": "2.13.0+cu130",
+    "python": "3.12.3"
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5080",
+    "memory_mib": 16303,
+    "driver": "591.74",
+    "host_boundary": "WSL2"
+  },
+  "model": {
+    "name": "Qwen/Qwen3-1.7B",
+    "snapshot": "/home/longwanzhou/.cache/modelscope/models/Qwen--Qwen3-1.7B/snapshots/master",
+    "dtype": "bfloat16",
+    "max_model_len": 16384,
+    "thinking_enabled": false
+  },
+  "compatibility_fallbacks": {
+    "VLLM_USE_V2_MODEL_RUNNER": "0",
+    "VLLM_USE_FLASHINFER_SAMPLER": "0",
+    "observed_failures": [
+      "V2 model runner stopped with: UVA is not available",
+      "FlashInfer sampler stopped with: FlashInfer requires GPUs with sm75 or higher after failing to identify SM 12.0"
+    ]
+  },
+  "probe": {
+    "prompt_tokens": 176,
+    "completion_tokens": 21,
+    "expected_tool": "read_file",
+    "expected_arguments": {
+      "path": "README.md"
+    },
+    "first_request_seconds": 0.96728,
+    "warm_request_seconds": 0.367719,
+    "warm_output_tokens_per_second": 57.109,
+    "finish_reason": "tool_calls",
+    "verified": true
+  },
+  "claim_boundary": "The probe verifies one warm local tool call through an OpenAI-compatible vLLM server. It is not an Agent Episode, capability benchmark, training result, or official SWE-bench score."
+}

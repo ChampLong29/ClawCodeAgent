@@ -1,0 +1,2 @@
+# Official evaluator is isolated from the Agent/SFT environment.
+swebench==5.0.2

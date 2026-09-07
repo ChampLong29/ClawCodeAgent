@@ -12,13 +12,14 @@ from ..trajectory.schema import Trajectory, TrajectoryEvent
 
 @dataclass
 class VerificationPolicy:
-    version: str = "verifier-policy.v2"
+    version: str = "verifier-policy.v3"
     required_signals: List[str] = field(
-        default_factory=lambda: ["test_pass_rate"]
+        default_factory=lambda: ["evaluation_integrity", "test_pass_rate"]
     )
     signal_weights: Dict[str, float] = field(
         default_factory=lambda: {
             "test_pass_rate": 0.35,
+            "evaluation_integrity": 0.0,
             "build": 0.10,
             "static_check": 0.10,
             "diff_scope": 0.15,
