@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..experiment.schemas import TaskSpec, canonical_hash, utc_now
+from ..task_commands import resolve_task_command
 from .registry import TaskSuiteManifest
 
 
@@ -21,6 +22,7 @@ class CommandEvidence:
     command: str
     returncode: int
     duration_seconds: float
+    resolved_command: Optional[str] = None
     stdout: str = ""
     stderr: str = ""
     timed_out: bool = False
@@ -92,9 +94,10 @@ class TaskSuiteValidator:
         results = []
         for command in commands:
             started = time.monotonic()
+            resolved_command = resolve_task_command(command)
             try:
                 completed = subprocess.run(
-                    command,
+                    resolved_command,
                     shell=True,
                     cwd=str(workspace),
                     capture_output=True,
@@ -106,6 +109,9 @@ class TaskSuiteValidator:
                         command=command,
                         returncode=completed.returncode,
                         duration_seconds=time.monotonic() - started,
+                        resolved_command=(
+                            resolved_command if resolved_command != command else None
+                        ),
                         stdout=completed.stdout[-4000:],
                         stderr=completed.stderr[-4000:],
                     )
@@ -116,6 +122,9 @@ class TaskSuiteValidator:
                         command=command,
                         returncode=-1,
                         duration_seconds=time.monotonic() - started,
+                        resolved_command=(
+                            resolved_command if resolved_command != command else None
+                        ),
                         stdout=str(exc.stdout or "")[-4000:],
                         stderr=str(exc.stderr or "")[-4000:],
                         timed_out=True,

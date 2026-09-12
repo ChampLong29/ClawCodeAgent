@@ -23,6 +23,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from .task_commands import runtime_subprocess_environment
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -262,6 +264,7 @@ class WorkspaceSandbox:
             capture_output=True,
             text=True,
             timeout=effective_timeout,
+            env=runtime_subprocess_environment(),
         )
 
     def _seatbelt_enabled(self) -> bool:

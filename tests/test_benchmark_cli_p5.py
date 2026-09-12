@@ -236,6 +236,19 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
                 repeated_action_repair_attempts=1,
             )
 
+    def test_docker_benchmark_rejects_unpinned_image_before_episode(self):
+        calls = []
+        with self.assertRaisesRegex(BenchmarkError, "must be pinned"):
+            run_local_benchmark(
+                manifest_path=self.manifest,
+                output_root=self.output / "benchmark-docker",
+                model_ref=self.model,
+                sandbox_backend="docker",
+                sandbox_image="python:3.12-slim",
+                agent_factory=lambda *_args: calls.append(True),
+            )
+        self.assertEqual(calls, [])
+
     def test_prompt_version_changes_protocol_fingerprint(self):
         common = dict(
             group_name="base",
@@ -311,6 +324,44 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
         self.assertEqual(
             run.call_args.kwargs["manifest_path"],
             str(self.manifest),
+        )
+
+    def test_cli_forwards_pinned_docker_benchmark_boundary(self):
+        config = BenchmarkConfig(
+            group_name="base",
+            model_ref=self.model,
+            test_manifest_ref="task_suites/manifest.json",
+            decoding_config={"temperature": 0.0},
+            tool_schema_version="tool.v1",
+            runtime_version="runtime.v1",
+            verifier_bundle_version="verifier.v1",
+        )
+        result = SimpleNamespace(
+            run_id="benchmark_docker",
+            config=config,
+            task_ids=["task-1"],
+            metrics={},
+        )
+        digest = "sha256:" + "a" * 64
+        with patch(
+            "claw.benchmark.run_local_benchmark",
+            return_value=result,
+        ) as run:
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                exit_code = main([
+                    "benchmark-run",
+                    "--cwd", str(self.project_root),
+                    "--manifest", "task_suites/manifest.json",
+                    "--model", self.model,
+                    "--sandbox-backend", "docker",
+                    "--sandbox-image", f"python@{digest}",
+                ])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(run.call_args.kwargs["sandbox_backend"], "docker")
+        self.assertEqual(
+            run.call_args.kwargs["sandbox_image"],
+            f"python@{digest}",
         )
 
 

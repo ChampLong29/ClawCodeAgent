@@ -15,6 +15,15 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 from ..agent_session import AgentSession
 from ..experiment.schemas import TaskSpec
+from ..sandbox_backend import (
+    ExecRequest,
+    HostBackend,
+    SandboxBackend,
+    SandboxBackendError,
+    SandboxHandle,
+    SandboxSpec,
+)
+from ..task_commands import resolve_task_command
 from .checkpoint import (
     CheckpointIntegrityError,
     CheckpointManager,
@@ -53,12 +62,65 @@ class EpisodeOrchestrator:
         project_root: Optional[Union[str, os.PathLike[str]]] = None,
         environment_allowlist: Optional[Iterable[str]] = None,
         command_runner: Optional[Any] = None,
+        sandbox_backend_name: Optional[str] = None,
+        sandbox_image: Optional[str] = None,
+        sandbox_security_profile: Optional[str] = None,
+        verification_backend: Optional[SandboxBackend] = None,
     ):
         self.episodes_root = Path(episodes_root).resolve()
         self.episodes_root.mkdir(parents=True, exist_ok=True)
         self.project_root = Path(project_root or os.getcwd()).resolve()
         self.environment_allowlist = tuple(environment_allowlist or ())
         self.command_runner = command_runner
+        inferred_backend = (
+            str(getattr(verification_backend, "name", "")).strip().lower()
+            if verification_backend is not None
+            else ""
+        )
+        self._sandbox_backend_explicit = sandbox_backend_name is not None
+        self.sandbox_backend_name = str(
+            sandbox_backend_name or inferred_backend or "host"
+        ).strip().lower()
+        if self.sandbox_backend_name not in {"host", "docker"}:
+            raise ValueError(
+                f"Unsupported episode sandbox backend: {sandbox_backend_name!r}"
+            )
+        if verification_backend is not None:
+            backend_name = str(getattr(verification_backend, "name", ""))
+            if backend_name != self.sandbox_backend_name:
+                raise ValueError(
+                    "verification_backend does not match sandbox_backend_name"
+                )
+        if self.sandbox_backend_name == "docker" and not sandbox_image:
+            raise ValueError(
+                "Docker episode sandbox requires an explicit sandbox_image"
+            )
+        if self.sandbox_backend_name != "docker" and sandbox_image:
+            raise ValueError(
+                "sandbox_image is only valid for the Docker episode backend"
+            )
+        self.sandbox_image = sandbox_image
+        self.sandbox_security_profile = sandbox_security_profile or (
+            "isolated_development"
+            if self.sandbox_backend_name == "docker"
+            else "host_development"
+        )
+        if (
+            self.sandbox_backend_name == "host"
+            and self.sandbox_security_profile != "host_development"
+        ):
+            raise ValueError(
+                "Host episode backend requires host_development profile"
+            )
+        self._verification_backend = verification_backend
+        self._verification_handle: Optional[SandboxHandle] = None
+        if command_runner is not None and (
+            self.sandbox_backend_name != "host"
+            or verification_backend is not None
+        ):
+            raise ValueError(
+                "command_runner cannot be combined with an explicit sandbox backend"
+            )
         self.manifest: Optional[EpisodeManifest] = None
         self.episode_dir: Optional[Path] = None
         self.workspace: Optional[Path] = None
@@ -107,6 +169,11 @@ class EpisodeOrchestrator:
                     if self.command_runner is not None
                     else {"kind": "native"}
                 ),
+                "sandbox_config": {
+                    "backend": self.sandbox_backend_name,
+                    "image_reference": self.sandbox_image or "",
+                    "security_profile": self.sandbox_security_profile,
+                },
             },
         )
         self._save()
@@ -143,7 +210,10 @@ class EpisodeOrchestrator:
             self.manifest.initial_commit = initialize_git(self.workspace)
 
             initial_results = self._run_task_checks(
-                task, task.initial_checks, timeout=task.timeout_seconds
+                task,
+                task.initial_checks,
+                timeout=task.timeout_seconds,
+                purpose="initial_check",
             )
             if self.command_runner is not None:
                 self.manifest.metadata["execution_backend"] = (
@@ -152,6 +222,16 @@ class EpisodeOrchestrator:
             self.manifest.metadata["initial_check_results"] = initial_results
             if any(result.get("timed_out") for result in initial_results):
                 raise InitialValidationError("initial task validation timed out")
+            sandbox_failures = [
+                result
+                for result in initial_results
+                if result.get("sandbox_error_code")
+            ]
+            if sandbox_failures:
+                raise InitialValidationError(
+                    "initial task validation sandbox failed: "
+                    + str(sandbox_failures[0]["sandbox_error_code"])
+                )
             if all(result["returncode"] == 0 for result in initial_results):
                 raise InitialValidationError(
                     "initial task validation unexpectedly passed all checks"
@@ -183,6 +263,8 @@ class EpisodeOrchestrator:
         self.manifest = EpisodeManifest.load(
             self.episode_dir / self.MANIFEST_NAME
         )
+        if not self._sandbox_backend_explicit:
+            self._restore_persisted_sandbox_config()
         if Path(self.manifest.workspace_path).resolve() != self.workspace:
             raise EpisodeStateError("manifest workspace does not match episode path")
         self.checkpoints = CheckpointManager(
@@ -192,6 +274,41 @@ class EpisodeOrchestrator:
             environment_allowlist=self.environment_allowlist,
         )
         return self.manifest
+
+    def _restore_persisted_sandbox_config(self) -> None:
+        assert self.manifest is not None
+        config = self.manifest.metadata.get("sandbox_config", {})
+        if not isinstance(config, dict) or not config:
+            return
+        backend_name = str(config.get("backend", "")).strip().lower()
+        if backend_name not in {"host", "docker"}:
+            raise EpisodeStateError(
+                f"unsupported persisted episode sandbox backend: {backend_name!r}"
+            )
+        image_reference = str(config.get("image_reference", "") or "")
+        security_profile = str(
+            config.get("security_profile", "")
+            or (
+                "benchmark_offline"
+                if backend_name == "docker"
+                else "host_development"
+            )
+        )
+        if backend_name == "docker" and not image_reference:
+            raise EpisodeStateError(
+                "persisted Docker episode has no image reference"
+            )
+        if self._verification_backend is not None and getattr(
+            self._verification_backend,
+            "name",
+            "",
+        ) != backend_name:
+            raise EpisodeStateError(
+                "persisted episode backend does not match verification backend"
+            )
+        self.sandbox_backend_name = backend_name
+        self.sandbox_image = image_reference or None
+        self.sandbox_security_profile = security_profile
 
     def start_run(self) -> None:
         self._require_bound()
@@ -400,7 +517,10 @@ class EpisodeOrchestrator:
             )
 
         command_results = self._run_task_checks(
-            task, task.test_commands, timeout=task.timeout_seconds
+            task,
+            task.test_commands,
+            timeout=task.timeout_seconds,
+            purpose="final_verification",
         )
         evaluator_results = [
             result for result in command_results
@@ -414,6 +534,16 @@ class EpisodeOrchestrator:
             bool(result.get("tests_executed", False))
             for result in evaluator_results
         ) if evaluator_results else True
+        sandbox_failures = [
+            result
+            for result in command_results
+            if result.get("sandbox_error_code")
+        ]
+        if sandbox_failures:
+            raise EpisodeStateError(
+                "verification sandbox execution failed: "
+                + str(sandbox_failures[0]["sandbox_error_code"])
+            )
         passed = sum(
             1 for result in command_results
             if result.get("returncode") == 0
@@ -468,73 +598,275 @@ class EpisodeOrchestrator:
         }
 
     def _run_initial_checks(
-        self, commands: List[str], *, timeout: float
+        self,
+        commands: List[str],
+        *,
+        timeout: float,
+        purpose: str = "verification",
     ) -> List[Dict[str, Any]]:
         assert self.workspace is not None
         results = []
-        for command in commands:
-            try:
-                if self.command_runner is not None:
+        if self.command_runner is not None:
+            for command in commands:
+                try:
                     completed = self.command_runner.run(
                         command, cwd=str(self.workspace), timeout=timeout
                     )
-                else:
-                    completed = subprocess.run(
-                        command,
-                        shell=True,
-                        cwd=str(self.workspace),
-                        capture_output=True,
-                        text=True,
-                        timeout=timeout,
+                    result = {
+                        "command": command,
+                        "returncode": completed.returncode,
+                        "stdout": completed.stdout[-4000:],
+                        "stderr": completed.stderr[-4000:],
+                        "timed_out": False,
+                    }
+                    self._merge_evaluator_payload(result)
+                    if hasattr(self.command_runner, "result_metadata"):
+                        result.update(self.command_runner.result_metadata(completed))
+                    results.append(result)
+                except subprocess.TimeoutExpired as exc:
+                    results.append(
+                        {
+                            "command": command,
+                            "returncode": -1,
+                            "stdout": str(exc.stdout or "")[-4000:],
+                            "stderr": f"timeout after {timeout}s",
+                            "timed_out": True,
+                        }
                     )
-                result = {
-                    "command": command,
-                    "returncode": completed.returncode,
-                    "stdout": completed.stdout[-4000:],
-                    "stderr": completed.stderr[-4000:],
-                }
-                for line in reversed(completed.stdout.splitlines()):
-                    try:
-                        evaluator_payload = json.loads(line)
-                    except (TypeError, json.JSONDecodeError):
-                        continue
-                    if not isinstance(evaluator_payload, dict):
-                        continue
-                    if "evaluation_prepared" in evaluator_payload:
-                        result["evaluation_prepared"] = bool(
-                            evaluator_payload["evaluation_prepared"]
-                        )
-                    if "tests_executed" in evaluator_payload:
-                        result["tests_executed"] = bool(
-                            evaluator_payload["tests_executed"]
-                        )
-                    if evaluator_payload.get("status") == "evaluation_error":
-                        result["evaluation_error_type"] = str(
-                            evaluator_payload.get("error_type", "unknown")
-                        )
-                    break
-                if self.command_runner is not None and hasattr(
-                    self.command_runner, "result_metadata"
-                ):
-                    result.update(self.command_runner.result_metadata(completed))
-                results.append(result)
-            except subprocess.TimeoutExpired as exc:
-                results.append(
-                    {
+            return results
+
+        backend, handle = self._start_verification_sandbox(purpose)
+        try:
+            for command in commands:
+                resolved_command = (
+                    resolve_task_command(command)
+                    if handle.backend_name == "host"
+                    else command
+                )
+                try:
+                    execution = backend.exec(
+                        handle,
+                        ExecRequest(
+                            command=resolved_command,
+                            cwd=".",
+                            timeout_seconds=timeout,
+                        ),
+                    )
+                    result = {
+                        "command": command,
+                        "returncode": (
+                            execution.returncode
+                            if execution.returncode is not None
+                            else -1
+                        ),
+                        "stdout": execution.stdout[-4000:],
+                        "stderr": execution.stderr[-4000:],
+                        "timed_out": execution.timed_out,
+                        "backend_name": execution.backend_name,
+                        "sandbox_id": execution.sandbox_id,
+                        "spec_hash": execution.spec_hash,
+                        "output_truncated": execution.output_truncated,
+                    }
+                    if execution.error_code is not None:
+                        result["sandbox_error_code"] = execution.error_code.value
+                    if resolved_command != command:
+                        result["resolved_command"] = resolved_command
+                    self._merge_evaluator_payload(result)
+                    results.append(result)
+                except SandboxBackendError as exc:
+                    results.append({
                         "command": command,
                         "returncode": -1,
-                        "stdout": str(exc.stdout or "")[-4000:],
-                        "stderr": f"timeout after {timeout}s",
-                        "timed_out": True,
-                    }
-                )
+                        "stdout": "",
+                        "stderr": exc.detail[-4000:],
+                        "timed_out": False,
+                        "backend_name": handle.backend_name,
+                        "sandbox_id": handle.sandbox_id,
+                        "spec_hash": handle.spec_hash,
+                        "sandbox_error_code": exc.code.value,
+                        "retryable": exc.retryable,
+                    })
+                    break
+        finally:
+            try:
+                try:
+                    backend.destroy(handle)
+                except Exception as exc:
+                    self._record_sandbox_destruction(
+                        handle,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    raise
+                else:
+                    self._record_sandbox_destruction(handle)
+            finally:
+                self._verification_handle = None
         return results
 
+    @staticmethod
+    def _merge_evaluator_payload(result: Dict[str, Any]) -> None:
+        """Copy structured evaluator status from the last JSON output line."""
+        for line in reversed(str(result.get("stdout", "")).splitlines()):
+            try:
+                evaluator_payload = json.loads(line)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(evaluator_payload, dict):
+                continue
+            if "evaluation_prepared" in evaluator_payload:
+                result["evaluation_prepared"] = bool(
+                    evaluator_payload["evaluation_prepared"]
+                )
+            if "tests_executed" in evaluator_payload:
+                result["tests_executed"] = bool(
+                    evaluator_payload["tests_executed"]
+                )
+            if evaluator_payload.get("status") == "evaluation_error":
+                result["evaluation_error_type"] = str(
+                    evaluator_payload.get("error_type", "unknown")
+                )
+            break
+
     def _run_task_checks(
-        self, task: TaskSpec, commands: List[str], *, timeout: float
+        self,
+        task: TaskSpec,
+        commands: List[str],
+        *,
+        timeout: float,
+        purpose: str,
     ) -> List[Dict[str, Any]]:
         with self._staged_test_assets(task):
-            return self._run_initial_checks(commands, timeout=timeout)
+            return self._run_initial_checks(
+                commands,
+                timeout=timeout,
+                purpose=purpose,
+            )
+
+    def _start_verification_sandbox(
+        self,
+        purpose: str,
+    ) -> Tuple[SandboxBackend, SandboxHandle]:
+        assert self.workspace is not None
+        if self._verification_handle is not None:
+            raise EpisodeStateError("a verifier sandbox is already active")
+        backend = self._verification_backend
+        if backend is None:
+            if self.sandbox_backend_name == "host":
+                backend = HostBackend()
+            else:
+                from ..docker_backend import DockerBackend
+
+                backend = DockerBackend(cleanup_on_exit=False)
+            self._verification_backend = backend
+
+        episode_id = (
+            self.manifest.episode_id
+            if self.manifest is not None
+            else "unbound"
+        )
+        sandbox_id = (
+            f"{self.sandbox_backend_name}-verifier-{episode_id}-"
+            f"{uuid.uuid4().hex[:12]}"
+        )
+        owner_id = f"{episode_id}:verifier"
+        if self.sandbox_backend_name == "host":
+            spec = SandboxSpec.for_host_workspace(
+                str(self.workspace),
+                owner_kind="verification",
+                owner_id=owner_id,
+                sandbox_id=sandbox_id,
+            )
+        else:
+            assert self.sandbox_image is not None
+            spec = SandboxSpec.for_docker_workspace(
+                str(self.workspace),
+                image=self.sandbox_image,
+                owner_kind="verification",
+                owner_id=owner_id,
+                sandbox_id=sandbox_id,
+                security_profile=self.sandbox_security_profile,
+            )
+        handle = backend.prepare(spec)
+        try:
+            backend.start(handle)
+        except Exception:
+            try:
+                backend.destroy(handle)
+            except Exception:
+                pass
+            raise
+        self._verification_handle = handle
+        self._record_sandbox_evidence(purpose, spec, handle)
+        return backend, handle
+
+    def _record_sandbox_evidence(
+        self,
+        purpose: str,
+        spec: SandboxSpec,
+        handle: SandboxHandle,
+    ) -> None:
+        if self.manifest is None:
+            return
+        evidence = {
+            "purpose": purpose,
+            "backend": handle.backend_name,
+            "sandbox_id": handle.sandbox_id,
+            "spec_hash": handle.spec_hash,
+            "runtime_tier": spec.runtime_tier.value,
+            "security_profile": spec.security_profile,
+            "network_mode": spec.network.mode.value,
+            "generation": handle.generation,
+            "owner_kind": handle.owner_kind,
+            "owner_id": handle.owner_id,
+            "destroyed": False,
+            "final_state": handle.state.value,
+        }
+        for key in (
+            "docker_server_version",
+            "image_identity",
+            "image_reference",
+        ):
+            value = handle.backend_metadata.get(key)
+            if value:
+                evidence[key] = value
+        executions = self.manifest.metadata.setdefault(
+            "sandbox_executions",
+            [],
+        )
+        if not isinstance(executions, list):
+            raise EpisodeStateError(
+                "episode sandbox execution evidence must be a list"
+            )
+        executions.append(evidence)
+        self._save()
+
+    def _record_sandbox_destruction(
+        self,
+        handle: SandboxHandle,
+        *,
+        error: str = "",
+    ) -> None:
+        if self.manifest is None:
+            return
+        executions = self.manifest.metadata.get("sandbox_executions", [])
+        if not isinstance(executions, list):
+            raise EpisodeStateError(
+                "episode sandbox execution evidence must be a list"
+            )
+        for evidence in reversed(executions):
+            if not isinstance(evidence, dict):
+                continue
+            if evidence.get("sandbox_id") != handle.sandbox_id:
+                continue
+            evidence["destroyed"] = not bool(error)
+            evidence["final_state"] = handle.state.value
+            if error:
+                evidence["destroy_error"] = error
+            self._save()
+            return
+        raise EpisodeStateError(
+            f"missing sandbox creation evidence for {handle.sandbox_id!r}"
+        )
 
     @contextmanager
     def _staged_test_assets(self, task: TaskSpec):

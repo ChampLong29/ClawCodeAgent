@@ -271,6 +271,7 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
         self.assertEqual(event_types.count("tool_call"), 1)
         self.assertEqual(event_types.count("tool_result"), 1)
         self.assertEqual(event_types.count("runtime_guidance"), 1)
+        self.assertEqual(event_types.count("sandbox_lifecycle"), 1)
         self.assertEqual(event_types.count("workspace_diff"), 1)
         self.assertEqual(event_types.count("test_result"), 1)
         test_event = next(
@@ -307,6 +308,14 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
             adapter.recorder.resolve_payload(tool_result)[
                 "side_effect_possible"
             ]
+        )
+        lifecycle_event = next(
+            event for event in events
+            if event.event_type == "sandbox_lifecycle"
+        )
+        self.assertEqual(
+            adapter.recorder.resolve_payload(lifecycle_event)["action"],
+            "destroyed_before_verification",
         )
         context = VerificationContext(
             trajectory=trajectory,
@@ -425,6 +434,53 @@ class RuntimeAdapterIntegrationTests(unittest.TestCase):
         self.assertFalse(permission.payload["allowed"])
         self.assertEqual(denied.parent_event_id, permission.parent_event_id)
         self.assertIn("denied", denied.payload["error"].lower())
+
+    def test_shell_result_records_backend_execution_evidence(self):
+        task, orchestrator = self.prepare_episode("episode-shell-evidence")
+        adapter = self.make_adapter(orchestrator, task)
+        agent = LocalCodingAgent(
+            cwd=str(orchestrator.workspace),
+            permissions=AgentPermissions(allow_shell=True).to_dict(),
+        )
+        agent.client = SequencedClient(
+            [
+                response_with_tool(
+                    "bash",
+                    {
+                        "command": (
+                            "python -c \"from pathlib import Path; "
+                            "Path('solution.txt').write_text('done\\n')\""
+                        )
+                    },
+                ),
+                final_response("sandbox evidence recorded"),
+            ]
+        )
+
+        result = adapter.run(agent, task.prompt, max_turns=3)
+        tool_result = next(
+            event
+            for event in adapter.recorder.trajectory.events
+            if event.event_type == "tool_result"
+        )
+        payload = adapter.recorder.resolve_payload(tool_result)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(payload["backend_name"], "host")
+        self.assertTrue(payload["sandbox_id"].startswith("host-session-"))
+        self.assertEqual(len(payload["spec_hash"]), 64)
+        self.assertFalse(payload["timed_out"])
+        self.assertFalse(payload["output_truncated"])
+        self.assertEqual(payload["sandbox_generation"], 1)
+        self.assertEqual(payload["sandbox_owner_kind"], "interactive_session")
+        self.assertTrue(payload["sandbox_owner_id"])
+        self.assertEqual(payload["sandbox_runtime_tier"], "host")
+        self.assertEqual(
+            payload["sandbox_security_profile"],
+            "host_development",
+        )
+        self.assertEqual(payload["sandbox_network_mode"], "unrestricted")
+        self.assertIsNone(agent.sandbox_handle)
 
 
 if __name__ == "__main__":

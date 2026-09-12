@@ -195,6 +195,7 @@ class ReplayComparator:
             "checkpoint_created",
             "rollback_completed",
             "runtime_guidance",
+            "sandbox_lifecycle",
         }:
             return "process"
         if event_type in {"runtime_stop", "runtime_error", "episode_terminated"}:

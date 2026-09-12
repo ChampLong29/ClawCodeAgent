@@ -19,6 +19,12 @@ from claw.episode import (
     workspace_hash,
 )
 from claw.experiment.schemas import TaskSpec
+from claw.sandbox_backend import (
+    HostBackend,
+    SandboxBackendError,
+    SandboxErrorCode,
+    SandboxState,
+)
 from claw.trajectory import (
     ReplayComparator,
     TraceReplayEngine,
@@ -45,6 +51,35 @@ class FakeProcess:
 
     def kill(self):
         self.running = False
+
+
+class RecordingHostBackend(HostBackend):
+    def __init__(self):
+        super().__init__()
+        self.executions = []
+        self.destroyed = []
+
+    def exec(self, handle, request):
+        self.executions.append({
+            "sandbox_id": handle.sandbox_id,
+            "hidden_tests_visible": (
+                Path(handle.workspace_path) / ".claw_hidden_tests"
+            ).is_dir(),
+        })
+        return super().exec(handle, request)
+
+    def destroy(self, handle):
+        super().destroy(handle)
+        self.destroyed.append((handle.sandbox_id, handle.state))
+
+
+class FailingHostBackend(HostBackend):
+    def exec(self, handle, request):
+        raise SandboxBackendError(
+            SandboxErrorCode.BACKEND_UNAVAILABLE,
+            "simulated verifier backend outage",
+            retryable=True,
+        )
 
 
 class EpisodeTestCase(unittest.TestCase):
@@ -121,6 +156,135 @@ class TestEpisodeStateMachine(EpisodeTestCase):
         self.assertFalse(result["tests_executed"])
         self.assertEqual(result["total_tests"], 0)
         self.assertEqual(result["evaluation_errors"][0]["error_type"], "HiddenTestPatchConflict")
+
+    def test_verifier_backend_failure_is_not_a_test_failure(self):
+        orchestrator = EpisodeOrchestrator(
+            self.episodes,
+            project_root=self.root,
+            verification_backend=FailingHostBackend(),
+        )
+
+        with self.assertRaisesRegex(
+            InitialValidationError,
+            "sandbox failed: backend_unavailable",
+        ):
+            orchestrator.prepare(
+                self.make_task(),
+                episode_id="ep-verifier-outage",
+            )
+
+        manifest = EpisodeManifest.load(
+            self.episodes / "ep-verifier-outage" / "episode.json"
+        )
+        result = manifest.metadata["initial_check_results"][0]
+        self.assertEqual(result["sandbox_error_code"], "backend_unavailable")
+        self.assertTrue(result["retryable"])
+        self.assertEqual(manifest.current_state, EpisodeState.FAILED)
+
+    def test_initial_and_final_checks_use_fresh_verifier_sandboxes(self):
+        assets = self.root / "hidden-assets"
+        assets.mkdir()
+        (assets / "probe.txt").write_text("hidden\n", encoding="utf-8")
+        task = self.make_task()
+        task.test_assets_ref = str(assets)
+        task.test_assets_hash = workspace_hash(assets)
+        task.initial_checks = [
+            "python -c \"from pathlib import Path; "
+            "assert Path('.claw_hidden_tests/probe.txt').is_file(); "
+            "raise SystemExit(1)\""
+        ]
+        task.test_commands = [
+            "python -c \"from pathlib import Path; import app; "
+            "assert Path('.claw_hidden_tests/probe.txt').is_file(); "
+            "assert app.VALUE == 1\""
+        ]
+        task.content_hash = task.compute_content_hash()
+        backend = RecordingHostBackend()
+        orchestrator = EpisodeOrchestrator(
+            self.episodes,
+            project_root=self.root,
+            verification_backend=backend,
+        )
+
+        manifest = orchestrator.prepare(task, episode_id="ep-verifier-boundary")
+        self.assertFalse(
+            (orchestrator.workspace / ".claw_hidden_tests").exists()
+        )
+        (orchestrator.workspace / "app.py").write_text(
+            "VALUE = 1\n",
+            encoding="utf-8",
+        )
+        orchestrator.start_run()
+        facts = orchestrator.collect_verification_facts(task)
+
+        self.assertEqual(facts["test_result"]["passed_tests"], 1)
+        self.assertEqual(len(backend.executions), 2)
+        self.assertTrue(
+            all(item["hidden_tests_visible"] for item in backend.executions)
+        )
+        sandbox_ids = {
+            item["sandbox_id"] for item in backend.executions
+        }
+        self.assertEqual(len(sandbox_ids), 2)
+        self.assertEqual(
+            {item[0] for item in backend.destroyed},
+            sandbox_ids,
+        )
+        self.assertTrue(
+            all(item[1] == SandboxState.DESTROYED for item in backend.destroyed)
+        )
+        self.assertFalse(
+            (orchestrator.workspace / ".claw_hidden_tests").exists()
+        )
+        self.assertEqual(
+            [
+                item["purpose"]
+                for item in manifest.metadata["sandbox_executions"]
+            ],
+            ["initial_check", "final_verification"],
+        )
+        self.assertTrue(
+            all(
+                item["backend"] == "host"
+                for item in manifest.metadata["sandbox_executions"]
+            )
+        )
+        self.assertTrue(
+            all(
+                item["owner_kind"] == "verification"
+                for item in manifest.metadata["sandbox_executions"]
+            )
+        )
+        self.assertTrue(
+            all(
+                item["destroyed"]
+                and item["final_state"] == "destroyed"
+                for item in manifest.metadata["sandbox_executions"]
+            )
+        )
+
+    def test_task_checks_can_resolve_python_from_active_runtime(self):
+        orchestrator = EpisodeOrchestrator(
+            self.episodes,
+            project_root=self.root,
+        )
+        orchestrator.workspace = self.template
+        original_path = os.environ.get("PATH")
+        os.environ["PATH"] = "/usr/bin:/bin"
+        try:
+            results = orchestrator._run_initial_checks(
+                ['python -c "print(\'runtime-ok\')"'],
+                timeout=5,
+            )
+        finally:
+            if original_path is None:
+                os.environ.pop("PATH", None)
+            else:
+                os.environ["PATH"] = original_path
+
+        self.assertEqual(results[0]["returncode"], 0, results[0])
+        self.assertEqual(results[0]["stdout"].strip(), "runtime-ok")
+        self.assertIn("resolved_command", results[0])
 
     def test_prepare_preserves_safe_directory_symlink_without_following_loop(self):
         link = self.template / "loop"

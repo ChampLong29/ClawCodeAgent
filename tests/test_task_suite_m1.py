@@ -1,9 +1,11 @@
 """M1 executable task-suite coverage and split contracts."""
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from claw.episode import EpisodeOrchestrator, EpisodeState
 from claw.experiment.schemas import SchemaValidationError
@@ -45,6 +47,19 @@ class TestCoreTaskSuite(unittest.TestCase):
         self.assertTrue(
             all(item.reference_passed for item in self.report.tasks)
         )
+
+    def test_validator_resolves_bare_python_without_ambient_alias(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ, {"PATH": "/usr/bin:/bin"}):
+                results = TaskSuiteValidator._run(
+                    ['python -c "print(\'suite-runtime-ok\')"'],
+                    Path(directory),
+                    5,
+                )
+
+        self.assertEqual(results[0].returncode, 0, results[0])
+        self.assertEqual(results[0].stdout.strip(), "suite-runtime-ok")
+        self.assertIsNotNone(results[0].resolved_command)
 
     def test_validation_report_is_reconstructable_json(self):
         with tempfile.TemporaryDirectory() as directory:

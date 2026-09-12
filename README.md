@@ -127,7 +127,28 @@ python -m claw.main agent "分析这个仓库" --cwd . --stream
 - Bash 安全策略、GUI 权限确认、插件级工具屏蔽与别名。
 - 可选的重复只读 Action Guard，在无中间修改时阻止完全相同的观察请求反复执行。
 - 会话持久化、恢复、自动压缩和工具结果截断。
+- Agent Shell 与命令型 Plugin 经过统一 Sandbox Backend；Host 为非强隔离兼容模式，
+  Docker 为显式选择的离线容器模式。
 - 自动注入 Git 状态、平台信息、`AGENTS.md` 和各 Runtime 摘要。
+
+Docker Backend 不会自动拉取镜像，也不会在失败时降级回 Host。请先在宿主准备本地
+镜像，再显式启用：
+
+```bash
+claw agent "修复当前项目并运行测试" \
+  --cwd . \
+  --sandbox-backend docker \
+  --sandbox-image 'python:3.12-slim' \
+  --stream
+```
+
+当前 Docker Profile 强制离线网络、非 root、只读 RootFS、`cap-drop=ALL`、
+`no-new-privileges` 及 CPU/内存/PID/超时/输出限制。它仍共享 Docker 宿主内核，
+不应宣称为 microVM 或公网多租户隔离。
+恢复会话时若未显式指定 Backend，会继承会话中记录的 Backend 与 Docker 镜像，
+避免无提示降级到 Host；显式指定则视为有意切换执行边界。
+在 Docker 主机上的镜像准备、Live Test、单任务 Benchmark 和证据验收步骤见
+[`docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md`](docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md)。
 
 ### 开发工作流
 
@@ -354,6 +375,25 @@ claw benchmark-run \
   --limit 1 \
   --output .port_sessions/benchmark-medium
 ```
+
+本地镜像已经按 digest 固定时，可以让 Agent 命令与 Episode 初始/最终验证分别运行在
+独立的离线 Docker Sandbox 中：
+
+```bash
+claw benchmark-run \
+  --manifest task_suites/manifest.json \
+  --group base \
+  --limit 1 \
+  --sandbox-backend docker \
+  --sandbox-image 'python@sha256:<64位镜像摘要>' \
+  --output .port_sessions/benchmark-docker
+```
+
+Verifier Sandbox 每个阶段重新创建并立即销毁；Agent Sandbox 先销毁才会启动最终
+Verifier，隐藏测试只在 Verifier 阶段暂存。清理失败会作为基础设施失败记录。
+Git 初始化、Diff 和 Checkpoint 仍是可信宿主控制面。当前主机尚未完成真实 Docker
+Pilot，因此该入口是 **Implemented / Contract verified**，不是 Benchmark verified，
+也不是官方 SWE-bench Harness 成绩。
 
 默认 Diff 白名单从任务的版本化 Oracle 文件推导；重复传入 `--allow-path <glob>` 可显式覆盖。输出目录包含 `benchmark-run.json`、Markdown 报告和每个 Episode 的证据。
 

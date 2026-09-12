@@ -19,6 +19,8 @@ class QueryEngineConfig:
     permission_callback: Optional[Callable] = None
     max_turns: int = 100
     stream: bool = False
+    sandbox_backend: Optional[str] = None
+    sandbox_image: Optional[str] = None
 
 
 class QueryEngine:
@@ -57,6 +59,8 @@ class QueryEngine:
                 cwd=self.cwd,
                 model_config=self.config.model,
                 budget=self.config.budget,
+                sandbox_backend_name=self.config.sandbox_backend,
+                sandbox_image=self.config.sandbox_image,
             )
             self._agent.permissions = self.config.permissions
             self._agent.permission_callback = self.config.permission_callback
@@ -67,6 +71,8 @@ class QueryEngine:
                 model_config=self.config.model,
                 budget=self.config.budget,
                 permissions=self.config.permissions,
+                sandbox_backend_name=self.config.sandbox_backend or "host",
+                sandbox_image=self.config.sandbox_image,
             )
             self._agent.permission_callback = self.config.permission_callback
             result = self._agent.run(prompt, max_turns=self.config.max_turns, stream=self.config.stream)
@@ -102,6 +108,8 @@ class QueryEngine:
             permissions=permissions,
             max_turns=self.config.max_turns,
             stream=self.config.stream,
+            sandbox_backend=self.config.sandbox_backend,
+            sandbox_image=self.config.sandbox_image,
         )
 
         engine = QueryEngine(self.cwd, config)
@@ -122,6 +130,8 @@ def run_query(
     budget: Optional[BudgetConfig] = None,
     stream: bool = False,
     max_turns: Optional[int] = None,
+    sandbox_backend: Optional[str] = None,
+    sandbox_image: Optional[str] = None,
 ) -> AgentRunResult:
     """Simple function to run a query.
 
@@ -136,6 +146,8 @@ def run_query(
         budget=budget,
         stream=stream,
         max_turns=max_turns or 100,
+        sandbox_backend=sandbox_backend,
+        sandbox_image=sandbox_image,
     )
 
     engine = QueryEngine(cwd, config)

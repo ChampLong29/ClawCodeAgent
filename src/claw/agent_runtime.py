@@ -31,6 +31,15 @@ from .token_budget import TokenBudget
 from .hook_policy import HookPolicyRuntime
 from .plugin_runtime import PluginRuntime
 from .compact import compact_messages, should_compact, AUTOCOMPACT_BUFFER_TOKENS
+from .sandbox_backend import (
+    HostBackend,
+    SandboxBackend,
+    SandboxBackendError,
+    SandboxErrorCode,
+    SandboxHandle,
+    SandboxSpec,
+    SandboxState,
+)
 from .microcompact import truncate_tool_result
 
 # Runtime modules for context injection
@@ -111,6 +120,12 @@ class LocalCodingAgent:
     post_edit_contract_guidance: bool = False
     implementation_path_patterns: Sequence[str] = ()
     command_runner: Optional[Any] = None
+    sandbox_backend_name: str = "host"
+    sandbox_image: Optional[str] = None
+    sandbox_security_profile: Optional[str] = None
+    sandbox_backend: Optional[SandboxBackend] = None
+    sandbox_spec: Optional[SandboxSpec] = None
+    sandbox_handle: Optional[SandboxHandle] = None
 
     # Internal state
     session: Optional[AgentSession] = None
@@ -139,6 +154,23 @@ class LocalCodingAgent:
 
     def __post_init__(self):
         """Initialize the agent after construction."""
+        self.sandbox_backend_name = str(self.sandbox_backend_name).strip().lower()
+        if self.sandbox_backend is None and self.sandbox_backend_name not in {
+            "host",
+            "docker",
+        }:
+            raise ValueError(
+                f"Unsupported sandbox backend: {self.sandbox_backend_name!r}"
+            )
+        if self.command_runner is not None and (
+            self.sandbox_backend_name != "host"
+            or self.sandbox_backend is not None
+            or self.sandbox_spec is not None
+            or self.sandbox_handle is not None
+        ):
+            raise ValueError(
+                "command_runner cannot be combined with an explicit sandbox backend"
+            )
         if self.completion_reminder_turns < 0:
             raise ValueError("completion_reminder_turns must be non-negative")
         if self.completion_critical_turns < 0:
@@ -426,6 +458,130 @@ class LocalCodingAgent:
         )
         return f"{actual_tool_name}:{canonical}"
 
+    def _ensure_sandbox(self) -> SandboxHandle:
+        """Prepare one execution sandbox owned by the active Agent session."""
+        if self.sandbox_backend is None:
+            if self.sandbox_backend_name == "host":
+                self.sandbox_backend = HostBackend()
+            elif self.sandbox_backend_name == "docker":
+                from .docker_backend import DockerBackend
+
+                self.sandbox_backend = DockerBackend()
+            else:
+                raise ValueError(
+                    f"Unsupported sandbox backend: {self.sandbox_backend_name!r}"
+                )
+
+        if self.sandbox_handle is not None:
+            status = self.sandbox_backend.inspect(self.sandbox_handle)
+            if status.state in (SandboxState.READY, SandboxState.STOPPED):
+                self.sandbox_backend.start(self.sandbox_handle)
+            elif status.state != SandboxState.RUNNING:
+                raise SandboxBackendError(
+                    code=SandboxErrorCode.INSTANCE_LOST,
+                    detail=(
+                        f"sandbox {status.sandbox_id!r} cannot execute from "
+                        f"state {status.state.value}"
+                    ),
+                )
+            return self.sandbox_handle
+
+        if self.sandbox_spec is None:
+            owner_id = (
+                self.session.session_id
+                if self.session is not None
+                else f"unbound-{uuid.uuid4().hex[:8]}"
+            )
+            if self.sandbox_backend.name == "host":
+                self.sandbox_spec = SandboxSpec.for_host_workspace(
+                    self.cwd,
+                    owner_kind="interactive_session",
+                    owner_id=owner_id,
+                    sandbox_id=f"host-session-{owner_id}",
+                )
+            elif self.sandbox_backend.name == "docker":
+                if not self.sandbox_image:
+                    raise ValueError(
+                        "Docker sandbox requires an explicit sandbox_image"
+                    )
+                self.sandbox_spec = SandboxSpec.for_docker_workspace(
+                    self.cwd,
+                    image=self.sandbox_image,
+                    owner_kind="interactive_session",
+                    owner_id=owner_id,
+                    sandbox_id=f"docker-session-{owner_id}",
+                    security_profile=(
+                        self.sandbox_security_profile
+                        or "isolated_development"
+                    ),
+                )
+            else:
+                raise ValueError(
+                    "A custom sandbox backend requires an explicit SandboxSpec "
+                    "or SandboxHandle"
+                )
+
+        self.sandbox_handle = self.sandbox_backend.prepare(self.sandbox_spec)
+        self.sandbox_backend.start(self.sandbox_handle)
+        if self.session is not None:
+            self.session.metadata["sandbox"] = {
+                "backend": self.sandbox_handle.backend_name,
+                "sandbox_id": self.sandbox_handle.sandbox_id,
+                "spec_hash": self.sandbox_handle.spec_hash,
+                "runtime_tier": self.sandbox_spec.runtime_tier.value,
+                "security_profile": self.sandbox_spec.security_profile,
+                "network_mode": self.sandbox_spec.network.mode.value,
+                "generation": self.sandbox_handle.generation,
+                "owner_kind": self.sandbox_handle.owner_kind,
+                "owner_id": self.sandbox_handle.owner_id,
+            }
+            for metadata_key in (
+                "docker_server_version",
+                "image_identity",
+                "image_reference",
+            ):
+                metadata_value = self.sandbox_handle.backend_metadata.get(
+                    metadata_key
+                )
+                if metadata_value:
+                    self.session.metadata["sandbox"][metadata_key] = metadata_value
+        return self.sandbox_handle
+
+    def destroy_sandbox(self) -> None:
+        """Destroy the active execution sandbox without erasing its spec."""
+        if self.sandbox_handle is None:
+            return
+        if self.sandbox_backend is None:
+            raise SandboxBackendError(
+                code=SandboxErrorCode.INSTANCE_LOST,
+                detail="active sandbox handle has no owning backend",
+            )
+        handle = self.sandbox_handle
+        self.sandbox_backend.destroy(handle)
+        self.sandbox_handle = None
+
+    def _tool_execution_context(
+        self, permissions: Dict[str, Any]
+    ) -> ToolExecutionContext:
+        if self.command_runner is not None:
+            return ToolExecutionContext(
+                cwd=self.cwd,
+                runtime_context=self.runtime_context,
+                permissions=dict(permissions),
+                command_runner=self.command_runner,
+            )
+        handle = self._ensure_sandbox()
+        effective_permissions = dict(permissions)
+        if handle.backend_name != "host":
+            effective_permissions["restrict_workspace"] = True
+        return ToolExecutionContext(
+            cwd=self.cwd,
+            runtime_context=self.runtime_context,
+            permissions=effective_permissions,
+            sandbox_backend=self.sandbox_backend,
+            sandbox_handle=handle,
+        )
+
     @classmethod
     def from_session(
         cls,
@@ -433,14 +589,49 @@ class LocalCodingAgent:
         cwd: str,
         model_config: Optional[Any] = None,
         budget: Optional[BudgetConfig] = None,
+        sandbox_backend_name: Optional[str] = None,
+        sandbox_image: Optional[str] = None,
     ) -> LocalCodingAgent:
         """Resume an agent from an existing session."""
-        agent = cls(cwd=cwd, model_config=model_config, budget=budget)
+        requested_backend = sandbox_backend_name
+        agent = cls(
+            cwd=cwd,
+            model_config=model_config,
+            budget=budget,
+            sandbox_backend_name=requested_backend or "host",
+            sandbox_image=sandbox_image,
+        )
 
         try:
             agent.session = load_agent_session(session_id, cwd)
         except FileNotFoundError:
             agent.session = AgentSession(session_id=session_id)
+
+        if requested_backend is None:
+            sandbox_metadata = agent.session.metadata.get("sandbox", {})
+            if isinstance(sandbox_metadata, dict):
+                persisted_backend = str(
+                    sandbox_metadata.get("backend", "")
+                ).strip().lower()
+                if persisted_backend:
+                    if persisted_backend not in {"host", "docker"}:
+                        raise ValueError(
+                            "Unsupported persisted sandbox backend: "
+                            f"{persisted_backend!r}"
+                        )
+                    agent.sandbox_backend_name = persisted_backend
+                    if persisted_backend == "docker" and not agent.sandbox_image:
+                        image_reference = sandbox_metadata.get("image_reference")
+                        if image_reference:
+                            agent.sandbox_image = str(image_reference)
+                    if persisted_backend == "docker":
+                        security_profile = sandbox_metadata.get(
+                            "security_profile"
+                        )
+                        if security_profile:
+                            agent.sandbox_security_profile = str(
+                                security_profile
+                            )
 
         return agent
 
@@ -1347,11 +1538,7 @@ class LocalCodingAgent:
                         result = execute_tool(
                             actual_tool_name,
                             args,
-                            context=ToolExecutionContext(
-                                cwd=self.cwd,
-                                permissions=tool_perms,
-                                command_runner=self.command_runner,
-                            ),
+                            context=self._tool_execution_context(tool_perms),
                         )
 
                         # Check if tool needs interactive permission
@@ -1383,11 +1570,7 @@ class LocalCodingAgent:
                                     result = execute_tool(
                                         actual_tool_name,
                                         args,
-                                        context=ToolExecutionContext(
-                                            cwd=self.cwd,
-                                            permissions=tool_perms,
-                                            command_runner=self.command_runner,
-                                        ),
+                                        context=self._tool_execution_context(tool_perms),
                                     )
                                 else:
                                     # User denied permission — skip this tool call
@@ -1447,6 +1630,52 @@ class LocalCodingAgent:
                                 "write_file", "edit_file", "bash"
                             },
                         })
+                        if isinstance(result.result, dict):
+                            for evidence_key in (
+                                "backend_name",
+                                "sandbox_id",
+                                "spec_hash",
+                                "timed_out",
+                                "cancelled",
+                                "output_truncated",
+                            ):
+                                if evidence_key in result.result:
+                                    result_payload[evidence_key] = result.result[
+                                        evidence_key
+                                    ]
+                        if self.sandbox_handle is not None:
+                            result_payload.update({
+                                "sandbox_generation": self.sandbox_handle.generation,
+                                "sandbox_owner_kind": self.sandbox_handle.owner_kind,
+                                "sandbox_owner_id": self.sandbox_handle.owner_id,
+                                "sandbox_runtime_tier": (
+                                    self.sandbox_spec.runtime_tier.value
+                                    if self.sandbox_spec is not None
+                                    else ""
+                                ),
+                                "sandbox_security_profile": (
+                                    self.sandbox_spec.security_profile
+                                    if self.sandbox_spec is not None
+                                    else ""
+                                ),
+                                "sandbox_network_mode": (
+                                    self.sandbox_spec.network.mode.value
+                                    if self.sandbox_spec is not None
+                                    else ""
+                                ),
+                            })
+                            for metadata_key in (
+                                "docker_server_version",
+                                "image_identity",
+                                "image_reference",
+                            ):
+                                metadata_value = (
+                                    self.sandbox_handle.backend_metadata.get(
+                                        metadata_key
+                                    )
+                                )
+                                if metadata_value:
+                                    result_payload[metadata_key] = metadata_value
                         self._trace(
                             "tool_result",
                             payload=result_payload,

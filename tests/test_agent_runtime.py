@@ -64,6 +64,39 @@ class TestAgentRuntimeFromSession(unittest.TestCase):
         # (session keeps its own model field from persistence)
         self.assertEqual(agent.session.session_id, "model-test")
 
+    def test_from_session_preserves_persisted_docker_boundary(self):
+        session = AgentSession(session_id="docker-resume")
+        session.metadata["sandbox"] = {
+            "backend": "docker",
+            "image_reference": "python:3.12-slim",
+        }
+        save_agent_session(session, self.tempdir)
+
+        agent = LocalCodingAgent.from_session(
+            session_id="docker-resume",
+            cwd=self.tempdir,
+        )
+
+        self.assertEqual(agent.sandbox_backend_name, "docker")
+        self.assertEqual(agent.sandbox_image, "python:3.12-slim")
+
+    def test_from_session_allows_explicit_backend_override(self):
+        session = AgentSession(session_id="docker-to-host")
+        session.metadata["sandbox"] = {
+            "backend": "docker",
+            "image_reference": "python:3.12-slim",
+        }
+        save_agent_session(session, self.tempdir)
+
+        agent = LocalCodingAgent.from_session(
+            session_id="docker-to-host",
+            cwd=self.tempdir,
+            sandbox_backend_name="host",
+        )
+
+        self.assertEqual(agent.sandbox_backend_name, "host")
+        self.assertIsNone(agent.sandbox_image)
+
 
 class TestAgentSessionManagement(unittest.TestCase):
     """Test agent session lifecycle (without live API call)."""

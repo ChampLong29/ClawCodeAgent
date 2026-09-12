@@ -22,6 +22,24 @@ def _resolve_cwd(cwd: Optional[str]) -> str:
     return os.getcwd()
 
 
+def _validate_sandbox_cli_args(args) -> bool:
+    backend = getattr(args, "sandbox_backend", "host")
+    image = getattr(args, "sandbox_image", None)
+    if backend == "docker" and not image:
+        print(
+            "Error: --sandbox-image is required with --sandbox-backend docker",
+            file=sys.stderr,
+        )
+        return False
+    if backend != "docker" and image:
+        print(
+            "Error: --sandbox-image is only valid with --sandbox-backend docker",
+            file=sys.stderr,
+        )
+        return False
+    return True
+
+
 def cmd_summary(args) -> int:
     """Show project summary."""
     cwd = _resolve_cwd(args.cwd)
@@ -97,6 +115,8 @@ def cmd_parity_audit(args) -> int:
 def cmd_agent(args) -> int:
     """Run agent command."""
     cwd = _resolve_cwd(args.cwd)
+    if not _validate_sandbox_cli_args(args):
+        return 2
 
     from .api_config import APIConfigRuntime
     api_config = APIConfigRuntime(cwd=cwd).get_config()
@@ -119,6 +139,8 @@ def cmd_agent(args) -> int:
         budget=budget,
         stream=stream,
         max_turns=args.max_turns,
+        sandbox_backend=args.sandbox_backend,
+        sandbox_image=args.sandbox_image,
     )
 
     if not stream and result.final_message:
@@ -132,6 +154,8 @@ def cmd_agent(args) -> int:
 def cmd_agent_chat(args) -> int:
     """Run agent in interactive REPL mode."""
     cwd = _resolve_cwd(args.cwd)
+    if not _validate_sandbox_cli_args(args):
+        return 2
 
     from .repl import ClawRepl
 
@@ -139,6 +163,8 @@ def cmd_agent_chat(args) -> int:
         cwd=cwd,
         model=args.model,
         max_turns=args.max_turns,
+        sandbox_backend=args.sandbox_backend,
+        sandbox_image=args.sandbox_image,
     )
     repl.run()
     return 0
@@ -186,12 +212,16 @@ def cmd_tui(args) -> int:
 def cmd_resume(args) -> int:
     """Resume an agent session."""
     cwd = _resolve_cwd(args.cwd)
+    if not _validate_sandbox_cli_args(args):
+        return 2
 
     result = run_query(
         prompt=args.prompt,
         cwd=cwd,
         session_id=args.session_id,
         stream=args.stream,
+        sandbox_backend=args.sandbox_backend,
+        sandbox_image=args.sandbox_image,
     )
 
     if not args.stream and result.final_message:
@@ -484,6 +514,8 @@ def cmd_benchmark_run(args) -> int:
             container_memory=args.container_memory,
             container_pids_limit=args.container_pids_limit,
             container_user=args.container_user,
+            sandbox_backend=args.sandbox_backend,
+            sandbox_image=args.sandbox_image,
         )
     except Exception as exc:
         print(
@@ -502,6 +534,8 @@ def cmd_benchmark_run(args) -> int:
         "run_id": result.run_id,
         "group": result.config.group_name,
         "model_ref": result.config.model_ref,
+        "sandbox_backend": args.sandbox_backend,
+        "sandbox_image": args.sandbox_image,
         "protocol_fingerprint": result.config.protocol_fingerprint,
         "task_count": len(result.task_ids),
         "metrics": result.metrics,
@@ -690,12 +724,29 @@ def main(argv: Optional[List[str]] = None) -> int:
     agent_parser.add_argument("--max-tokens", type=int, default=None)
     agent_parser.add_argument("--max-turns", type=int, default=None)
     agent_parser.add_argument("--stream", action="store_true")
+    agent_parser.add_argument(
+        "--sandbox-backend",
+        choices=("host", "docker"),
+        default=None,
+        help="Execution backend for model-directed commands",
+    )
+    agent_parser.add_argument(
+        "--sandbox-image",
+        default=None,
+        help="Explicit local image reference required by the Docker backend",
+    )
 
     chat_parser = subparsers.add_parser("agent-chat", help="Run agent in chat mode")
     chat_parser.add_argument("--cwd", default=None)
     chat_parser.add_argument("--model", default=None)
     chat_parser.add_argument("--max-turns", type=int, default=None)
     chat_parser.add_argument("--stream", action="store_true")
+    chat_parser.add_argument(
+        "--sandbox-backend",
+        choices=("host", "docker"),
+        default=None,
+    )
+    chat_parser.add_argument("--sandbox-image", default=None)
 
     tui_parser = subparsers.add_parser("tui", help="Run agent in TUI mode (Textual)")
     tui_parser.add_argument("--cwd", default=None)
@@ -706,6 +757,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     resume_parser.add_argument("--session-id", required=True)
     resume_parser.add_argument("--cwd", default=None)
     resume_parser.add_argument("--stream", action="store_true")
+    resume_parser.add_argument(
+        "--sandbox-backend",
+        choices=("host", "docker"),
+        default=None,
+    )
+    resume_parser.add_argument("--sandbox-image", default=None)
 
     context_parser = subparsers.add_parser("agent-context", help="Show agent context")
     context_parser.add_argument("--cwd", default=None)
@@ -861,6 +918,17 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--container-pids-limit", type=int, default=256
     )
     benchmark_parser.add_argument("--container-user", default=None)
+    benchmark_parser.add_argument(
+        "--sandbox-backend",
+        choices=("host", "docker"),
+        default="host",
+        help="Execution backend for Agent and verifier task commands",
+    )
+    benchmark_parser.add_argument(
+        "--sandbox-image",
+        default=None,
+        help="Pinned local image name@sha256:<digest> required for Docker",
+    )
 
     train_parser = subparsers.add_parser("train", help="Run agent training episodes")
     train_parser.add_argument("--cwd", default=None)

@@ -73,6 +73,7 @@ Run the Agent:
 ```bash
 claw agent "task" --cwd . --stream
 claw agent "task" --cwd . --max-turns 50 --stream
+claw agent "task" --cwd . --sandbox-backend docker --sandbox-image python:3.12-slim --stream
 claw agent-chat --cwd . --max-turns 30
 claw tui --cwd .
 ```
@@ -104,6 +105,18 @@ claw benchmark-run \
 Use `--api-config-root <dir>` when benchmark arms need isolated model-provider
 configuration. It changes API configuration discovery only, not the task workspace.
 
+Docker benchmarks require a local digest-pinned image and use distinct Agent
+and Verifier sandboxes:
+
+```bash
+claw benchmark-run \
+  --manifest task_suites/manifest.json \
+  --sandbox-backend docker \
+  --sandbox-image 'python@sha256:<64-hex-digest>' \
+  --limit 1 \
+  --output .port_sessions/benchmark-docker
+```
+
 Before committing:
 
 ```bash
@@ -132,6 +145,10 @@ Important modules:
 - `src/claw/agent_runtime.py` — main model/tool loop, retries, budgets, permissions, and session save.
 - `src/claw/agent_tools.py` — built-in tool schemas, handlers, registry, and execution results.
 - `src/claw/container_runtime.py` — cross-platform Docker/Podman execution boundary for Agent shell commands and Episode checks.
+- `src/claw/sandbox_backend.py` — backend-neutral execution contracts and the non-isolating Host compatibility backend.
+- `src/claw/docker_backend.py` — explicit, fail-closed Docker container backend and mount admission.
+- `docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md` — Docker-host
+  live validation, benchmark pilot, evidence checks, and remaining limitations.
 - `src/claw/openai_compat.py` — Anthropic and OpenAI-compatible clients, including streaming.
 - `src/claw/agent_context.py` — Git, environment, `AGENTS.md`, and runtime context collection.
 - `src/claw/agent_prompting.py` — system-prompt assembly.
@@ -182,6 +199,8 @@ diagnostics. `direct_mutation` means an observed explicit file-edit tool, not pr
 commands had no side effects. Behavior diagnostics v4 distinguishes model-requested,
 dispatched, and policy-rejected tool calls; a rejected request can still provide
 path-localization evidence without being counted as an executed inspection or mutation.
+Sandbox cleanup is recorded as a `sandbox_lifecycle` event; do not infer successful
+cleanup merely from the absence of later tool calls.
 
 ## Repository Layout
 
@@ -234,6 +253,12 @@ Plugin virtual tools have two modes:
 
 When changing tool execution:
 
+- Route Agent shell and executable plugin commands through the session-owned
+  Sandbox Backend. Host mode is compatibility execution, not OS isolation.
+- Docker mode requires an explicit local image, must not pull implicitly, and
+  must fail closed rather than fall back to Host.
+- Session resume inherits its persisted sandbox backend unless the caller
+  explicitly selects a replacement boundary.
 - Preserve stdout, stderr, return code, timeout, and error detail in `ToolResult`.
 - Keep model-visible schemas and handler arguments synchronized.
 - Count one model-requested tool call exactly once in trajectories and metrics.
@@ -298,6 +323,11 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Small curated suites may declare a stricter local `validation` policy, but defaults must remain suitable for the core suite.
 - Initial checks must fail before the solution and final checks must pass after the Oracle is applied.
 - Hidden test assets are available only during verification and must be removed before Agent execution.
+- Episode task commands run through a short-lived Verifier Sandbox Backend.
+  Agent and Verifier owners/handles must remain distinct, and Docker benchmark
+  images must be digest-pinned.
+- Destroy the Agent sandbox before final verification. A cleanup failure is an
+  infrastructure failure and must not be reported as an ordinary test failure.
 - Benchmark Diff allowlists default to paths represented by the task Oracle; explicit `--allow-path` replaces that default.
 - SWE collection uses the same allowlist as its implementation-progress boundary: scratch-file edits must not suppress implementation guidance or trigger post-edit contract guidance.
 - SWE collection also passes that allowlist into `allowed_write_paths`; explicit

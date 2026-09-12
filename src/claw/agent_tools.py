@@ -8,7 +8,6 @@ import json
 import os
 import re
 import shlex
-import subprocess
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -16,6 +15,13 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, AsyncIterator
 
 from .bash_security import validate_bash_command, SecurityResult
+from .sandbox_backend import (
+    SandboxBackend,
+    SandboxBackendError,
+    SandboxHandle,
+    execute_with_backend,
+    stream_with_backend,
+)
 
 
 @dataclass
@@ -42,6 +48,8 @@ class ToolExecutionContext:
     runtime_context: Optional[Dict[str, Any]] = None
     permissions: Optional[Dict[str, Any]] = None
     command_runner: Optional[Any] = None
+    sandbox_backend: Optional[SandboxBackend] = None
+    sandbox_handle: Optional[SandboxHandle] = None
 
 
 @dataclass
@@ -720,7 +728,7 @@ def _bash(command: str, **kwargs) -> Dict[str, Any]:
             "retryable": True,
         }
 
-    # Security validation — MUST run before subprocess.run
+    # Security validation must run before backend dispatch.
     security_result = validate_bash_command(command)
     if security_result == SecurityResult.DENY:
         return {"ok": False, "error": f"Command blocked by security policy: {command}"}
@@ -730,26 +738,32 @@ def _bash(command: str, **kwargs) -> Dict[str, Any]:
             result = command_runner.run(
                 command, cwd=kwargs.get("_cwd"), timeout=60
             )
-        else:
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=kwargs.get("_cwd"),
-            )
-        payload = {
-            "ok": result.returncode == 0,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode,
-        }
-        if command_runner is not None and hasattr(command_runner, "result_metadata"):
-            payload.update(command_runner.result_metadata(result))
-        return payload
+            payload = {
+                "ok": result.returncode == 0,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode,
+            }
+            if hasattr(command_runner, "result_metadata"):
+                payload.update(command_runner.result_metadata(result))
+            return payload
+        result = execute_with_backend(
+            command,
+            cwd=kwargs.get("_cwd") or os.getcwd(),
+            backend=kwargs.get("_sandbox_backend"),
+            handle=kwargs.get("_sandbox_handle"),
+            timeout_seconds=60,
+        )
+        return result.to_dict()
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "Command timed out"}
+    except SandboxBackendError as exc:
+        return {
+            "ok": False,
+            "error": exc.detail,
+            "sandbox_error_code": exc.code.value,
+            "retryable": exc.retryable,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -930,7 +944,7 @@ def _virtual_tool_handler(tool_name: str, config: Dict[str, Any], arguments: Dic
     """Execute a virtual tool defined by a plugin.
 
     Supports two modes:
-    1. **Command mode**: if config has `command`, run it via subprocess
+    1. **Command mode**: if config has `command`, run it through the sandbox backend
        - `command`: shell command string (supports {arg} placeholder substitution)
        - `cwd`: optional working directory for the command
     2. **Prompt mode** (fallback): return tool description and arguments as context
@@ -943,27 +957,47 @@ def _virtual_tool_handler(tool_name: str, config: Dict[str, Any], arguments: Dic
     """
     command_template = config.get("command")
     if command_template:
-        # Command mode: execute via subprocess with placeholder substitution
+        # Command mode: execute through the same backend as built-in shell.
+        permissions = arguments.get("permissions", {})
+        if not permissions.get("allow_shell", False):
+            if permissions.get("_has_permission_callback"):
+                return {
+                    "ok": False,
+                    "need_permission": True,
+                    "command": command_template,
+                    "security": "ASK",
+                }
+            return {
+                "ok": False,
+                "error": "Shell access not permitted for virtual tool command: "
+                + tool_name,
+            }
         try:
             cmd = command_template
             for key, value in arguments.items():
+                if key.startswith("_"):
+                    continue
                 cmd = cmd.replace(f"{{{key}}}", shlex.quote(str(value)))
-            result = subprocess.run(
+            if validate_bash_command(cmd) == SecurityResult.DENY:
+                return {
+                    "ok": False,
+                    "error": f"Command blocked by security policy: {cmd}",
+                }
+            result = execute_with_backend(
                 cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                cwd=config.get("cwd") or arguments.get("_cwd", "."),
+                cwd=config.get("cwd") or arguments.get("_cwd") or os.getcwd(),
+                backend=arguments.get("_sandbox_backend"),
+                handle=arguments.get("_sandbox_handle"),
+                timeout_seconds=60,
             )
+            return result.to_dict()
+        except SandboxBackendError as exc:
             return {
-                "ok": result.returncode == 0,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "returncode": result.returncode,
+                "ok": False,
+                "error": exc.detail,
+                "sandbox_error_code": exc.code.value,
+                "retryable": exc.retryable,
             }
-        except subprocess.TimeoutExpired:
-            return {"ok": False, "error": "Virtual tool command timed out"}
         except Exception as e:
             return {"ok": False, "error": str(e)}
 
@@ -1029,6 +1063,10 @@ def execute_tool(
                 kwargs["permissions"] = context.permissions
             if context.command_runner is not None:
                 kwargs["_command_runner"] = context.command_runner
+            if context.sandbox_backend is not None:
+                kwargs["_sandbox_backend"] = context.sandbox_backend
+            if context.sandbox_handle is not None:
+                kwargs["_sandbox_handle"] = context.sandbox_handle
         result = tool.handler(**kwargs)
 
         # Normalize result to dict
@@ -1119,7 +1157,6 @@ def execute_tool_streaming(
     if security_result == SecurityResult.DENY:
         yield {"ok": False, "tool_name": "bash", "error": f"Command blocked by security policy: {command}"}
         return
-
     if context and context.command_runner is not None:
         try:
             result = context.command_runner.run(
@@ -1142,42 +1179,26 @@ def execute_tool_streaming(
         return
 
     try:
-        process = subprocess.Popen(
+        for event in stream_with_backend(
             command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-        import select
-
-        while True:
-            readable, _, _ = select.select([process.stdout, process.stderr], [], [], 0.1)
-            if process.stdout in readable:
-                line = process.stdout.readline()
-                if line:
-                    yield {"ok": True, "stdout": line, "tool_name": "bash"}
-            if process.stderr in readable:
-                line = process.stderr.readline()
-                if line:
-                    yield {"ok": True, "stderr": line, "tool_name": "bash"}
-            if process.poll() is not None:
-                break
-
-        # Read remaining output
-        remaining_out = process.stdout.read()
-        if remaining_out:
-            yield {"ok": True, "stdout": remaining_out, "tool_name": "bash"}
-        remaining_err = process.stderr.read()
-        if remaining_err:
-            yield {"ok": True, "stderr": remaining_err, "tool_name": "bash"}
-
+            cwd=context.cwd if context else os.getcwd(),
+            backend=context.sandbox_backend if context else None,
+            handle=context.sandbox_handle if context else None,
+            timeout_seconds=60,
+        ):
+            if event.result is not None:
+                yield {"tool_name": "bash", **event.result.to_dict()}
+            elif event.stdout:
+                yield {"ok": True, "stdout": event.stdout, "tool_name": "bash"}
+            elif event.stderr:
+                yield {"ok": True, "stderr": event.stderr, "tool_name": "bash"}
+    except SandboxBackendError as exc:
         yield {
-            "ok": process.returncode == 0,
+            "ok": False,
             "tool_name": "bash",
-            "returncode": process.returncode,
+            "error": exc.detail,
+            "sandbox_error_code": exc.code.value,
+            "retryable": exc.retryable,
         }
-
     except Exception as e:
         yield {"ok": False, "tool_name": "bash", "error": str(e)}

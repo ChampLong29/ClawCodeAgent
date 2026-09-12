@@ -72,6 +72,7 @@ class RuntimeAdapter:
         self.orchestrator = orchestrator
         self.recorder = recorder
         self.task = task
+        self._running_agent: Optional[Any] = None
         self._active_phase: Optional[str] = None
         self._started = any(
             event.event_type == "episode_started"
@@ -118,6 +119,7 @@ class RuntimeAdapter:
     ) -> AgentRunResult:
         previous = getattr(agent, "runtime_observer", None)
         agent.runtime_observer = self
+        self._running_agent = agent
         try:
             return agent.run(
                 prompt,
@@ -125,6 +127,12 @@ class RuntimeAdapter:
                 stream=stream,
             )
         finally:
+            if getattr(agent, "sandbox_handle", None) is not None:
+                try:
+                    agent.destroy_sandbox()
+                except Exception:
+                    pass
+            self._running_agent = None
             agent.runtime_observer = previous
 
     def on_run_start(
@@ -153,6 +161,14 @@ class RuntimeAdapter:
                     "permissions": dict(getattr(agent, "permissions", {}) or {}),
                     "prompt_chars": len(prompt),
                     "cwd": str(getattr(agent, "cwd", "")),
+                    "sandbox_backend": getattr(
+                        agent,
+                        "sandbox_backend_name",
+                        "external",
+                    ),
+                    "episode_sandbox_executions": list(
+                        manifest.metadata.get("sandbox_executions", [])
+                    ),
                 },
             )
             self._started = True
@@ -187,6 +203,61 @@ class RuntimeAdapter:
             return
         self._switch_phase(phase_id)
         collection_error = ""
+        agent = self._running_agent
+        if agent is not None and getattr(agent, "sandbox_handle", None) is not None:
+            sandbox_handle = agent.sandbox_handle
+            try:
+                agent.destroy_sandbox()
+                self.recorder.record(
+                    "sandbox_lifecycle",
+                    phase_id=phase_id,
+                    payload={
+                        "action": "destroyed_before_verification",
+                        "backend_name": sandbox_handle.backend_name,
+                        "sandbox_id": sandbox_handle.sandbox_id,
+                        "spec_hash": sandbox_handle.spec_hash,
+                        "generation": sandbox_handle.generation,
+                        "owner_kind": sandbox_handle.owner_kind,
+                        "owner_id": sandbox_handle.owner_id,
+                        "final_state": sandbox_handle.state.value,
+                        "runtime_tier": (
+                            agent.sandbox_spec.runtime_tier.value
+                            if getattr(agent, "sandbox_spec", None) is not None
+                            else ""
+                        ),
+                        "security_profile": (
+                            agent.sandbox_spec.security_profile
+                            if getattr(agent, "sandbox_spec", None) is not None
+                            else ""
+                        ),
+                        "network_mode": (
+                            agent.sandbox_spec.network.mode.value
+                            if getattr(agent, "sandbox_spec", None) is not None
+                            else ""
+                        ),
+                        **{
+                            key: value
+                            for key in (
+                                "docker_server_version",
+                                "image_identity",
+                                "image_reference",
+                            )
+                            if (
+                                value := sandbox_handle.backend_metadata.get(key)
+                            )
+                        },
+                    },
+                )
+            except Exception as exc:
+                collection_error = f"{type(exc).__name__}: {exc}"
+                self.recorder.record(
+                    "runtime_error",
+                    phase_id=phase_id,
+                    payload={
+                        "error": collection_error,
+                        "stage": "agent_sandbox_cleanup",
+                    },
+                )
         if result.error:
             self.recorder.record(
                 "runtime_error",
@@ -196,7 +267,7 @@ class RuntimeAdapter:
                     "stop_reason": result.stop_reason,
                 },
             )
-        if self.task is not None:
+        if self.task is not None and not collection_error:
             try:
                 facts = self.orchestrator.collect_verification_facts(
                     self.task

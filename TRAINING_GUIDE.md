@@ -110,6 +110,16 @@ claw trace-show --input .port_sessions/training/sample-real.jsonl --index 0
 
 `--workers` 大于 1 会并发执行任务。正式采样前先单并发运行一两条，确认 API 限流、工作目录隔离和成本记录符合预期。
 
+当前 `claw agent`、`agent-chat` 与 `resume` 已可显式选择 Docker Sandbox
+Backend；版本化 `benchmark-run` 也已把 Agent 命令与 Episode 初始/最终检查接入
+独立 Backend，并要求 Docker Benchmark 镜像固定到 digest。轻量 Rollout、训练
+`SandboxManager` 与正式 SWE-bench Harness 尚未整体迁移，当前机器也尚未完成真实
+Docker Pilot，因此只能标记为 **Implemented / Contract verified**，不能描述为
+Benchmark verified 或官方 SWE-bench 隔离结果。
+迁移到具备 Docker 的主机后，应按
+[`docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md`](docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md)
+依次执行 Live Test、单任务 Pilot 和证据检查，再更新验证状态。
+
 ## 4. 训练控制台
 
 安装 Web 依赖并启动：

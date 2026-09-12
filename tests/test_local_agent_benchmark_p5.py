@@ -143,6 +143,37 @@ class LocalAgentBenchmarkAdapterTests(unittest.TestCase):
         agent.client = SequencedBenchmarkClient(model, responses)
         return agent
 
+    def test_docker_benchmark_binds_agent_to_offline_pinned_profile(self):
+        digest = "sha256:" + "b" * 64
+        adapter = LocalAgentBenchmarkAdapter(
+            self.root / "episodes-docker",
+            project_root=self.root,
+            agent_factory=lambda *_args: None,
+            model_ref=self.model_ref,
+            runtime_version="runtime.v1",
+            prompt_version="prompt.v1",
+            tool_version="tool.v1",
+            config_version="benchmark-config.v1",
+            sandbox_backend_name="docker",
+            sandbox_image=f"python@{digest}",
+        )
+        agent = LocalCodingAgent(cwd=str(self.root))
+
+        adapter._configure_agent_sandbox(agent, episode_id="episode-test")
+
+        self.assertEqual(agent.sandbox_backend_name, "docker")
+        self.assertEqual(agent.sandbox_image, f"python@{digest}")
+        self.assertEqual(
+            agent.sandbox_security_profile,
+            "benchmark_offline",
+        )
+        self.assertEqual(agent.sandbox_spec.owner_kind, "benchmark_agent")
+        self.assertEqual(agent.sandbox_spec.owner_id, "episode-test:agent")
+        self.assertEqual(
+            agent.sandbox_spec.security_profile,
+            "benchmark_offline",
+        )
+
     def test_real_episode_success_produces_metrics_and_auditable_refs(self):
         task = self.make_task()
         observed_configs = []

@@ -87,6 +87,8 @@ class ClawRepl:
         temperature: float = 0.1,
         max_tokens: Optional[int] = None,
         max_turns: Optional[int] = None,
+        sandbox_backend: Optional[str] = None,
+        sandbox_image: Optional[str] = None,
     ):
         self.cwd = cwd
 
@@ -97,6 +99,8 @@ class ClawRepl:
         self.api_base_url = api_config.base_url
         self.temperature = temperature or api_config.temperature
         self.max_turns = max_turns
+        self.sandbox_backend = sandbox_backend
+        self.sandbox_image = sandbox_image
 
         # Permissions — start safe
         self.permissions = AgentPermissions(
@@ -418,6 +422,8 @@ class ClawRepl:
             cwd=self.cwd,
             model_config=model_config,
             permissions=self.permissions.to_dict(),
+            sandbox_backend_name=self.sandbox_backend or "host",
+            sandbox_image=self.sandbox_image,
         )
         # Register permission callback for interactive bash permissions
         self.agent.permission_callback = self._handle_interactive_permission
@@ -611,6 +617,8 @@ class ClawRepl:
                 model_config=model_config,
                 cwd=self.cwd,
                 budget=self.budget,
+                sandbox_backend_name=self.sandbox_backend or "host",
+                sandbox_image=self.sandbox_image,
                 tool_registry=self.tool_registry if hasattr(self, 'tool_registry') else None,
             )
             return agent
@@ -2007,6 +2015,8 @@ class ClawRepl:
                 session_id=session_id,
                 cwd=self.cwd,
                 model_config=model_config,
+                sandbox_backend_name=self.sandbox_backend,
+                sandbox_image=self.sandbox_image,
             )
             self.agent.permission_callback = self._handle_interactive_permission
             self.session_id = session_id

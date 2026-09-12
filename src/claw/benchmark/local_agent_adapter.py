@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from ..episode import EpisodeOrchestrator, RuntimeAdapter
 from ..experiment.schemas import TaskSpec, canonical_hash
+from ..sandbox_backend import SandboxSpec
 from ..trajectory import analyze_rollout_behavior
 from ..verification import (
     VerificationContext,
@@ -49,6 +51,8 @@ class LocalAgentBenchmarkAdapter:
         require_model_match: bool = True,
         episode_prefix: str = "benchmark",
         command_runner: Optional[Any] = None,
+        sandbox_backend_name: str = "host",
+        sandbox_image: Optional[str] = None,
     ):
         for name, value in (
             ("model_ref", model_ref),
@@ -63,6 +67,30 @@ class LocalAgentBenchmarkAdapter:
             raise BenchmarkError("token prices must be non-negative")
         if not str(episode_prefix).strip():
             raise BenchmarkError("episode_prefix must not be empty")
+        sandbox_backend_name = str(sandbox_backend_name).strip().lower()
+        if sandbox_backend_name not in {"host", "docker"}:
+            raise BenchmarkError(
+                f"unsupported benchmark sandbox backend: {sandbox_backend_name!r}"
+            )
+        if sandbox_backend_name == "docker" and not sandbox_image:
+            raise BenchmarkError(
+                "Docker benchmark sandbox requires an explicit image"
+            )
+        if sandbox_backend_name == "docker" and re.fullmatch(
+            r"[^@\s]+@sha256:[0-9a-fA-F]{64}",
+            str(sandbox_image),
+        ) is None:
+            raise BenchmarkError(
+                "Docker benchmark image must be pinned as name@sha256:<64 hex>"
+            )
+        if sandbox_backend_name != "docker" and sandbox_image:
+            raise BenchmarkError(
+                "sandbox_image is only valid for Docker benchmarks"
+            )
+        if command_runner is not None and sandbox_backend_name != "host":
+            raise BenchmarkError(
+                "command_runner cannot be combined with a Docker Sandbox Backend"
+            )
         self.episodes_root = Path(episodes_root).resolve()
         self.project_root = Path(project_root or Path.cwd()).resolve()
         self.agent_factory = agent_factory
@@ -83,6 +111,8 @@ class LocalAgentBenchmarkAdapter:
         self.require_model_match = require_model_match
         self.episode_prefix = str(episode_prefix)
         self.command_runner = command_runner
+        self.sandbox_backend_name = sandbox_backend_name
+        self.sandbox_image = sandbox_image
 
     def run(
         self,
@@ -113,6 +143,13 @@ class LocalAgentBenchmarkAdapter:
             self.episodes_root,
             project_root=self.project_root,
             command_runner=self.command_runner,
+            sandbox_backend_name=self.sandbox_backend_name,
+            sandbox_image=self.sandbox_image,
+            sandbox_security_profile=(
+                "benchmark_offline"
+                if self.sandbox_backend_name == "docker"
+                else "host_development"
+            ),
         )
         orchestrator.prepare(
             task,
@@ -132,6 +169,7 @@ class LocalAgentBenchmarkAdapter:
             permissions = getattr(agent, "permissions", None)
             if isinstance(permissions, dict):
                 permissions["restrict_workspace"] = True
+        self._configure_agent_sandbox(agent, episode_id=episode_id)
         observed_model = str(
             getattr(getattr(agent, "client", None), "model", "")
         )
@@ -193,6 +231,53 @@ class LocalAgentBenchmarkAdapter:
             report=report,
             verification_ref=verification_ref,
             latency_seconds=time.monotonic() - started,
+        )
+
+    def _configure_agent_sandbox(
+        self,
+        agent: Any,
+        *,
+        episode_id: str,
+    ) -> None:
+        if self.sandbox_backend_name != "docker":
+            return
+        required_attributes = (
+            "sandbox_backend_name",
+            "sandbox_image",
+            "sandbox_security_profile",
+            "sandbox_backend",
+            "sandbox_handle",
+            "sandbox_spec",
+        )
+        if any(not hasattr(agent, name) for name in required_attributes):
+            raise BenchmarkError(
+                "Docker benchmark requires an Agent supporting Sandbox Backend"
+            )
+        existing_backend = getattr(agent, "sandbox_backend", None)
+        if existing_backend is not None and getattr(
+            existing_backend, "name", ""
+        ) != "docker":
+            raise BenchmarkError(
+                "agent_factory returned an Agent bound to a non-Docker backend"
+            )
+        if getattr(agent, "sandbox_handle", None) is not None:
+            raise BenchmarkError(
+                "agent_factory must not pre-start a sandbox for Docker benchmark"
+            )
+        if getattr(agent, "sandbox_spec", None) is not None:
+            raise BenchmarkError(
+                "agent_factory must not preconfigure a sandbox spec for Docker benchmark"
+            )
+        agent.sandbox_backend_name = "docker"
+        agent.sandbox_image = self.sandbox_image
+        agent.sandbox_security_profile = "benchmark_offline"
+        agent.sandbox_spec = SandboxSpec.for_docker_workspace(
+            str(agent.cwd),
+            image=str(self.sandbox_image),
+            owner_kind="benchmark_agent",
+            owner_id=f"{episode_id}:agent",
+            sandbox_id=f"docker-agent-{episode_id}",
+            security_profile="benchmark_offline",
         )
 
     def _to_benchmark_result(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Union
 
@@ -107,6 +108,8 @@ def run_local_benchmark(
     container_memory: str = "4g",
     container_pids_limit: int = 256,
     container_user: Optional[str] = None,
+    sandbox_backend: str = "host",
+    sandbox_image: Optional[str] = None,
 ) -> BenchmarkRunResult:
     """Run selected test tasks with a fixed, fully recorded protocol."""
     if not 0.0 <= temperature <= 2.0:
@@ -132,6 +135,31 @@ def run_local_benchmark(
         )
     if input_token_price_per_million < 0 or output_token_price_per_million < 0:
         raise BenchmarkError("token prices must be non-negative")
+    sandbox_backend = str(sandbox_backend).strip().lower()
+    if sandbox_backend not in {"host", "docker"}:
+        raise BenchmarkError(
+            f"unsupported benchmark sandbox backend: {sandbox_backend!r}"
+        )
+    if sandbox_backend == "docker":
+        if not sandbox_image:
+            raise BenchmarkError(
+                "Docker benchmark sandbox requires --sandbox-image"
+            )
+        if re.fullmatch(
+            r"[^@\s]+@sha256:[0-9a-fA-F]{64}",
+            str(sandbox_image),
+        ) is None:
+            raise BenchmarkError(
+                "Docker benchmark image must be pinned as name@sha256:<64 hex>"
+            )
+    elif sandbox_image:
+        raise BenchmarkError(
+            "sandbox_image is only valid for Docker benchmarks"
+        )
+    if container_image and sandbox_backend != "host":
+        raise BenchmarkError(
+            "--container-image cannot be combined with --sandbox-backend docker"
+        )
     patterns = [str(pattern) for pattern in allowed_path_patterns if str(pattern)]
     command_runner = None
     if container_image:
@@ -172,6 +200,9 @@ def run_local_benchmark(
         decoding_config["max_tokens"] = max_tokens
     if thinking_mode is not None:
         decoding_config["thinking_mode"] = thinking_mode
+    if sandbox_backend == "docker":
+        decoding_config["sandbox_backend"] = "docker"
+        decoding_config["sandbox_image"] = str(sandbox_image)
 
     if agent_factory is None:
         def agent_factory(cwd: str, inference_config: Dict[str, object]):
@@ -209,6 +240,13 @@ def run_local_benchmark(
                 repeated_action_repair_attempts=(
                     repeated_action_repair_attempts
                 ),
+                sandbox_backend_name=sandbox_backend,
+                sandbox_image=sandbox_image,
+                sandbox_security_profile=(
+                    "benchmark_offline"
+                    if sandbox_backend == "docker"
+                    else None
+                ),
             )
 
     output = Path(output_root).resolve()
@@ -233,6 +271,8 @@ def run_local_benchmark(
         input_token_price=input_token_price_per_million / 1_000_000,
         output_token_price=output_token_price_per_million / 1_000_000,
         command_runner=command_runner,
+        sandbox_backend_name=sandbox_backend,
+        sandbox_image=sandbox_image,
     )
     config = BenchmarkConfig(
         group_name=group_name,
