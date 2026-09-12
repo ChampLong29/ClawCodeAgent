@@ -1,0 +1,104 @@
+{
+  "schema_version": "swe_bench_lite_runtime_comparison_evidence.v1",
+  "captured_at": "2026-09-11",
+  "status": "controlled_local_dev_comparison",
+  "comparison_id": "swe_bench_runtime_comparison_d77e102b99657422ccf4",
+  "generation_commit": "f6f20295d86fddfe6567a281f1d0793acd39c046",
+  "generation_worktree_dirty": true,
+  "task": {
+    "instance_id": "marshmallow-code__marshmallow-1343",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "model": {
+    "api_model_id": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions"
+  },
+  "controls": {
+    "temperature": 0.0,
+    "temperature_is_explicit": {"claw": true, "pi": true},
+    "max_tokens": 4096,
+    "max_turns": 24,
+    "python_version": "3.8.20",
+    "pytest_version": "8.3.5",
+    "prompt_version": "swe-bench-lite-dev.runtime-comparison.v1",
+    "verifier_version": "verifier-policy.v1",
+    "allowed_paths": ["src/marshmallow/schema.py"],
+    "pi_runtime_version": "pi@0.85.1",
+    "pi_tool_version": "pi-builtins@0.85.1",
+    "pi_sandbox_attestation": "macos-seatbelt:episode-parent-write-deny+sensitive-paths-v2"
+  },
+  "comparability": {
+    "comparable": true,
+    "control_mismatches": {},
+    "treatment_variables": [
+      "runtime",
+      "system_prompt",
+      "tool_schema",
+      "runtime_guidance"
+    ]
+  },
+  "results": {
+    "claw": {
+      "success": true,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 24,
+      "changed_files": ["src/marshmallow/schema.py"],
+      "turns": 21,
+      "tool_calls": 25,
+      "processed_tokens": 170127,
+      "latency_seconds": 45.792876,
+      "first_target_path_turn": 2,
+      "first_direct_mutation_turn": 15,
+      "target_to_mutation_turn_lag": 13,
+      "process_violations": 0
+    },
+    "pi": {
+      "success": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 24,
+      "changed_files": [],
+      "turns": 17,
+      "tool_calls": 23,
+      "processed_tokens": 240146,
+      "runtime_reported_uncached_input_tokens": 15355,
+      "cache_read_input_tokens": 208896,
+      "output_tokens": 15895,
+      "latency_seconds": 73.441832,
+      "first_target_path_turn": 2,
+      "first_direct_mutation_turn": null,
+      "process_violations": 0,
+      "failure_category": "test_failure"
+    },
+    "delta_pi_minus_claw": {
+      "success": -1,
+      "test_pass_rate": -1.0,
+      "turns": -4,
+      "tool_calls": -2,
+      "processed_tokens": 70019,
+      "latency_seconds": 27.648956
+    }
+  },
+  "diagnosis": {
+    "claw": "Localized the target path, added a three-line None guard, and passed the target and regression tests.",
+    "pi": "Reproduced and investigated the bug but terminated without a source mutation, so the target test still failed.",
+    "token_accounting": "Pi cache-read tokens are included in processed_tokens. The earlier v1 derived report omitted them; immutable source trajectories were retained and a corrected v2 report was generated."
+  },
+  "artifact_hashes": {
+    "claw_collection_manifest_sha256": "b42256fb35966eeac0530ec4bba52e3900094021b15d1744c34df089f5338eed",
+    "claw_trajectory_sha256": "d845b03e7e3a6fcf36d8c17a31c3732e44071b44976bb244197f6b2def56a3ac",
+    "claw_verification_sha256": "86744cff801578e53ccf76513075bfd2ad49e9c9cdb4672fd882c3068e7b5fed",
+    "pi_collection_manifest_sha256": "c259610624e52786ff38d29148dfde73af0095840c41d374fb31d711b6d143ee",
+    "pi_trajectory_sha256": "658068f5a94123c0fb8d0d69bdbe39295daf57a43f30599f9b7432b84358946a",
+    "pi_verification_sha256": "5bd93d1e868a5a732fddb3477eccaac980be3325ed727c1edb7c65c14444146f",
+    "comparison_v2_sha256": "d88c01ba130c9727acb2720b355d21fd4a47fb127266185899e903e13d41dd8d",
+    "report_v2_sha256": "0c3c7c84645bdd60425ba2c1698d652046e40f57e3845d22005be37fa3a99769"
+  },
+  "local_artifact_root": ".port_sessions/swe-bench-lite-runtime-comparison-20260911-flash",
+  "claim_boundary": "Benchmark verified for one controlled local SWE-bench Lite Dev instance only. This is not an official SWE-bench score and does not establish statistical runtime superiority."
+}

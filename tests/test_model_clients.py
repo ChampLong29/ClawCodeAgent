@@ -1,7 +1,9 @@
 import json
+import os
 import unittest
 from unittest.mock import patch
 
+from claw.agent_types import DEFAULT_MODEL_NAME
 from claw.openai_compat import AnthropicClient, OpenAICompatClient
 
 
@@ -20,6 +22,11 @@ class _Response:
 
 
 class ModelClientFinishReasonTests(unittest.TestCase):
+    def test_clients_share_deepseek_flash_fallback(self):
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(OpenAICompatClient().model, DEFAULT_MODEL_NAME)
+            self.assertEqual(AnthropicClient().model, DEFAULT_MODEL_NAME)
+
     def test_openai_client_preserves_length_finish_reason(self):
         payload = {
             "choices": [{

@@ -1,0 +1,132 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_plan.v1",
+  "status": "pilot_ready",
+  "claim_boundary": "Local SWE-bench Lite Dev pilot only; not an official SWE-bench score.",
+  "latest_calibration_root": ".port_sessions/swe-bench-lite-calibration-20260911",
+  "controls": {
+    "model": "deepseek-flash",
+    "model_backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_turns": 24,
+    "max_total_tokens": 250000,
+    "timeout_seconds": 900,
+    "pi_runtime_version": "pi@0.85.1",
+    "pi_tool_version": "pi-builtins@0.85.1",
+    "seeds": [
+      0
+    ]
+  },
+  "arms": {
+    "claw_base": {
+      "runtime": "claw",
+      "completion_reminder_turns": 0,
+      "completion_critical_turns": 0,
+      "implementation_deadline_turns": 0,
+      "implementation_escalation_turns": 0,
+      "post_edit_contract_guidance": false
+    },
+    "claw_enhanced": {
+      "runtime": "claw",
+      "completion_reminder_turns": 8,
+      "completion_critical_turns": 3,
+      "implementation_deadline_turns": 10,
+      "implementation_escalation_turns": 4,
+      "post_edit_contract_guidance": true
+    },
+    "pi_raw": {
+      "runtime": "pi",
+      "extensions": false,
+      "skills": false,
+      "prompt_templates": false,
+      "context_files": false,
+      "thinking": "off"
+    }
+  },
+  "pilot_gate": {
+    "task_count": 7,
+    "episode_count": 21,
+    "pi_scale_out_rule": "Do not scale Pi beyond the pilot if it resolves at most one task or produces no implementation edit on at least four tasks.",
+    "infrastructure_rule": "Do not start paid Episodes until every historical environment passes baseline and reference calibration."
+  },
+  "tasks": [
+    {
+      "instance_id": "marshmallow-code__marshmallow-1343",
+      "repo": "marshmallow-code/marshmallow",
+      "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+      "allow_paths": [
+        "src/marshmallow/schema.py"
+      ],
+      "python": ".port_sessions/environments/marshmallow-1343-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-marshmallow-local-calibration.json"
+    },
+    {
+      "instance_id": "pylint-dev__astroid-1196",
+      "repo": "pylint-dev/astroid",
+      "base_commit": "39c2a9805970ca57093d32bbaf0e6a63e05041d8",
+      "allow_paths": [
+        "astroid/nodes/node_classes.py"
+      ],
+      "python": ".port_sessions/environments/astroid-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-astroid-local-calibration.json"
+    },
+    {
+      "instance_id": "sqlfluff__sqlfluff-1763",
+      "repo": "sqlfluff/sqlfluff",
+      "base_commit": "a10057635e5b2559293a676486f0b730981f037a",
+      "allow_paths": [
+        "src/sqlfluff/core/linter/linted_file.py"
+      ],
+      "python": ".port_sessions/environments/sqlfluff-1763-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-sqlfluff-local-calibration.json"
+    },
+    {
+      "instance_id": "pydicom__pydicom-1139",
+      "repo": "pydicom/pydicom",
+      "base_commit": "b9fb05c177b685bf683f7f57b2d57374eb7d882d",
+      "allow_paths": [
+        "pydicom/valuerep.py"
+      ],
+      "python": ".port_sessions/environments/pydicom-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-pydicom-local-calibration.json"
+    },
+    {
+      "instance_id": "pvlib__pvlib-python-1707",
+      "repo": "pvlib/pvlib-python",
+      "base_commit": "40e9e978c170bdde4eeee1547729417665dbc34c",
+      "allow_paths": [
+        "pvlib/iam.py"
+      ],
+      "python": ".port_sessions/environments/pvlib-1707-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-pvlib-local-calibration.json"
+    },
+    {
+      "instance_id": "pydicom__pydicom-1413",
+      "repo": "pydicom/pydicom",
+      "base_commit": "f909c76e31f759246cec3708dadd173c5d6e84b1",
+      "allow_paths": [
+        "pydicom/dataelem.py"
+      ],
+      "python": ".port_sessions/environments/pydicom-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-pydicom-1413-local-calibration.json"
+    },
+    {
+      "instance_id": "pylint-dev__astroid-1333",
+      "repo": "pylint-dev/astroid",
+      "base_commit": "d2a5b3c7b1e203fec3c7ca73c30eb1785d3d4d0a",
+      "allow_paths": [
+        "astroid/modutils.py"
+      ],
+      "python": ".port_sessions/environments/astroid-py38/bin/python",
+      "environment_status": "calibrated_2026-09-11",
+      "calibration_ref": "configs/integrations/swe-bench-lite-astroid-1333-local-calibration.json"
+    }
+  ]
+}

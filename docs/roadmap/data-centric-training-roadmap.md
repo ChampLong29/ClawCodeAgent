@@ -66,7 +66,7 @@ Claw Rollout
 
 ## M2：DataFlow 确定性治理 Pipeline
 
-状态：**Fixture E2E、真实两样本 Contract Batch、六仓库十八题筛选（十六题本地准入）与多组 Dev Episode 已完成**。post-edit 容器/返回类型新鲜验证（pvlib-1072）已按冻结协议完成，模型保持 Series 契约并通过全部硬门槛；机制充分性成立，因果归因不支持。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode。PyVista 预注册双臂均成功但没有 Notice 增点；随后两任务冻结复现为 1/2，SQLFluff 在首次定位正确路径时请求读取却被直接编辑约束拒绝。由此冻结的 Astroid-1978/pydicom-1256 Strict/Progressive 四 Episode 配对消融现已完成：两组硬结果相同，渐进读取只在 pydicom 上延迟一轮停止，没有产生策略增益证据。默认关闭的一次 read-to-edit 纠正已实现并完成契约验证；首轮载体因测试 ID 精度不足在零模型调用阶段关闭，独立后续协议的 Astroid-1268/pydicom-1694 已通过准入，等待实现版本固定后做配对模型实验。
+状态：**Fixture E2E、真实两样本 Contract Batch、六仓库二十题筛选（十八题本地准入）与多组 Dev Episode 已完成**。post-edit 容器/返回类型新鲜验证（pvlib-1072）已按冻结协议完成，模型保持 Series 契约并通过全部硬门槛；机制充分性成立，因果归因不支持。七类确定性职责、`agent_sft_v1`、Gold Manifest、排除报告、分布/成本报告、Data Card 与 LlamaFactory 输出已经实现。SWE-bench Lite 已接通安全输入、验证期私有资产挂载、候选临时副本评测和 Dev Episode。PyVista 预注册双臂均成功但没有 Notice 增点；随后两任务冻结复现为 1/2，SQLFluff 在首次定位正确路径时请求读取却被直接编辑约束拒绝。由此冻结的 Astroid-1978/pydicom-1256 Strict/Progressive 四 Episode 配对消融现已完成：两组硬结果相同，渐进读取只在 pydicom 上延迟一轮停止，没有产生策略增益证据。默认关闭的一次 read-to-edit 纠正已实现并完成契约验证；首轮载体因测试 ID 精度不足在零模型调用阶段关闭，独立后续协议的 Astroid-1268/pydicom-1694 已通过准入。2026-09-10 恢复环境后的 Marshmallow Episode 通过本地测试、Diff、权限和终止硬门槛；2026-09-11 的首个真实 Claw–Pi 单题对照也已归档，但两者都不足以支持普遍效果结论。
 
 目标：先实现无需 LLM 的可复现数据治理。
 
@@ -253,6 +253,6 @@ Adapter 或通过数据 Dry-run。在真实 Adapter、Checkpoint 和独立 Bench
 3. 已实现 ShareGPT Tool-use Exporter，并固化 5 条 Fixture。
 4. 已编写 Test Split、Tool 顺序和确定性测试；待补充跨 Family 泄漏 Fixture。
 5. 已用真实 Episode 构建 Silver/Gold，并完成 LlamaFactory 数据加载与 Tokenization Dry-run；下一步扩充 Train/Dev 小批次，不立即宣称训练效果。
-6. 已完成 SWE-bench Lite 六仓库十一任务校准、Dev Episode 和行为诊断 v4；最新多任务复现为 1/2。下一步验证“允许一次目标文件读取、随后强制编辑”的细粒度约束，而不是重跑已失败题。
+6. 已完成 SWE-bench Lite 六仓库二十题筛选、十八题准入、Dev Episode 和行为诊断 v4；七题 Claw Base/Enhanced/Pi Raw 计划只使用已校准的有序子集。下一步在 Docker 主机验证 Claw Backend 与 Pi 全进程容器包装，再启动付费三臂 Pilot。
 
 这一步不需要 GPU，但可以验证最关键的数据契约，为后续 DataFlow 和真实训练消除最大的不确定性。

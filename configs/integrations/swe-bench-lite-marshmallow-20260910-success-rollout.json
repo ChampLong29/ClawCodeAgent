@@ -1,0 +1,82 @@
+{
+  "schema_version": "swe_bench_lite_rollout_evidence.v1",
+  "captured_at": "2026-09-10",
+  "status": "local_dev_success",
+  "instance_id": "marshmallow-code__marshmallow-1343",
+  "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+  "base_commit": "2be2d83a1a9a6d3d9b85804f3ab545cecc409bb0",
+  "generation_commit": "f6f20295d86fddfe6567a281f1d0793acd39c046",
+  "generation_worktree_dirty": true,
+  "model": "deepseek-v4-pro[1m]",
+  "environment": {
+    "python_version": "3.8.20",
+    "pytest_version": "8.3.5",
+    "official_swebench_harness": false,
+    "isolation": "git_archive_episode_with_private_evaluator_mount"
+  },
+  "controls": {
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_turns": 24,
+    "implementation_deadline_turns": 10,
+    "implementation_escalation_turns": 4,
+    "completion_reminder_turns": 8,
+    "completion_critical_turns": 3,
+    "allowed_paths": [
+      "src/marshmallow/schema.py"
+    ],
+    "prompt_version": "swe-bench-lite-dev.deepseek-v4-pro.pi-inspired.v1"
+  },
+  "result": {
+    "collection_id": "episode_collection_e785a6a33970de69ca36",
+    "verification_report_id": "verify_5854539f6b504444007e",
+    "success": true,
+    "hard_gate_passed": true,
+    "termination": "completed",
+    "test_pass_rate": 1.0,
+    "fail_to_pass_passed": true,
+    "fail_to_pass_count": 1,
+    "pass_to_pass_passed": true,
+    "pass_to_pass_count": 24,
+    "diff_scope_passed": true,
+    "process_permission_passed": true,
+    "changed_files": [
+      "src/marshmallow/schema.py"
+    ],
+    "turns": 24,
+    "tool_calls": 28,
+    "input_tokens": 13993,
+    "output_tokens": 6365,
+    "latency_seconds": 88.59790737496223
+  },
+  "behavior_diagnostics": {
+    "first_target_path_turn": 3,
+    "implementation_deadline_turn": 10,
+    "implementation_escalation_turn": 14,
+    "first_direct_mutation_turn": 17,
+    "target_to_mutation_turn_lag": 14,
+    "investigation_without_edit_ratio": 0.75,
+    "post_edit_contract_guidance_turn": 17,
+    "completion_reminder_turn": 16,
+    "completion_critical_turn": 21,
+    "tool_calls_after_completion_critical": 2
+  },
+  "artifact_hashes": {
+    "candidate_diff_sha256": "a21b0efdc41d543c7be34dc7c5bc9f9dfdb5c77fc7aefbac6e4ed9ff13a86125",
+    "collection_manifest_sha256": "22416e0913ccbfb03c5ccadf84027e82f23d8e7f5b0a2a961c1f19c7ae511d45",
+    "environment_contract_sha256": "7c535b14e17b8a6ac601e7760a428460e82b73f9471262bb31067783a0e5e845",
+    "evaluator_fingerprint_sha256": "c2b7b4ec30abe682ea4bb8f8b00e84cf68c8f78beb4cd2c35509e399a8d95969",
+    "trajectory_sha256": "ce829ce928be94682a2a763a8ed7e12b5892d4fefc2ce2a45e04a0ba52e9448b",
+    "verification_sha256": "5975a27785417db2df2e306a90bbe6a20f580bafb76091431725aa34aeba6231"
+  },
+  "data_admission": {
+    "raw_episode_retained_locally": true,
+    "candidate_for_manual_gold_review": true,
+    "gold_sft_eligible": false,
+    "gold_exclusion_reasons": [
+      "manual_quality_and_leakage_review_not_completed"
+    ],
+    "contains_training_effect_claim": false
+  },
+  "claim_boundary": "Benchmark verified for one local SWE-bench Lite Dev instance only; not an official SWE-bench score and not a capability or model-improvement claim."
+}

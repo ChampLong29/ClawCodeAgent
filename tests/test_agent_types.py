@@ -2,7 +2,7 @@
 
 import unittest
 from claw.agent_types import (
-    AgentPermissions, ModelConfig, ModelPricing, BudgetConfig, UsageStats,
+    DEFAULT_MODEL_NAME, AgentPermissions, ModelConfig, ModelPricing, BudgetConfig, UsageStats,
     ToolCall, AssistantTurn, AgentRunResult,
 )
 
@@ -32,6 +32,13 @@ class TestModelPricing(unittest.TestCase):
         restored = ModelPricing.from_dict(d)
         self.assertEqual(restored.input_token_price, 0.001)
         self.assertEqual(restored.output_token_price, 0.002)
+
+
+class TestModelConfig(unittest.TestCase):
+    def test_deepseek_flash_is_shared_default(self):
+        self.assertEqual(DEFAULT_MODEL_NAME, "deepseek-flash")
+        self.assertEqual(ModelConfig().name, DEFAULT_MODEL_NAME)
+        self.assertEqual(ModelConfig.from_dict({}).name, DEFAULT_MODEL_NAME)
 
 
 class TestUsageStats(unittest.TestCase):

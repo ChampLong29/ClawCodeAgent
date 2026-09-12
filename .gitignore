@@ -56,6 +56,8 @@ docs/*
 !docs/architecture/
 docs/architecture/*
 !docs/architecture/data-centric-agent-training-design.md
+!docs/architecture/PI_INSPIRED_HARNESS.md
+!docs/architecture/AGENT_SANDBOX_BACKEND_DESIGN.md
 !docs/roadmap/
 docs/roadmap/*
 !docs/roadmap/data-centric-training-roadmap.md

@@ -8,6 +8,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 
+DEFAULT_MODEL_NAME = "deepseek-flash"
+
+
 class BudgetExceededAction(Enum):
     """Action when budget is exceeded."""
     STOP = "stop"
@@ -42,7 +45,7 @@ class ModelPricing:
 @dataclass
 class ModelConfig:
     """Model configuration."""
-    name: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    name: str = DEFAULT_MODEL_NAME
     temperature: float = 0.1
     max_tokens: Optional[int] = None
     thinking_mode: Optional[str] = None
@@ -63,7 +66,7 @@ class ModelConfig:
         if data.get("pricing"):
             pricing = ModelPricing.from_dict(data["pricing"])
         return cls(
-            name=data.get("name", "Qwen/Qwen3-Coder-30B-A3B-Instruct"),
+            name=data.get("name", DEFAULT_MODEL_NAME),
             temperature=data.get("temperature", 0.1),
             max_tokens=data.get("max_tokens"),
             thinking_mode=data.get("thinking_mode"),

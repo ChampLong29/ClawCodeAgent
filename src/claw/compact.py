@@ -49,6 +49,16 @@ class CompactionSummary:
             parts.append(f"### Agent 结论\n{self.agent_conclusion}")
         return "\n".join(parts)
 
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_messages": self.total_messages,
+            "file_writes": _dedupe(self.file_writes),
+            "file_edits": _dedupe(self.file_edits),
+            "commands": list(self.commands[:20]),
+            "reads_count": self.reads_count,
+            "agent_conclusion": self.agent_conclusion,
+        }
+
 
 def _dedupe(items: List[str]) -> List[str]:
     seen = set()
@@ -76,6 +86,50 @@ def _estimate_token_count(text: str) -> int:
     if not text:
         return 0
     return len(text) // 4
+
+
+def estimate_messages_tokens(messages: List[Dict[str, Any]]) -> int:
+    """Estimate the serialized token footprint of a message list."""
+    return _estimate_token_count(json.dumps(messages, ensure_ascii=False, default=str))
+
+
+def build_compaction_summary(messages: List[Dict[str, Any]]) -> CompactionSummary:
+    """Extract durable file, command, and conclusion facts before compaction."""
+    summary = CompactionSummary(total_messages=len(messages))
+    for message in messages:
+        if message.get("role") == "assistant" and not message.get("tool_calls"):
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                summary.agent_conclusion = content.strip()[-1200:]
+        for raw_call in message.get("tool_calls") or []:
+            if not isinstance(raw_call, dict):
+                continue
+            function = raw_call.get("function")
+            if isinstance(function, dict):
+                name = str(function.get("name", ""))
+                arguments = function.get("arguments", {})
+            else:
+                name = str(raw_call.get("name", ""))
+                arguments = raw_call.get("arguments", {})
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except (TypeError, json.JSONDecodeError):
+                    arguments = {}
+            if not isinstance(arguments, dict):
+                arguments = {}
+            path = str(arguments.get("path", ""))
+            if name == "write_file" and path:
+                summary.file_writes.append(path)
+            elif name == "edit_file" and path:
+                summary.file_edits.append(path)
+            elif name == "read_file":
+                summary.reads_count += 1
+            elif name == "bash":
+                command = arguments.get("command")
+                if command:
+                    summary.commands.append(str(command))
+    return summary
 
 
 def _get_message_priority(msg: Dict[str, Any]) -> int:
@@ -138,7 +192,8 @@ def compact_messages(
             middle_messages = messages[middle_start:middle_end]
 
             # Create summary of middle messages
-            summary_content = _summarize_messages(middle_messages)
+            semantic_summary = build_compaction_summary(middle_messages)
+            summary_content = semantic_summary.render()
 
             summary_msg = {
                 "role": "system",

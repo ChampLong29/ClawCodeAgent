@@ -8,7 +8,13 @@ from .metrics import (
 )
 from .local_agent_adapter import LocalAgentBenchmarkAdapter
 from .local_command import run_local_benchmark
+from .pi_rpc_adapter import PiRpcAgent, PiRpcBenchmarkAdapter, PiRpcClient, PiRpcError
+from .pi_command import run_pi_benchmark
 from .report import AblationReportGenerator
+from .runtime_comparison import (
+    RuntimeComparisonReportGenerator,
+    load_benchmark_run,
+)
 from .runner import (
     ABLATION_GROUPS,
     BenchmarkConfig,
@@ -52,6 +58,11 @@ __all__ = [
     "OfficialSweBenchHarnessConfig",
     "OfficialSweBenchHarnessError",
     "PreparedOfficialSweBenchRun",
+    "PiRpcAgent",
+    "PiRpcBenchmarkAdapter",
+    "PiRpcClient",
+    "PiRpcError",
+    "RuntimeComparisonReportGenerator",
     "SweBenchLiteAgentTask",
     "SweBenchLiteCandidateEvaluation",
     "SweBenchLiteDevAdapter",
@@ -64,4 +75,6 @@ __all__ = [
     "cost_summary",
     "evaluate_swe_bench_lite_candidate",
     "run_local_benchmark",
+    "run_pi_benchmark",
+    "load_benchmark_run",
 ]

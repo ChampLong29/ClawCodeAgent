@@ -31,21 +31,25 @@ python -m pip install -e .
 
 复制 `.env.example` 为 `.env`，然后选择一种模型协议配置。
 
-Anthropic 原生协议：
+DeepSeek Anthropic 兼容协议（项目默认）：
 
 ```dotenv
-ANTHROPIC_BASE_URL=https://api.anthropic.com
-ANTHROPIC_API_KEY=sk-ant-your-api-key-here
-ANTHROPIC_MODEL=claude-sonnet-4-6
+ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+ANTHROPIC_API_KEY=sk-your-deepseek-key
+ANTHROPIC_MODEL=deepseek-flash
 ```
 
-OpenAI 兼容协议（vLLM、Ollama、LiteLLM 或兼容服务）：
+DeepSeek OpenAI 兼容协议：
 
 ```dotenv
-OPENAI_BASE_URL=http://127.0.0.1:8000/v1
-OPENAI_API_KEY=local-token
-OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
+OPENAI_BASE_URL=https://api.deepseek.com
+OPENAI_API_KEY=sk-your-deepseek-key
+OPENAI_MODEL=deepseek-flash
 ```
+
+未显式设置模型时，共享回退值为 `deepseek-flash`，当前后端版本为
+`v4-flash-9_10`。本地 vLLM/Ollama/LiteLLM 仍可通过相同的 OpenAI 兼容变量
+接入；下面的 Qwen 配置是显式本地训练/评测路径，不是全局默认值。
 
 本地 Qwen3-1.7B 的重复、多轮评测应使用常驻推理服务，而不是逐 Episode
 调用 Transformers `generate()`。当前 RTX 5080 + WSL2 的已验证配置见
@@ -126,7 +130,8 @@ python -m claw.main agent "分析这个仓库" --cwd . --stream
   SWE Episode 仅向模型暴露本地任务所需工具。
 - Bash 安全策略、GUI 权限确认、插件级工具屏蔽与别名。
 - 可选的重复只读 Action Guard，在无中间修改时阻止完全相同的观察请求反复执行。
-- 会话持久化、恢复、自动压缩和工具结果截断。
+- 追加式树状会话、分支导航、结构化压缩和工具结果截断；导航不会删除旧分支。
+- 有序 Runtime Event Bus，以及只允许声明式数据的 Plugin 生命周期/工具钩子。
 - Agent Shell 与命令型 Plugin 经过统一 Sandbox Backend；Host 为非强隔离兼容模式，
   Docker 为显式选择的离线容器模式。
 - 自动注入 Git 状态、平台信息、`AGENTS.md` 和各 Runtime 摘要。
@@ -192,6 +197,15 @@ Tool Result，Verification 将测试、Diff、权限、格式和终止信号分�
 结论边界见
 [`harness-comparison-experiment-design.md`](docs/roadmap/harness-comparison-experiment-design.md)。
 
+Pi-inspired 路径已经实现 `pi --mode rpc` 严格 JSONL 客户端、Pi 事件到
+Trajectory v2 的映射、`claw benchmark-pi`、`claw benchmark-compare`，以及
+Claw Base / Claw Enhanced / Pi Raw 三臂本地 SWE-bench Lite Dev 消融工具。Pi
+运行必须提供隔离证明；macOS 可由 Claw 直接启用 Seatbelt，Docker 主机目前需要由
+操作者把 Pi 完整进程放入容器并记录证明。也就是说，Claw 的 Agent/Verifier 已由
+统一 `SandboxBackend` 管理，但 Pi RPC 长驻进程尚未接入该 Backend，不能仅凭一段
+attestation 文本宣称容器隔离已经由程序验证。设计和边界见
+[`PI_INSPIRED_HARNESS.md`](docs/architecture/PI_INSPIRED_HARNESS.md)。
+
 ### 已归档的代表性实验
 
 - Tool UX v2 冻结对照覆盖 10 个本地版本化任务：Qwen3-1.7B 为 0/10，
@@ -204,6 +218,11 @@ Tool Result，Verification 将测试、Diff、权限、格式和终止信号分�
   镜像因 NumPy 2 依赖漂移在 pytest 收集前失败；披露的 `numpy<2` 兼容层下，1 条
   FAIL_TO_PASS 与 281 条 PASS_TO_PASS 全部通过。该记录证明官方评测链路兼容性，
   不等同于未修改环境的排行榜分数。
+- 已归档一次 `deepseek-flash`、同一 Marshmallow Dev 任务和同一验证链路下的
+  Claw–Pi 本地对照：Claw 完成允许范围内的修复并通过测试，Pi 定位问题但没有编辑。
+  这是单样本机制证据，不是官方 SWE-bench 分数，也不能推出统计上的运行时优劣；
+  证据见
+  [`swe-bench-lite-claw-pi-deepseek-flash-20260911.json`](configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json)。
 
 ### 低成本 Agent 后训练路线
 

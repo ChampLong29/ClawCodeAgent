@@ -62,7 +62,10 @@ python -m pip install -U pip
 python -m pip install -e ".[dev]"
 ```
 
-复制 `.env.example` 为 `.env`，选择 Anthropic 原生或 OpenAI 兼容协议。不要同时保留无意使用的 `ANTHROPIC_*` 和 `OPENAI_*` 配置，因为任一 `ANTHROPIC_*` 变量都会选择 Anthropic 模式。
+复制 `.env.example` 为 `.env`，选择 DeepSeek Anthropic 兼容或 OpenAI 兼容
+协议。不要同时保留无意使用的 `ANTHROPIC_*` 和 `OPENAI_*` 配置，因为任一
+`ANTHROPIC_*` 变量都会选择 Anthropic 模式。共享回退模型是 `deepseek-flash`
+（当前后端 `v4-flash-9_10`）；Qwen 等本地训练/推理实验仍须显式写入配置。
 
 真实 LoRA/QLoRA 训练还需要相应的 PyTorch、Transformers、PEFT、Accelerate；QLoRA 另外需要 BitsAndBytes。是否可用以 `PeFTSFTBackend.prepare()` 的依赖检查为准，不应仅凭包已安装就宣称训练可用。
 
@@ -257,6 +260,23 @@ Shell 边界标记为真实引擎验证，不将其升级为 Benchmark verified�
 其后新增的宿主路径到 `/workspace` 映射只经过聚焦测试与无模型实机探针验证，未用同一
 模型 Episode 做结果重试。
 
+新代码优先使用统一 `SandboxBackend` 参数；它会为 Agent 与 Verifier 创建不同的
+Sandbox Owner/Handle，并在最终验证前销毁 Agent Sandbox：
+
+```bash
+claw benchmark-run \
+  --manifest task_suites/manifest.json \
+  --group base \
+  --limit 1 \
+  --sandbox-backend docker \
+  --sandbox-image 'python@sha256:<64-hex-digest>' \
+  --output .port_sessions/benchmark-docker
+```
+
+Docker Backend 必须使用本地已有且 digest 固定的镜像；缺失、启动失败或清理失败均
+Fail Closed，不回退 Host。实机验证步骤见
+`docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md`。
+
 ### 6.5 固定实验变量
 
 Benchmark 至少固定并记录：
@@ -298,6 +318,43 @@ Claw Minimal 检查 Prompt、协议和 Tool UX 是否等价，Claw Controlled �
 首轮优先增加冻结任务覆盖，每任务/臂运行一个新 Episode；配对结果分歧项和预注册的
 相同结果样本再重复 2-3 次，并单独保留首次运行表。完整的取舍、准入、停止规则和
 表述边界见 `docs/roadmap/harness-comparison-experiment-design.md`。
+
+### 6.8 Pi-inspired RPC 基线
+
+Pi 基线通过长驻 `pi --mode rpc --no-session` JSONL 进程接入，复用 Claw 的 Episode、
+Trajectory v2、Diff Allowlist 和 Verification v2。运行时版本、工具版本、模型、每次
+响应 Token、累计 Token、Turn 和超时都必须显式冻结：
+
+```bash
+claw benchmark-pi \
+  --manifest task_suites/medium/manifest.json \
+  --model deepseek-flash \
+  --runtime-version 'pi@0.85.1' \
+  --tool-version 'pi-builtins@0.85.1' \
+  --sandbox-attestation '<实际隔离边界>' \
+  --max-tokens 4096 \
+  --max-total-tokens 250000 \
+  --max-turns 24 \
+  --limit 1 \
+  --output .port_sessions/benchmark-pi
+```
+
+`--use-claw-api-config` 只把密钥的环境变量引用写入 Pi 配置，真实密钥仅进入子进程
+环境。macOS 可增加 `--enforce-macos-seatbelt`。Docker 主机目前需要通过一个容器包装
+入口让完整 Pi 进程留在容器内，并如实记录 attestation；`PiRpcClient` 尚未由 Claw
+的 `SandboxBackend` 创建或独立验证该容器，所以不能把 attestation 本身当成隔离证明。
+
+本地 SWE-bench Lite Dev 的同任务双臂和三臂消融入口分别为：
+
+```bash
+python tools/compare_swe_bench_lite_runtimes.py --help
+python tools/run_swe_bench_lite_runtime_ablation.py --help
+```
+
+已归档一个 Marshmallow-1343 的真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
+是单样本本地机制证据。七任务三臂计划仅覆盖 20 题筛选中已经校准的有序子集，必须先
+完成 Docker/RPC 冒烟再启动付费 Episode。协议、证据边界和后续步骤见
+`docs/architecture/PI_INSPIRED_HARNESS.md`。
 
 ## 7. Episode、Trajectory 与 Verification
 

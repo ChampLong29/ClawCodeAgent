@@ -233,6 +233,22 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
                     allowed_path_patterns=("target.py",),
                 )
 
+    def test_collection_rejects_non_positive_total_token_budget(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError, "max_total_tokens must be positive"
+            ):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    max_total_tokens=0,
+                    allowed_path_patterns=("target.py",),
+                )
+
     def test_workspace_pythonpath_supports_src_and_root_layouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

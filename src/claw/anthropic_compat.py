@@ -21,6 +21,8 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Optional
 
+from .agent_types import DEFAULT_MODEL_NAME
+
 
 class AnthropicCompatClient:
     """Client that provides Anthropic API compatibility.
@@ -40,7 +42,7 @@ class AnthropicCompatClient:
         self._client = OpenAICompatClient(
             base_url=base_url or os.environ.get("ANTHROPIC_BASE_URL", "http://127.0.0.1:8000/v1"),
             api_key=api_key or os.environ.get("ANTHROPIC_API_KEY", "local-token"),
-            model=model or os.environ.get("ANTHROPIC_MODEL", "claude-3-sonnet-20240229"),
+            model=model or os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL_NAME),
         )
 
     def complete(

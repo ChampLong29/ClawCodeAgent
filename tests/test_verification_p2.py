@@ -301,6 +301,36 @@ class TestVerifierPipeline(unittest.TestCase):
             report.bad_cases[0]["primary_category"], "environment_or_infra"
         )
 
+    def test_budget_runtime_error_is_not_misclassified_as_infrastructure(self):
+        trajectory = make_trajectory(
+            passed_tests=0,
+            changed_files=["scratch.py"],
+            stop_reason="budget_exceeded",
+        )
+        trajectory.events.pop()
+        trajectory.header.termination = None
+        trajectory.header.finished_at = None
+        trajectory.append(
+            "runtime_error",
+            payload={
+                "stop_reason": "budget_exceeded",
+                "error": "max_total_tokens exceeded",
+            },
+        )
+        trajectory.terminate(
+            "budget_exceeded", detail="max_total_tokens exceeded"
+        )
+
+        report = VerifierPipeline().verify(context(trajectory))
+
+        self.assertEqual(
+            report.bad_cases[0]["primary_category"], "budget_or_timeout"
+        )
+        self.assertNotIn(
+            "environment_or_infra",
+            report.bad_cases[0]["secondary_categories"],
+        )
+
     def test_output_schema_is_validated_without_external_dependency(self):
         report = VerifierPipeline().verify(
             context(

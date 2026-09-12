@@ -544,6 +544,118 @@ def cmd_benchmark_run(args) -> int:
     return 0
 
 
+def cmd_benchmark_pi(args) -> int:
+    """Run a pinned Pi RPC baseline through Claw's benchmark verifier."""
+    cwd = _resolve_cwd(args.cwd)
+    manifest_path = os.path.abspath(
+        args.manifest
+        if os.path.isabs(args.manifest)
+        else os.path.join(cwd, args.manifest)
+    )
+    output_root = os.path.abspath(
+        args.output
+        if os.path.isabs(args.output)
+        else os.path.join(cwd, args.output)
+    )
+    episodes_root = None
+    if args.episodes_root:
+        episodes_root = os.path.abspath(
+            args.episodes_root
+            if os.path.isabs(args.episodes_root)
+            else os.path.join(cwd, args.episodes_root)
+        )
+
+    try:
+        from .benchmark import run_pi_benchmark
+
+        result = run_pi_benchmark(
+            manifest_path=manifest_path,
+            output_root=output_root,
+            episodes_root=episodes_root,
+            model_ref=args.model,
+            provider=args.provider,
+            pi_executable=args.pi_executable,
+            pi_extra_args=args.pi_arg or (),
+            use_claw_api_config=args.use_claw_api_config,
+            enforce_macos_seatbelt=args.enforce_macos_seatbelt,
+            max_tokens=args.max_tokens,
+            max_total_tokens=args.max_total_tokens,
+            temperature=args.temperature,
+            max_turns=args.max_turns,
+            timeout_seconds=args.timeout,
+            seed=args.seed,
+            runtime_version=args.runtime_version,
+            prompt_version=args.prompt_version,
+            tool_version=args.tool_version,
+            verifier_version=args.verifier_version,
+            config_version=args.config_version,
+            sandbox_attestation=args.sandbox_attestation,
+            task_ids=args.task_id or (),
+            limit=args.limit,
+            allowed_path_patterns=args.allow_path or (),
+            input_token_price_per_million=args.input_price_per_million,
+            output_token_price_per_million=args.output_price_per_million,
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"error": f"{type(exc).__name__}: {exc}"},
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+
+    report_path = os.path.join(output_root, "base", "benchmark-run.json")
+    print(json.dumps({
+        "run_id": result.run_id,
+        "runtime": "pi_rpc",
+        "group": result.config.group_name,
+        "model_ref": result.config.model_ref,
+        "protocol_fingerprint": result.config.protocol_fingerprint,
+        "task_count": len(result.task_ids),
+        "metrics": result.metrics,
+        "benchmark_run_ref": report_path,
+    }, indent=2, ensure_ascii=False))
+    return 0
+
+
+def cmd_benchmark_compare(args) -> int:
+    """Generate a guarded Claw-versus-Pi runtime comparison report."""
+    cwd = _resolve_cwd(args.cwd)
+
+    def resolve(path: str) -> str:
+        candidate = path if os.path.isabs(path) else os.path.join(cwd, path)
+        return os.path.abspath(candidate)
+
+    output = resolve(args.output)
+    try:
+        from .benchmark import RuntimeComparisonReportGenerator, load_benchmark_run
+
+        report = RuntimeComparisonReportGenerator(output).generate(
+            load_benchmark_run(resolve(args.claw_run)),
+            load_benchmark_run(resolve(args.pi_run)),
+        )
+    except Exception as exc:
+        print(
+            json.dumps(
+                {"error": f"{type(exc).__name__}: {exc}"},
+                ensure_ascii=False,
+            ),
+            file=sys.stderr,
+        )
+        return 1
+
+    print(json.dumps({
+        "report_id": report["report_id"],
+        "comparable": report["comparability"]["comparable"],
+        "mismatches": report["comparability"]["mismatches"],
+        "comparison_ref": os.path.join(output, "runtime-comparison.json"),
+        "markdown_ref": os.path.join(output, "report.md"),
+    }, indent=2, ensure_ascii=False))
+    return 0
+
+
 def cmd_train(args) -> int:
     """Run agent training episodes."""
     cwd = _resolve_cwd(args.cwd)
@@ -930,6 +1042,80 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Pinned local image name@sha256:<digest> required for Docker",
     )
 
+    pi_benchmark_parser = subparsers.add_parser(
+        "benchmark-pi",
+        help="Run a pinned Pi RPC baseline through Claw verification",
+    )
+    pi_benchmark_parser.add_argument("--cwd", default=None)
+    pi_benchmark_parser.add_argument("--manifest", required=True)
+    pi_benchmark_parser.add_argument(
+        "--output", default=".port_sessions/benchmark-pi"
+    )
+    pi_benchmark_parser.add_argument("--episodes-root", default=None)
+    pi_benchmark_parser.add_argument("--model", required=True)
+    pi_benchmark_parser.add_argument("--provider", default=None)
+    pi_benchmark_parser.add_argument("--pi-executable", default="pi")
+    pi_benchmark_parser.add_argument(
+        "--pi-arg",
+        action="append",
+        default=[],
+        help="Additional Pi CLI argument; repeat for multiple arguments",
+    )
+    pi_benchmark_parser.add_argument("--max-turns", type=int, default=50)
+    pi_benchmark_parser.add_argument("--max-tokens", type=int, default=4096)
+    pi_benchmark_parser.add_argument(
+        "--max-total-tokens", type=int, default=250000
+    )
+    pi_benchmark_parser.add_argument("--temperature", type=float, default=0.0)
+    pi_benchmark_parser.add_argument("--timeout", type=float, default=900.0)
+    pi_benchmark_parser.add_argument("--seed", type=int, default=42)
+    pi_benchmark_parser.add_argument("--limit", type=int, default=None)
+    pi_benchmark_parser.add_argument("--task-id", action="append", default=[])
+    pi_benchmark_parser.add_argument("--allow-path", action="append", default=[])
+    pi_benchmark_parser.add_argument("--runtime-version", required=True)
+    pi_benchmark_parser.add_argument(
+        "--prompt-version", default="task-prompt.v1"
+    )
+    pi_benchmark_parser.add_argument("--tool-version", required=True)
+    pi_benchmark_parser.add_argument(
+        "--use-claw-api-config",
+        action="store_true",
+        help="Use Claw's active endpoint through a secret-free Pi models.json",
+    )
+    pi_benchmark_parser.add_argument(
+        "--enforce-macos-seatbelt",
+        action="store_true",
+        help="Run the Pi process under the repository's macOS Seatbelt profile",
+    )
+    pi_benchmark_parser.add_argument(
+        "--verifier-version", default="verifier-policy.v1"
+    )
+    pi_benchmark_parser.add_argument(
+        "--config-version", default="pi-rpc-cli.v1"
+    )
+    pi_benchmark_parser.add_argument(
+        "--sandbox-attestation",
+        required=True,
+        help="Operator evidence label for the enforced Pi sandbox",
+    )
+    pi_benchmark_parser.add_argument(
+        "--input-price-per-million", type=float, default=0.0
+    )
+    pi_benchmark_parser.add_argument(
+        "--output-price-per-million", type=float, default=0.0
+    )
+
+    comparison_parser = subparsers.add_parser(
+        "benchmark-compare",
+        help="Compare archived Claw and Pi benchmark runs with control checks",
+    )
+    comparison_parser.add_argument("--cwd", default=None)
+    comparison_parser.add_argument("--claw-run", required=True)
+    comparison_parser.add_argument("--pi-run", required=True)
+    comparison_parser.add_argument(
+        "--output", default=".port_sessions/benchmark-comparison"
+    )
+
     train_parser = subparsers.add_parser("train", help="Run agent training episodes")
     train_parser.add_argument("--cwd", default=None)
     train_parser.add_argument("--task", default=None, help="JSON task definition")
@@ -1011,6 +1197,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "lifecycle-start": cmd_lifecycle_start,
         "sessions": cmd_sessions,
         "benchmark-run": cmd_benchmark_run,
+        "benchmark-pi": cmd_benchmark_pi,
+        "benchmark-compare": cmd_benchmark_compare,
         "train": cmd_train,
         "train-stats": cmd_train_stats,
         "train-web": cmd_train_web,

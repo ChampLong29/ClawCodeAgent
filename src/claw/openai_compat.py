@@ -8,6 +8,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 import urllib.request
 import urllib.error
 
+from .agent_types import DEFAULT_MODEL_NAME
+
 
 class OpenAICompatError(Exception):
     """Error from OpenAI-compatible API."""
@@ -47,7 +49,7 @@ class OpenAICompatClient:
     ):
         self.base_url = base_url or os.environ.get("OPENAI_BASE_URL", "http://127.0.0.1:8000/v1")
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY", "local-token")
-        self.model = model or os.environ.get("OPENAI_MODEL", "Qwen/Qwen3-Coder-30B-A3B-Instruct")
+        self.model = model or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL_NAME)
         self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
 
     def complete(
@@ -258,7 +260,7 @@ class AnthropicClient:
     ):
         self.base_url = base_url or os.environ.get("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
-        self.model = model or os.environ.get("ANTHROPIC_MODEL", "claude-3-sonnet-20240229")
+        self.model = model or os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL_NAME)
         self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
 
         # Thinking configuration

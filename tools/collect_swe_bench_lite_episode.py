@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from claw.agent_types import DEFAULT_MODEL_NAME
 from claw.data_pipeline import collect_swe_bench_lite_dev_episode
 
 
@@ -17,7 +18,7 @@ def main() -> int:
     parser.add_argument("--output-root", required=True, type=Path)
     parser.add_argument("--generation-commit", required=True)
     parser.add_argument("--api-config-root", type=Path, default=Path.cwd())
-    parser.add_argument("--model", default="deepseek-v4-flash")
+    parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument(
         "--local-model-path",
         type=Path,
@@ -95,6 +96,12 @@ def main() -> int:
         help="Disable the one-time post-edit compatibility verification notice.",
     )
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument(
+        "--max-total-tokens",
+        type=int,
+        default=250000,
+        help="Stop the episode when cumulative input and output tokens reach this limit.",
+    )
     parser.add_argument("--allow-path", action="append", required=True)
     parser.add_argument(
         "--container-image",
@@ -107,7 +114,7 @@ def main() -> int:
         "--container-engine", choices=("auto", "docker", "podman"), default="auto"
     )
     parser.add_argument(
-        "--prompt-version", default="swe-bench-lite-dev.deepseek-v4-flash.v2"
+        "--prompt-version", default="swe-bench-lite-dev.deepseek-flash.v1"
     )
     args = parser.parse_args()
     agent_command_runner = None
@@ -145,6 +152,7 @@ def main() -> int:
         model_ref=args.model,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
+        max_total_tokens=args.max_total_tokens,
         thinking_mode=args.thinking_mode,
         max_turns=args.max_turns,
         completion_reminder_turns=args.completion_reminder_turns,

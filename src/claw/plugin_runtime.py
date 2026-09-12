@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from .hook_policy import RuntimeBase
+from .runtime_events import EventDirective, RuntimeEvent, RuntimeEventBus
 
 
 @dataclass
@@ -144,3 +145,103 @@ class PluginRuntime(RuntimeBase):
             return "Custom hooks are configured by plugins."
 
         return ""
+
+    def bind_event_bus(self, event_bus: RuntimeEventBus) -> List[str]:
+        """Register safe declarative plugin hooks on ``event_bus``.
+
+        This adapter deliberately does not import or execute workspace Python.
+        Supported hook fields are ``cancel``/``deny``, ``reason``, static
+        ``payload_updates``, and ``append_system_prompt``.  Tool hooks may also
+        use ``argument_equals`` to restrict a rule to matching arguments.
+        """
+        tokens: List[str] = []
+        for plugin in self.plugins:
+            for event_type, raw_spec in plugin.hooks.items():
+                for spec in self._normalize_hook_specs(raw_spec):
+                    tokens.append(
+                        event_bus.on(
+                            str(event_type),
+                            self._make_hook_listener(plugin.name, spec),
+                            priority=int(spec.get("priority", 0)),
+                            name=f"plugin:{plugin.name}:{event_type}",
+                            fail_closed=bool(spec.get("fail_closed", False)),
+                        )
+                    )
+
+            for tool_name, raw_tool_spec in plugin.tool_hooks.items():
+                if not isinstance(raw_tool_spec, Mapping):
+                    continue
+                before = raw_tool_spec.get("before", raw_tool_spec)
+                after = raw_tool_spec.get("after")
+                for event_type, raw_spec in (
+                    ("before_tool_call", before),
+                    ("tool_result", after),
+                ):
+                    for spec in self._normalize_hook_specs(raw_spec):
+                        hook_spec = dict(spec)
+                        hook_spec["tool"] = str(tool_name)
+                        tokens.append(
+                            event_bus.on(
+                                event_type,
+                                self._make_hook_listener(plugin.name, hook_spec),
+                                priority=int(hook_spec.get("priority", 0)),
+                                name=f"plugin:{plugin.name}:{event_type}:{tool_name}",
+                                fail_closed=bool(hook_spec.get("fail_closed", False)),
+                            )
+                        )
+        return tokens
+
+    @staticmethod
+    def _normalize_hook_specs(raw_spec: Any) -> List[Dict[str, Any]]:
+        if raw_spec is None:
+            return []
+        if isinstance(raw_spec, Mapping):
+            return [dict(raw_spec)]
+        if isinstance(raw_spec, list):
+            return [dict(item) for item in raw_spec if isinstance(item, Mapping)]
+        return []
+
+    @staticmethod
+    def _make_hook_listener(plugin_name: str, spec: Dict[str, Any]):
+        def listener(event: RuntimeEvent) -> Optional[EventDirective]:
+            required_tool = str(spec.get("tool", ""))
+            observed_tool = str(
+                event.payload.get("actual_tool_name")
+                or event.payload.get("tool_name")
+                or ""
+            )
+            if required_tool and observed_tool != required_tool:
+                return None
+
+            required_args = spec.get("argument_equals", {})
+            arguments = event.payload.get("arguments", {})
+            if isinstance(required_args, Mapping):
+                if not isinstance(arguments, Mapping):
+                    return None
+                if any(arguments.get(key) != value for key, value in required_args.items()):
+                    return None
+
+            updates = spec.get("payload_updates", {})
+            payload_updates = dict(updates) if isinstance(updates, Mapping) else {}
+            append_prompt = spec.get("append_system_prompt")
+            if isinstance(append_prompt, str) and append_prompt.strip():
+                current = str(event.payload.get("system_prompt", ""))
+                separator = "\n\n" if current else ""
+                payload_updates["system_prompt"] = (
+                    current + separator + append_prompt.strip()
+                )
+
+            cancelled = bool(spec.get("cancel", spec.get("deny", False)))
+            reason = str(
+                spec.get("reason")
+                or (f"blocked by plugin {plugin_name}" if cancelled else "")
+            )
+            if not payload_updates and not cancelled:
+                return None
+            return EventDirective(
+                cancel=cancelled,
+                reason=reason,
+                payload_updates=payload_updates,
+            )
+
+        return listener

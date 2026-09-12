@@ -186,3 +186,21 @@ FAIL_TO_PASS tests and exhausted 30 turns despite recording the completion
 reminder. It is a Dev bad case, not Gold data. Versioned hashes and admission
 decisions are stored in
 `../../configs/integrations/swe-bench-lite-astroid-deepseek-rollouts.json`.
+
+On 2026-09-10, after restoring the seven calibrated repository snapshots and
+the Marshmallow Python 3.8.20 environment, a fresh `deepseek-v4-pro[1m]` Dev
+rollout changed only `src/marshmallow/schema.py`, passed the one target and all
+24 regression tests, passed process/Diff/termination gates, and completed at
+turn 24. This is a one-instance local Dev result, not an official score or Gold
+SFT admission. Its versioned summary is
+`../../configs/integrations/swe-bench-lite-marshmallow-20260910-success-rollout.json`.
+
+The first controlled Claw–Pi run on the same Marshmallow-1343 snapshot used
+`deepseek-flash` (`v4-flash-9_10`) through the OpenAI-compatible protocol with
+explicit temperature on both sides. Claw passed the target and regressions; Pi
+reproduced the issue but terminated without a source mutation. The result is
+descriptive one-task evidence only. Its versioned summary is
+`../../configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json`.
+The three-arm pilot plan intentionally contains the seven calibrated tasks as
+an ordered subset of the wider 20-task selection; uncalibrated tasks are not
+promoted merely to make list lengths match.

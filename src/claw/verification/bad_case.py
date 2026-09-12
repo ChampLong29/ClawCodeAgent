@@ -278,6 +278,12 @@ class BadCaseClassifier:
                     candidates.setdefault("action_constraint_violation", []).append(
                         event.event_id
                     )
+                    continue
+                stop_reason = str(event.payload.get("stop_reason", ""))
+                if stop_reason in {"budget_exceeded", "timeout"}:
+                    candidates.setdefault("budget_or_timeout", []).append(
+                        event.event_id
+                    )
                 else:
                     candidates.setdefault("environment_or_infra", []).append(
                         event.event_id

@@ -1,7 +1,7 @@
 """Session persistence for CodeAgent.
 
-Uses JSONL format (one JSON object per line) for incremental appends.
-Full checkpoints are written only on major events (compaction, shutdown).
+Uses JSONL format (one metadata or entry object per line) for incremental
+appends. Legacy raw-message JSONL and single-object JSON remain readable.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from .agent_session import AgentSession
+from .agent_session import AgentSession, SessionEntry
 
 
 def _get_sessions_dir(base_path: str) -> str:
@@ -22,46 +22,42 @@ def _get_sessions_dir(base_path: str) -> str:
 # ---------------------------------------------------------------------------
 
 def save_agent_session(session: AgentSession, base_path: str) -> str:
-    """Append new messages to session file since last save.
+    """Append new tree entries to the session file since the last save.
 
-    Uses JSONL format: each message is one line.  A full checkpoint
-    (overwrite) is written when the caller sets *checkpoint=True* or
-    when compaction has reduced the message count.
+    Uses JSONL format: each v2 tree entry is one line. A full checkpoint is
+    written for a new file or when an older format is migrated.
     """
     sessions_dir = _get_sessions_dir(base_path)
     os.makedirs(sessions_dir, exist_ok=True)
 
     filepath = os.path.join(sessions_dir, f"{session.session_id}.jsonl")
-    last_count: int = session.metadata.get("last_saved_count", 0)
-    total = len(session.messages)
+    last_count = int(session.metadata.get("last_saved_entry_count", 0))
+    total = len(session.entries)
 
-    # Detect compaction (message count decreased → full checkpoint)
-    if total < last_count or last_count == 0:
+    if total < last_count or last_count == 0 or not os.path.exists(filepath):
         _write_checkpoint(session, filepath)
-        session.metadata["last_saved_count"] = total
+        _mark_saved(session)
         return filepath
 
-    # Incremental append
-    new_messages = session.messages[last_count:]
-    if not new_messages:
-        session.metadata["last_saved_count"] = total
-        return filepath
-
+    new_entries = session.entries[last_count:]
     with open(filepath, "a", encoding="utf-8") as f:
-        for msg in new_messages:
-            f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+        # Appending metadata keeps mutable fields such as stop_reason and name
+        # current while preserving the append-only history records.
+        f.write(json.dumps(_metadata_record(session), ensure_ascii=False) + "\n")
+        for entry in new_entries:
+            f.write(json.dumps(_entry_record(entry), ensure_ascii=False) + "\n")
 
-    session.metadata["last_saved_count"] = total
+    _mark_saved(session)
     return filepath
 
 
 def save_agent_session_checkpoint(session: AgentSession, base_path: str) -> str:
-    """Force a full checkpoint write (used after compaction)."""
+    """Force a full v2 checkpoint write."""
     sessions_dir = _get_sessions_dir(base_path)
     os.makedirs(sessions_dir, exist_ok=True)
     filepath = os.path.join(sessions_dir, f"{session.session_id}.jsonl")
     _write_checkpoint(session, filepath)
-    session.metadata["last_saved_count"] = len(session.messages)
+    _mark_saved(session)
     return filepath
 
 
@@ -71,8 +67,17 @@ def _write_checkpoint(session: AgentSession, filepath: str) -> None:
     Also writes a human-readable metadata header as a JSON object with
     ``__meta__: true`` marker.
     """
-    meta = {
+    meta = _metadata_record(session)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write(json.dumps(meta, ensure_ascii=False) + "\n")
+        for entry in session.entries:
+            f.write(json.dumps(_entry_record(entry), ensure_ascii=False) + "\n")
+
+
+def _metadata_record(session: AgentSession) -> Dict[str, Any]:
+    return {
         "__meta__": True,
+        "schema_version": session.schema_version,
         "session_id": session.session_id,
         "name": session.name,
         "created_at": session.created_at,
@@ -81,12 +86,21 @@ def _write_checkpoint(session: AgentSession, filepath: str) -> None:
         "stop_reason": session.stop_reason,
         "cwd": session.cwd,
         "phase_boundaries": session.phase_boundaries,
+        "current_entry_id": session.current_entry_id,
         "metadata": session.metadata,
     }
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(json.dumps(meta, ensure_ascii=False) + "\n")
-        for msg in session.messages:
-            f.write(json.dumps(msg, ensure_ascii=False) + "\n")
+
+
+def _entry_record(entry: SessionEntry) -> Dict[str, Any]:
+    record = entry.to_dict()
+    record["__entry__"] = True
+    return record
+
+
+def _mark_saved(session: AgentSession) -> None:
+    session.metadata["last_saved_entry_count"] = len(session.entries)
+    # Retain the old counter for callers that display or inspect it.
+    session.metadata["last_saved_count"] = len(session.messages)
 
 
 def load_agent_session(session_id: str, base_path: str) -> AgentSession:
@@ -114,6 +128,7 @@ def load_agent_session(session_id: str, base_path: str) -> AgentSession:
 def _load_from_jsonl(filepath: str) -> AgentSession:
     """Reconstruct a session from a JSONL file."""
     messages: List[Dict[str, Any]] = []
+    entries: List[SessionEntry] = []
     meta: Dict[str, Any] = {}
 
     with open(filepath, "r", encoding="utf-8") as f:
@@ -127,12 +142,21 @@ def _load_from_jsonl(filepath: str) -> AgentSession:
                 continue
             if obj.get("__meta__"):
                 meta = obj
+            elif obj.get("__entry__"):
+                entries.append(SessionEntry.from_dict(obj))
             else:
                 messages.append(obj)
 
     session = AgentSession(
         session_id=meta.get("session_id", ""),
-        messages=messages,
+        messages=messages if not entries else [],
+        entries=entries,
+        current_entry_id=meta.get("current_entry_id"),
+        schema_version=(
+            meta.get("schema_version", "agent_session.v2")
+            if entries
+            else "agent_session.v2"
+        ),
         metadata=meta.get("metadata", {}),
         created_at=meta.get("created_at"),
         updated_at=meta.get("updated_at"),
@@ -142,8 +166,13 @@ def _load_from_jsonl(filepath: str) -> AgentSession:
         name=meta.get("name"),
         phase_boundaries=meta.get("phase_boundaries", {}),
     )
-    # Track how many messages are on disk for future incremental saves
-    session.metadata["last_saved_count"] = len(messages)
+    if entries:
+        _mark_saved(session)
+    else:
+        # Force the next save to rewrite a legacy raw-message JSONL file as
+        # v2 entry records with stable IDs.
+        session.metadata["last_saved_entry_count"] = 0
+        session.metadata["last_saved_count"] = len(messages)
     return session
 
 
@@ -177,31 +206,32 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
     """Read session metadata without loading all messages."""
     sid = os.path.splitext(os.path.basename(filepath))[0]
 
-    # JSONL: read first line (metadata)
+    # JSONL may contain later metadata snapshots after incremental appends.
     if filepath.endswith(".jsonl"):
+        obj: Dict[str, Any] = {}
         with open(filepath, "r", encoding="utf-8") as f:
-            first_line = f.readline().strip()
-        if first_line:
-            try:
-                obj = json.loads(first_line)
-                if obj.get("__meta__"):
-                    msg_count = _count_jsonl_messages(filepath)
-                    # Extract tui_mode from nested metadata (set by TUI on save)
-                    nested_meta = obj.get("metadata", {})
-                    tui_mode = nested_meta.get("tui_mode") if isinstance(nested_meta, dict) else None
-                    return {
-                        "session_id": obj.get("session_id", sid),
-                        "name": obj.get("name"),
-                        "created_at": obj.get("created_at"),
-                        "updated_at": obj.get("updated_at"),
-                        "message_count": msg_count,
-                        "model": obj.get("model"),
-                        "stop_reason": obj.get("stop_reason"),
-                        "cwd": obj.get("cwd"),
-                        "tui_mode": tui_mode,
-                    }
-            except json.JSONDecodeError:
-                pass
+            for line in f:
+                try:
+                    candidate = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if candidate.get("__meta__"):
+                    obj = candidate
+        if obj:
+            msg_count = _count_jsonl_messages(filepath)
+            nested_meta = obj.get("metadata", {})
+            tui_mode = nested_meta.get("tui_mode") if isinstance(nested_meta, dict) else None
+            return {
+                "session_id": obj.get("session_id", sid),
+                "name": obj.get("name"),
+                "created_at": obj.get("created_at"),
+                "updated_at": obj.get("updated_at"),
+                "message_count": msg_count,
+                "model": obj.get("model"),
+                "stop_reason": obj.get("stop_reason"),
+                "cwd": obj.get("cwd"),
+                "tui_mode": tui_mode,
+            }
         return {
             "session_id": sid,
             "message_count": _count_jsonl_messages(filepath),
@@ -226,7 +256,7 @@ def _read_session_meta(filepath: str) -> Optional[Dict[str, Any]]:
 
 
 def _count_jsonl_messages(filepath: str) -> int:
-    """Count non-meta lines in a JSONL file."""
+    """Count message entries in v2 files and raw messages in legacy files."""
     count = 0
     try:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -236,7 +266,10 @@ def _count_jsonl_messages(filepath: str) -> int:
                     continue
                 try:
                     obj = json.loads(line)
-                    if not obj.get("__meta__"):
+                    if obj.get("__entry__"):
+                        if obj.get("entry_type") == "message":
+                            count += 1
+                    elif not obj.get("__meta__"):
                         count += 1
                 except json.JSONDecodeError:
                     pass

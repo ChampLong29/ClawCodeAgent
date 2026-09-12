@@ -92,7 +92,7 @@ def _generate_seatbelt_profile(
 
     # Deny sensitive file paths
     for path in deny_paths:
-        expanded = os.path.expanduser(path)
+        expanded = os.path.realpath(os.path.expanduser(path))
         lines.append(f";; deny access to {path}")
         if os.path.isdir(expanded) or path.startswith("/"):
             lines.append(f"(deny file-read* file-write* (subpath \"{expanded}\"))")
@@ -100,12 +100,13 @@ def _generate_seatbelt_profile(
             lines.append(f"(deny file-read* file-write* (literal \"{expanded}\"))")
 
     # Deny writing to parent of sandbox (prevent cd .. pollution)
-    parent = os.path.dirname(os.path.abspath(sandbox_cwd))
-    if parent and parent != sandbox_cwd:
+    resolved_cwd = os.path.realpath(sandbox_cwd)
+    parent = os.path.dirname(resolved_cwd)
+    if parent and parent != resolved_cwd:
         lines.append(f";; deny writes outside sandbox")
         lines.append(
-            f'(deny file-write* (subpath "{parent}") '
-            f'(except (subpath "{os.path.abspath(sandbox_cwd)}")))'
+            f'(deny file-write* (require-all (subpath "{parent}") '
+            f'(require-not (subpath "{resolved_cwd}"))))'
         )
 
     # Deny sensitive ports

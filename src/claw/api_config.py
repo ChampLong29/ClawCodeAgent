@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 from enum import Enum
 
+from .agent_types import DEFAULT_MODEL_NAME
 from .hook_policy import RuntimeBase
 
 
@@ -27,7 +28,7 @@ class APIConfig:
     """API configuration for model connections."""
     base_url: str = "http://127.0.0.1:8000/v1"
     api_key: str = "local-token"
-    model: str = "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+    model: str = DEFAULT_MODEL_NAME
     temperature: float = 0.1
     max_tokens: Optional[int] = None
     provider: APIProvider = APIProvider.OPENAI_COMPATIBLE
@@ -47,7 +48,7 @@ class APIConfig:
         # Support camelCase and snake_case
         base_url = data.get("baseUrl") or data.get("base_url") or "http://127.0.0.1:8000/v1"
         api_key = data.get("apiKey") or data.get("api_key") or "local-token"
-        model = data.get("model") or data.get("model_name") or "Qwen/Qwen3-Coder-30B-A3B-Instruct"
+        model = data.get("model") or data.get("model_name") or DEFAULT_MODEL_NAME
 
         provider_str = data.get("provider", "openai_compatible")
         try:

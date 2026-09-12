@@ -30,7 +30,7 @@ from .session_store import save_agent_session, load_agent_session
 from .token_budget import TokenBudget
 from .hook_policy import HookPolicyRuntime
 from .plugin_runtime import PluginRuntime
-from .compact import compact_messages, should_compact, AUTOCOMPACT_BUFFER_TOKENS
+from .runtime_events import EventDispatch, RuntimeEventBus
 from .sandbox_backend import (
     HostBackend,
     SandboxBackend,
@@ -39,6 +39,13 @@ from .sandbox_backend import (
     SandboxHandle,
     SandboxSpec,
     SandboxState,
+)
+from .compact import (
+    AUTOCOMPACT_BUFFER_TOKENS,
+    build_compaction_summary,
+    compact_messages,
+    estimate_messages_tokens,
+    should_compact,
 )
 from .microcompact import truncate_tool_result
 
@@ -136,6 +143,7 @@ class LocalCodingAgent:
     # Hook and plugin runtimes
     hook_policy: Optional[HookPolicyRuntime] = None
     plugin_runtime: Optional[PluginRuntime] = None
+    event_bus: RuntimeEventBus = field(default_factory=RuntimeEventBus)
 
     # Plugin-derived tool management
     _blocked_tools: List[str] = field(default_factory=list)
@@ -329,6 +337,10 @@ class LocalCodingAgent:
                         handler=_make_vt_handler(tool_name, vt),
                         tags=["plugin", "virtual", plugin.name],
                     ))
+
+        self._plugin_event_tokens = self.plugin_runtime.bind_event_bus(
+            self.event_bus
+        )
 
         # Mount all runtime modules for context injection and system prompt guidance.
         # Each runtime provides get_state(), render_summary(), get_prompt_guidance().
@@ -661,11 +673,15 @@ class LocalCodingAgent:
             )
 
         result = self._run_loop(max_turns=max_turns, stream=stream)
+        self._emit_runtime_event("agent_end", {"result": result.to_dict()})
         if self.runtime_observer is not None:
             self.runtime_observer.on_run_finish(
                 result, phase_id=self._current_phase_id()
             )
         save_agent_session(self.session, self.cwd)
+        self._emit_runtime_event(
+            "agent_settled", {"result": result.to_dict()}, trace_issues=False
+        )
         return result
 
     def resume(self, prompt: str, stream: bool = False) -> AgentRunResult:
@@ -679,11 +695,15 @@ class LocalCodingAgent:
                 self, prompt=prompt, phase_id=self._current_phase_id()
             )
         result = self._run_loop(max_turns=100, stream=stream)
+        self._emit_runtime_event("agent_end", {"result": result.to_dict()})
         if self.runtime_observer is not None:
             self.runtime_observer.on_run_finish(
                 result, phase_id=self._current_phase_id()
             )
         save_agent_session(self.session, self.cwd)
+        self._emit_runtime_event(
+            "agent_settled", {"result": result.to_dict()}, trace_issues=False
+        )
         return result
 
     def _run_loop(self, max_turns: int, stream: bool) -> AgentRunResult:
@@ -711,6 +731,23 @@ class LocalCodingAgent:
             hook_guidance += self.plugin_runtime.get_prompt_guidance()
         if hook_guidance:
             system_prompt = system_prompt + "\n\n[Hook/Plugin Guidance]\n" + hook_guidance
+
+        before_start = self._emit_runtime_event(
+            "before_agent_start",
+            {"system_prompt": system_prompt, "max_turns": max_turns, "stream": stream},
+        )
+        if before_start.cancelled:
+            self.session.stop_reason = "error"
+            return AgentRunResult(
+                stop_reason="error",
+                error=before_start.reason or "agent start cancelled by runtime hook",
+                usage=self.usage,
+            )
+        system_prompt = str(before_start.event.payload.get("system_prompt", system_prompt))
+        self._emit_runtime_event(
+            "agent_start",
+            {"system_prompt": system_prompt, "max_turns": max_turns, "stream": stream},
+        )
 
         # Build messages — use compacted context view if lifecycle is active
         session_messages = self.session.get_messages()
@@ -751,6 +788,17 @@ class LocalCodingAgent:
             successful_observations: Dict[str, Dict[str, Any]] = {}
             force_final_response_request = False
             while self.turns < max_turns:
+                turn_start = self._emit_runtime_event(
+                    "turn_start",
+                    {"turn": self.turns, "messages": messages},
+                )
+                if turn_start.cancelled:
+                    self.session.stop_reason = "stopped"
+                    return AgentRunResult(
+                        stop_reason="stopped",
+                        error=turn_start.reason or "turn cancelled by runtime hook",
+                        usage=self.usage,
+                    )
                 # Check budget
                 allowed, reason = budget.check()
                 if not allowed:
@@ -985,6 +1033,38 @@ class LocalCodingAgent:
                 request_tools = self._get_toolspec(
                     allowed_names=allowed_request_tools
                 )
+                before_model = self._emit_runtime_event(
+                    "before_model_request",
+                    {
+                        "turn": self.turns,
+                        "messages": messages,
+                        "inference_config": inference_config,
+                    },
+                )
+                if before_model.cancelled:
+                    self.session.stop_reason = "stopped"
+                    return AgentRunResult(
+                        stop_reason="stopped",
+                        error=(
+                            before_model.reason
+                            or "model request cancelled by runtime hook"
+                        ),
+                        usage=self.usage,
+                    )
+                updated_messages = before_model.event.payload.get("messages")
+                if isinstance(updated_messages, list):
+                    messages = updated_messages
+                updated_inference = before_model.event.payload.get(
+                    "inference_config"
+                )
+                if isinstance(updated_inference, dict):
+                    inference_config = updated_inference
+                # Runtime hooks may tune inference, but action constraints remain
+                # authoritative and cannot be weakened by an extension.
+                if force_final_response_request:
+                    inference_config["tool_choice"] = "none"
+                elif force_direct_mutation_request:
+                    inference_config["tool_choice"] = "required"
                 model_request_event_id = self._trace(
                     "model_request",
                     payload={
@@ -1062,6 +1142,14 @@ class LocalCodingAgent:
                         "duration_seconds": time.monotonic() - model_started,
                     },
                     parent_event_id=model_request_event_id,
+                )
+                self._emit_runtime_event(
+                    "model_response",
+                    {
+                        "turn": self.turns,
+                        "response": response,
+                        "duration_seconds": time.monotonic() - model_started,
+                    },
                 )
 
                 # Update usage. Count model-requested tool calls from the
@@ -1522,9 +1610,59 @@ class LocalCodingAgent:
                         # Apply tool alias mapping
                         actual_tool_name = self._tool_aliases.get(tool_name, tool_name)
 
-                        # Any dispatched side-effect-capable action may change what a
-                        # later inspection observes, even if it ultimately reports an
-                        # error. Invalidate the read-only observation cache first.
+                        before_tool = self._emit_runtime_event(
+                            "before_tool_call",
+                            {
+                                "call_id": tc["id"],
+                                "tool_name": tool_name,
+                                "actual_tool_name": actual_tool_name,
+                                "arguments": args,
+                            },
+                        )
+                        updated_arguments = before_tool.event.payload.get("arguments")
+                        if isinstance(updated_arguments, dict):
+                            args = updated_arguments
+                        if before_tool.cancelled:
+                            result_str = (
+                                "Error: "
+                                + (
+                                    before_tool.reason
+                                    or f"Tool '{tool_name}' cancelled by runtime hook"
+                                )
+                            )
+                            self.session.add_tool_message(
+                                tool_call_id=tc["id"],
+                                content=result_str[:4000],
+                                tool_name=tool_name,
+                            )
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": tc["id"],
+                                "content": result_str[:4000],
+                            })
+                            cancelled_payload = {
+                                "call_id": tc["id"],
+                                "requested_tool_name": tool_name,
+                                "actual_tool_name": actual_tool_name,
+                                "ok": False,
+                                "error": result_str,
+                                "hook_cancelled": True,
+                                "selection_valid": True,
+                                "arguments_valid": True,
+                                "side_effect_possible": False,
+                            }
+                            self._trace(
+                                "tool_result",
+                                payload=cancelled_payload,
+                                parent_event_id=tool_call_event_id,
+                            )
+                            self._emit_runtime_event(
+                                "tool_result", cancelled_payload
+                            )
+                            continue
+
+                        # Only a dispatched side-effect-capable action can change what
+                        # later inspections observe. Hook-cancelled calls do not.
                         if actual_tool_name in _SIDE_EFFECT_POSSIBLE_TOOLS:
                             successful_observations.clear()
 
@@ -1613,8 +1751,6 @@ class LocalCodingAgent:
                         else:
                             result_str = f"Error: {result.error}"
 
-                        # Truncate tool result if too long
-                        truncated = truncate_tool_result(result_str)
                         result_payload = result.to_dict()
                         result_payload.update({
                             "call_id": tc["id"],
@@ -1676,6 +1812,18 @@ class LocalCodingAgent:
                                 )
                                 if metadata_value:
                                     result_payload[metadata_key] = metadata_value
+                        result_event = self._emit_runtime_event(
+                            "tool_result",
+                            {
+                                **result_payload,
+                                "result_text": result_str,
+                            },
+                        )
+                        result_str = str(
+                            result_event.event.payload.get("result_text", result_str)
+                        )
+                        # Truncate only after hooks had a chance to redact or annotate.
+                        truncated = truncate_tool_result(result_str)
                         self._trace(
                             "tool_result",
                             payload=result_payload,
@@ -1719,9 +1867,17 @@ class LocalCodingAgent:
                         })
 
                     self.turns += 1
+                    self._emit_runtime_event(
+                        "turn_end",
+                        {"turn": self.turns - 1, "had_tool_calls": True},
+                    )
                 else:
                     # No tool call - we're done
                     self.session.stop_reason = "completed"
+                    self._emit_runtime_event(
+                        "turn_end",
+                        {"turn": self.turns, "had_tool_calls": False},
+                    )
                     # In streaming mode, content was already printed to stdout
                     return AgentRunResult(
                         stop_reason="completed",
@@ -1745,6 +1901,33 @@ class LocalCodingAgent:
             final_message="Max turns reached",
         )
 
+    def _emit_runtime_event(
+        self,
+        event_type: str,
+        payload: Optional[Dict[str, Any]] = None,
+        *,
+        trace_issues: bool = True,
+    ) -> EventDispatch:
+        """Dispatch an extension event without weakening trajectory controls."""
+        dispatch = self.event_bus.emit(
+            event_type,
+            payload,
+            session_id=self.session.session_id if self.session else "",
+            phase_id=self._current_phase_id(),
+        )
+        if trace_issues and (dispatch.cancelled or dispatch.errors):
+            self._trace(
+                "runtime_guidance",
+                payload={
+                    "guidance_type": "runtime_event_hook",
+                    "event_type": event_type,
+                    "cancelled": dispatch.cancelled,
+                    "reason": dispatch.reason,
+                    "errors": dispatch.errors,
+                },
+            )
+        return dispatch
+
     def _trace(
         self,
         event_type: str,
@@ -1763,7 +1946,7 @@ class LocalCodingAgent:
 
     def _current_phase_id(self) -> str:
         for runtime_name in ("lifecycle", "devflow"):
-            runtime = self._runtime_instances.get(runtime_name)
+            runtime = getattr(self, "_runtime_instances", {}).get(runtime_name)
             session = getattr(runtime, "session", None) if runtime else None
             if session is None:
                 continue
@@ -2062,8 +2245,42 @@ class LocalCodingAgent:
         return allowed is not None and tool_name not in set(allowed)
 
     def _compact_messages(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Compact messages using HYBRID strategy: summarize middle, keep head and tail."""
-        return compact_messages(messages)
+        """Compact the model view while retaining structured session evidence."""
+        before = self._emit_runtime_event(
+            "before_compact",
+            {"messages": messages, "reason": "token_threshold"},
+        )
+        if before.cancelled:
+            return messages
+        candidate = before.event.payload.get("messages", messages)
+        if not isinstance(candidate, list):
+            candidate = messages
+        tokens_before = estimate_messages_tokens(candidate)
+        summary = build_compaction_summary(candidate)
+        compacted = compact_messages(candidate)
+        compaction_entry_id: Optional[str] = None
+        if self.session is not None and len(compacted) < len(candidate):
+            first_kept_entry_id = self.session.first_active_entry_id_for_messages(
+                candidate[-3:]
+            )
+            compaction_entry_id = self.session.append_compaction(
+                summary.render(),
+                first_kept_entry_id=first_kept_entry_id,
+                tokens_before=tokens_before,
+                details=summary.to_dict(),
+            )
+        after = self._emit_runtime_event(
+            "after_compact",
+            {
+                "messages": compacted,
+                "original_count": len(candidate),
+                "compacted_count": len(compacted),
+                "tokens_before": tokens_before,
+                "compaction_entry_id": compaction_entry_id,
+            },
+        )
+        updated = after.event.payload.get("messages", compacted)
+        return updated if isinstance(updated, list) else compacted
 
     def _print_tool_call(self, tool_name: str, args: Dict[str, Any]) -> None:
         """Print a visible tool call indicator."""

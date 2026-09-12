@@ -42,23 +42,23 @@ If the package is not installed, run from the repository with `PYTHONPATH=src py
 
 Copy `.env.example` to `.env` and choose one protocol.
 
-Anthropic native:
+DeepSeek through the Anthropic-compatible protocol (project default):
 
 ```dotenv
-ANTHROPIC_BASE_URL=https://api.anthropic.com
-ANTHROPIC_API_KEY=sk-ant-your-api-key-here
-ANTHROPIC_MODEL=claude-sonnet-4-6
+ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+ANTHROPIC_API_KEY=sk-your-deepseek-key
+ANTHROPIC_MODEL=deepseek-flash
 ```
 
 OpenAI compatible:
 
 ```dotenv
-OPENAI_BASE_URL=http://127.0.0.1:8000/v1
-OPENAI_API_KEY=local-token
-OPENAI_MODEL=Qwen/Qwen3-Coder-30B-A3B-Instruct
+OPENAI_BASE_URL=https://api.deepseek.com
+OPENAI_API_KEY=sk-your-deepseek-key
+OPENAI_MODEL=deepseek-flash
 ```
 
-Any `ANTHROPIC_*` variable selects Anthropic mode. Use only `OPENAI_*` variables for OpenAI-compatible mode. Never commit `.env` or credentials.
+Any `ANTHROPIC_*` variable selects Anthropic mode. Use only `OPENAI_*` variables for OpenAI-compatible mode. The shared fallback model is `deepseek-flash`, currently backed by `v4-flash-9_10`. Never commit `.env` or credentials.
 
 For repeated local Qwen3 Episodes, use the pinned, persistent vLLM service in
 `tools/start_vllm_qwen3.sh`. The in-process Transformers client is a protocol
@@ -101,6 +101,25 @@ claw benchmark-run \
   --limit 1 \
   --output .port_sessions/benchmark-medium
 ```
+
+Run a pinned Pi RPC baseline and compare archived Claw/Pi results:
+
+```bash
+claw benchmark-pi --help
+claw benchmark-compare --help
+```
+
+Run one controlled local SWE-bench Lite Dev comparison or three-arm ablation:
+
+```bash
+python tools/compare_swe_bench_lite_runtimes.py --help
+python tools/run_swe_bench_lite_runtime_ablation.py --help
+```
+
+Pi RPC requires an explicit isolation attestation. `--enforce-macos-seatbelt`
+enforces the bundled macOS profile; on Docker hosts, run Pi inside an
+operator-managed container boundary and record that boundary. The Pi RPC process
+is not yet owned by Claw's session `SandboxBackend`.
 
 Use `--api-config-root <dir>` when benchmark arms need isolated model-provider
 configuration. It changes API configuration discovery only, not the task workspace.
@@ -153,6 +172,7 @@ Important modules:
 - `src/claw/agent_context.py` — Git, environment, `AGENTS.md`, and runtime context collection.
 - `src/claw/agent_prompting.py` — system-prompt assembly.
 - `src/claw/agent_session.py` and `src/claw/session_store.py` — messages and persisted sessions.
+- `src/claw/runtime_events.py` — ordered lifecycle events and cancellation/mutation directives.
 - `src/claw/token_budget.py`, `src/claw/compact.py`, `src/claw/microcompact.py` — budget and context control.
 - `src/claw/bash_security.py` — shell policy validation.
 
@@ -187,6 +207,8 @@ Important packages:
 - `src/claw/dataset/` — selection, deduplication, leakage checks, conversion, and manifests.
 - `src/claw/training_backends/` — dry-run contract validation and PEFT LoRA/QLoRA SFT.
 - `src/claw/benchmark/` — independent execution, metrics, cost, and ablation reports.
+- `src/claw/benchmark/pi_rpc_adapter.py`, `pi_command.py`, and
+  `runtime_comparison.py` — attested Pi RPC execution and guarded Claw–Pi reports.
 - `src/claw/experiment/` — stateful experiment registry and content-addressed artifacts.
 - `src/claw/training/` — legacy/lightweight `CodingTask` rollout path used by `claw train`.
 
@@ -304,10 +326,13 @@ Bundled skills are currently code-defined in `src/claw/bundled_skills.py`. The `
 ## Session and Context Invariants
 
 - `LocalCodingAgent.run()` resets the Turn counter for each user query.
-- Session files are stored under `.port_sessions/agent/<session-id>.json`.
+- Session files are stored under `.port_sessions/agent/<session-id>.jsonl`.
+- Session v2 entries form an append-only tree. Navigation changes the active
+  branch view without deleting abandoned descendants.
 - The saved session includes cwd, model, messages, timestamps, and stop reason.
 - Tool results are micro-compacted before they grow the conversation indefinitely.
-- Automatic compaction preserves high-priority system/user/tool-call structure.
+- Automatic compaction preserves high-priority system/user/tool-call structure
+  and appends structured compaction metadata without rewriting historical entries.
 - This is resumable session memory, not vector/embedding long-term memory.
 
 When changing session schemas, maintain backward-compatible loading or provide an explicit migration.

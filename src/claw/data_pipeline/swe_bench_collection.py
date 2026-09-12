@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
 
 from ..agent_runtime import LocalCodingAgent
-from ..agent_types import AgentPermissions, ModelConfig
+from ..agent_types import AgentPermissions, BudgetConfig, ModelConfig
 from ..api_config import APIConfigRuntime
 from ..benchmark import (
     SweBenchLiteDevAdapter,
@@ -140,6 +140,7 @@ def collect_swe_bench_lite_dev_episode(
     max_tokens: Optional[int] = None,
     thinking_mode: Optional[str] = None,
     max_turns: int = 50,
+    max_total_tokens: int = 250000,
     completion_reminder_turns: int = 8,
     completion_critical_turns: int = 3,
     force_final_response_at_critical: bool = False,
@@ -179,6 +180,8 @@ def collect_swe_bench_lite_dev_episode(
         )
     if max_turns <= 0 or timeout_seconds <= 0:
         raise BenchmarkError("turn and timeout limits must be positive")
+    if max_total_tokens <= 0:
+        raise BenchmarkError("max_total_tokens must be positive")
     if completion_reminder_turns < 0:
         raise BenchmarkError("completion_reminder_turns must be non-negative")
     if completion_critical_turns < 0:
@@ -282,6 +285,7 @@ def collect_swe_bench_lite_dev_episode(
     decoding_config: Dict[str, Any] = {
         "temperature": temperature,
         "max_turns": max_turns,
+        "max_total_tokens": max_total_tokens,
         "completion_reminder_turns": completion_reminder_turns,
         "completion_critical_turns": completion_critical_turns,
         "force_final_response_at_critical": force_final_response_at_critical,
@@ -339,6 +343,9 @@ def collect_swe_bench_lite_dev_episode(
                         "bash",
                     ],
                 ).to_dict(),
+                budget=BudgetConfig(
+                    max_total_tokens=int(inference_config["max_total_tokens"])
+                ),
                 completion_reminder_turns=int(
                     inference_config.get("completion_reminder_turns", 0)
                 ),

@@ -7,8 +7,8 @@
       "instance_id": "marshmallow-code__marshmallow-1343",
       "license": "MIT",
       "license_path": "LICENSE",
-      "license_sha256": "d6a1758b8beadd5a58d4db064bccf948d5a05b4033b8419c9f6566f6591ee843",
-      "tracked_bytes": 641514,
+      "license_sha256": "34504b7070a400542d7709c44d8a326dbd7b244c36b168f6af7ab601e0a9410d",
+      "tracked_bytes": 624190,
       "tracked_files": 73
     },
     {
@@ -27,8 +27,8 @@
       "instance_id": "pylint-dev__astroid-1196",
       "license": "LGPL-2.1-or-later",
       "license_path": "LICENSE",
-      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
-      "tracked_bytes": 2091799,
+      "license_sha256": "fea16bda9e734dea0d9c8d9f5b909878ef4171626354329609fffcf3db42cb24",
+      "tracked_bytes": 2030097,
       "tracked_files": 272
     },
     {
@@ -48,7 +48,7 @@
       "license": "MIT",
       "license_path": "LICENSE",
       "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
-      "tracked_bytes": 10073366,
+      "tracked_bytes": 9930758,
       "tracked_files": 394
     },
     {
@@ -68,7 +68,7 @@
       "license": "MIT",
       "license_path": "LICENSE",
       "license_sha256": "81fde122d7719a3884012e6af6d65caa622dd760730a3be9fc6c94d51b6b8f67",
-      "tracked_bytes": 9395851,
+      "tracked_bytes": 9233095,
       "tracked_files": 473
     },
     {
@@ -77,8 +77,8 @@
       "instance_id": "pylint-dev__astroid-1333",
       "license": "LGPL-2.1-or-later",
       "license_path": "LICENSE",
-      "license_sha256": "59fab23a5fc46d6af7c499b481b903a677bdc66523087c0a5e434bf924aac556",
-      "tracked_bytes": 2057387,
+      "license_sha256": "fea16bda9e734dea0d9c8d9f5b909878ef4171626354329609fffcf3db42cb24",
+      "tracked_bytes": 1997456,
       "tracked_files": 250
     },
     {

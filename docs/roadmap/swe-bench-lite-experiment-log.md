@@ -904,3 +904,29 @@ This is local Dev mechanism evidence, not an official SWE-bench score.
 复现为前提。比较对象限定为固定 Commit 的 `sdk-minimal` Profile，结论限定在冻结子集与
 预算。完整协议、准入/停止规则和可接受表述见
 `docs/roadmap/harness-comparison-experiment-design.md`。
+
+## 2026-09-10：恢复环境后的本地成功 Episode
+
+恢复七个已校准仓库快照和 Marshmallow Python 3.8.20 环境后，使用
+`deepseek-v4-pro[1m]` 在 `marshmallow-code__marshmallow-1343` 上完成一次新 Dev
+Episode。候选只修改 `src/marshmallow/schema.py`，1 条 FAIL_TO_PASS 和 24 条
+PASS_TO_PASS 全部通过，Diff Scope、权限、格式和终止门均通过，正常结束于第 24
+轮。该结果是单题本地 Dev 成功，不是官方 SWE-bench 分数，也尚未通过 Gold SFT
+人工质量与泄漏审查。摘要见
+`configs/integrations/swe-bench-lite-marshmallow-20260910-success-rollout.json`。
+
+## 2026-09-11：首个真实 Claw–Pi 受控本地对照
+
+在同一 Marshmallow-1343 快照、同一 Python/pytest 环境、Allowlist、Prompt、Verifier、
+Turn 与累计 Token 预算下，以 `deepseek-flash`（后端 `v4-flash-9_10`）和 OpenAI
+兼容协议运行 Claw 与 Pi RPC。Claw 在第 15 轮首次直接编辑并通过目标与回归测试；
+Pi 完成问题复现和定位，但没有产生源码编辑，目标测试仍失败。Pi 的 cache-read Token
+已计入 provider-processed Token，避免低估成本。
+
+该结果仅证明真实 Pi RPC → Trajectory v2 → Verification v2 链路可运行，并提供一个
+描述性差异样本；它不是官方 Harness 分数，也不能推出运行时统计优劣。严格结果保留
+Pi 的隔离 attestation 及控制项，摘要见
+`configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json`。七任务三臂
+计划见 `configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json`；它只覆盖
+20 题筛选中已经校准的有序子集，付费运行前必须先在目标 Docker 主机完成 Claw
+Backend、Pi 容器包装和 RPC 冒烟。

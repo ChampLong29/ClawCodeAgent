@@ -5,11 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from .agent_types import ModelPricing
+from .agent_types import DEFAULT_MODEL_NAME, ModelPricing
 
 
 # Default model configurations
 DEFAULT_MODELS = {
+    DEFAULT_MODEL_NAME: {
+        # DeepSeek V4 Flash peak, cache-miss rates as of 2026-09-11.
+        # The provider also applies lower off-peak and cache-hit rates.
+        "pricing": ModelPricing(input_token_price=0.00000044, output_token_price=0.00000132),
+        "context_window": 1_000_000,
+        "supports_tools": True,
+        "supports_streaming": True,
+    },
     "Qwen/Qwen3-Coder-30B-A3B-Instruct": {
         "pricing": ModelPricing(input_token_price=0.00001, output_token_price=0.00003),
         "context_window": 128000,
