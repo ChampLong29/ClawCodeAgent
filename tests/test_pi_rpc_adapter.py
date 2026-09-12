@@ -6,6 +6,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest import mock
 
 from claw.agent_types import UsageStats
 from claw.benchmark.pi_rpc_adapter import (
@@ -55,7 +56,10 @@ class TestPiRpcClient(unittest.TestCase):
                 command=["pi-test"],
                 enforce_macos_seatbelt=True,
             )
-            command = client._build_command()
+            with mock.patch(
+                "claw.benchmark.pi_rpc_adapter.os.path.isfile", return_value=True
+            ):
+                command = client._build_command()
 
         self.assertEqual(command[:2], ["/usr/bin/sandbox-exec", "-p"])
         self.assertEqual(command[-1], "pi-test")

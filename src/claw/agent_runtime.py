@@ -126,6 +126,7 @@ class LocalCodingAgent:
     repeated_action_repair_attempts: int = 0
     post_edit_contract_guidance: bool = False
     implementation_path_patterns: Sequence[str] = ()
+    system_prompt_override: Optional[str] = None
     command_runner: Optional[Any] = None
     sandbox_backend_name: str = "host"
     sandbox_image: Optional[str] = None
@@ -179,6 +180,11 @@ class LocalCodingAgent:
             raise ValueError(
                 "command_runner cannot be combined with an explicit sandbox backend"
             )
+        if (
+            self.system_prompt_override is not None
+            and not self.system_prompt_override.strip()
+        ):
+            raise ValueError("system_prompt_override must not be empty")
         if self.completion_reminder_turns < 0:
             raise ValueError("completion_reminder_turns must be non-negative")
         if self.completion_critical_turns < 0:
@@ -720,8 +726,11 @@ class LocalCodingAgent:
             if "max_model_calls" in policy_budget:
                 budget.max_model_calls = min(budget.max_model_calls, policy_budget["max_model_calls"])
 
-        context = get_user_context(self.cwd, runtimes=self.runtimes)
-        system_prompt = render_system_prompt(runtimes=self.runtimes, context=context)
+        if self.system_prompt_override is None:
+            context = get_user_context(self.cwd, runtimes=self.runtimes)
+            system_prompt = render_system_prompt(runtimes=self.runtimes, context=context)
+        else:
+            system_prompt = self.system_prompt_override
 
         # Hook point 2: Before-prompt — inject policy/plugin guidance into system prompt
         hook_guidance = ""

@@ -1,0 +1,92 @@
+{
+  "schema_version": "deepseek_harness_parity_gate.v1",
+  "registered_at": "2026-09-08",
+  "status": "preflight_built_smoke_blocked_before_model_calls",
+  "design_document": "docs/roadmap/harness-comparison-experiment-design.md",
+  "design_sha256": "e8c0f6fbb90217b34b76e859a5b18f97b17a2b36964b10682b33570e4ec1f585",
+  "external_harness": {
+    "name": "DeepSeek Harness",
+    "repository": "https://github.com/deepseek-ai/deepseek-harness",
+    "commit": "c389f96bf3a9b6807cb71ed6bdad5849be0df6d8",
+    "profile": "sdk-minimal",
+    "model_visible_tools": ["bash", "str_replace_editor"],
+    "system_prompt": "You are a helpful software engineer assistant.",
+    "runtime_target": "node24-linux-x64",
+    "runtime_sha256": "3d76c815ecb5d0d62dd727b659888d69ab7417041ef61fc029f1f016258b401",
+    "ripgrep_sidecar_sha256": "193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21",
+    "builder_image": "claw/dsh-builder:node24-pnpm11.7",
+    "builder_image_manifest_sha256": "4e1e29acfc317235f5698c41dff4dd21ab5f5c772080a28b000c44fe7747df78",
+    "builder_dockerfile": "configs/benchmarks/deepseek-harness-builder/Dockerfile",
+    "builder_dockerfile_sha256": "765a0b320eb948de277b5583560d908e1c4f7d76a20c18b901eff7f4e6920598",
+    "model_protocol": "OpenAI-compatible chat completions through DeepSeek official provider",
+    "configured_endpoint_note": "The existing project configuration uses the same DeepSeek host through an Anthropic-compatible path; this protocol difference must remain visible in reports."
+  },
+  "tasks": [
+    {
+      "order": 1,
+      "instance_id": "pylint-dev__astroid-1268",
+      "base_commit": "ce5cbce5ba11cdc2f8139ade66feea1e181a7944",
+      "implementation_paths": ["astroid/nodes/as_string.py"]
+    },
+    {
+      "order": 2,
+      "instance_id": "pydicom__pydicom-1694",
+      "base_commit": "f8cf45b6c121e5a4bf4a43f71aba3bc64af3db9c",
+      "implementation_paths": ["pydicom/dataset.py"]
+    }
+  ],
+  "shared_run_policy": {
+    "provider_model": "deepseek-v4-flash",
+    "temperature": 0,
+    "reasoning_effort": "off",
+    "max_output_tokens_per_request": 4096,
+    "max_turns": 18,
+    "max_tool_calls": 18,
+    "max_total_tokens": 32768,
+    "wall_clock_seconds": 180,
+    "task_prompt_version": "swe-bench-lite-dev.deepseek-v4-flash.v1",
+    "task_prompt_source": "src/claw/benchmark/swe_bench_lite_adapter.py",
+    "task_prompt_source_sha256": "887c57fe11f0c7023ef220012494026b6b0ca5073fdc9c41c145dba45678e6a1",
+    "independent_verifier_version": "verifier-policy.v2"
+  },
+  "arms": {
+    "dsh_minimal": {
+      "harness": "deepseek-harness",
+      "profile": "sdk-minimal",
+      "advanced_runtime_controls": false
+    },
+    "claw_minimal": {
+      "harness": "claw",
+      "advanced_runtime_controls": false,
+      "system_prompt_override": "You are a helpful software engineer assistant.",
+      "required_tool_surface": ["bash", "str_replace_editor"]
+    },
+    "claw_controlled": {
+      "harness": "claw",
+      "advanced_runtime_controls": true,
+      "controls": ["workspace_diff_policy", "action_masking", "bounded_recovery", "immutable_trajectory", "independent_verification"]
+    }
+  },
+  "parity_gate": {
+    "model_calls_allowed": false,
+    "smoke_test": {
+      "command": "python scripts/smoke-python-runtime.py --scenario sdk-minimal --exe dist-exe/deepseek-harness-sdk-runtime-linux-x64",
+      "status": "not_run_execution_approval_limit",
+      "model_endpoint": "local_mock_only"
+    },
+    "implemented": ["claw_system_prompt_override"],
+    "blocked_until_verified": [
+      "official_dsh_keyless_smoke",
+      "claw_minimal_bash_and_str_replace_editor_surface",
+      "common_total_token_and_turn_budget_enforcement",
+      "same_container_boundary_and_independent_verifier_adapter"
+    ]
+  },
+  "sampling": {
+    "first_pass": "one fresh episode per task per arm",
+    "repetition": "repeat paired disagreements and preregistered random agreeing sample",
+    "quality_retries": 0,
+    "first_pass_episode_count": 6
+  },
+  "claim_boundary": "This record freezes the comparison design and build identity. It is not a benchmark result and contains no model-call outcome."
+}

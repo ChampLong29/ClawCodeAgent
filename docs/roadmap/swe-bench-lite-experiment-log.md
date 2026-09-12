@@ -905,6 +905,22 @@ This is local Dev mechanism evidence, not an official SWE-bench score.
 预算。完整协议、准入/停止规则和可接受表述见
 `docs/roadmap/harness-comparison-experiment-design.md`。
 
+## 2026-09-08：DeepSeek Harness parity-gate 构建阶段
+
+在任何新模型调用前固定 DeepSeek Harness commit
+`c389f96bf3a9b6807cb71ed6bdad5849be0df6d8`、`sdk-minimal` profile、Node 24
+Linux 运行时、构建镜像与两项 SWE-bench Lite 任务的 base commit/allowlist。由于
+Windows 挂载盘会使 pkg 递归扫描依赖极慢，改用 Docker 内部卷完成锁文件安装和构建，
+最终运行时大小 262.4 MB，SHA-256 为
+`3d76c815ecb5d0d62dd727b659888d69ab7417041ef61fc029f1f016258b401`；ripgrep sidecar
+SHA-256 为 `193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21`。
+
+Claw 已增加可逐字冻结外部 profile system prompt 的 `system_prompt_override`，并以单元
+测试验证。官方 `sdk-minimal` 无密钥 smoke test 尚未执行：执行审批额度在启动该本机模拟
+端点测试前达到上限，因此没有产生模型调用、任务结果或成功率数据。机器可复现协议见
+`configs/benchmarks/deepseek-harness-parity-gate-protocol.json`；在 smoke、工具表面、
+共同总预算和同一容器 verifier 四项门槛完成前，不启动六个正式 Episode。
+
 ## 2026-09-10：恢复环境后的本地成功 Episode
 
 恢复七个已校准仓库快照和 Marshmallow Python 3.8.20 环境后，使用

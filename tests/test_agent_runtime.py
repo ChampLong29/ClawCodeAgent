@@ -423,6 +423,47 @@ class TestAgentConfiguration(unittest.TestCase):
         self.assertEqual(client.kwargs["temperature"], 0.25)
         self.assertEqual(client.kwargs["max_tokens"], 321)
 
+    def test_system_prompt_override_is_sent_verbatim(self):
+        prompt = "You are a helpful software engineer assistant."
+        agent = LocalCodingAgent(
+            cwd=self.tempdir,
+            model_config=ModelConfig(name="benchmark-model"),
+            system_prompt_override=prompt,
+        )
+
+        class CapturingClient:
+            model = "benchmark-model"
+
+            def __init__(self):
+                self.kwargs = None
+
+            def complete(self, **kwargs):
+                self.kwargs = kwargs
+                return {
+                    "role": "assistant",
+                    "content": "done",
+                    "finish_reason": "stop",
+                    "usage": {},
+                }
+
+        client = CapturingClient()
+        agent.client = client
+
+        result = agent.run(prompt="test parity prompt", max_turns=1)
+
+        self.assertEqual(result.stop_reason, "completed")
+        self.assertEqual(client.kwargs["messages"][0], {
+            "role": "system",
+            "content": prompt,
+        })
+
+    def test_system_prompt_override_rejects_empty_text(self):
+        with self.assertRaisesRegex(ValueError, "must not be empty"):
+            LocalCodingAgent(
+                cwd=self.tempdir,
+                system_prompt_override="  ",
+            )
+
     def test_token_limited_empty_response_is_not_completed(self):
         agent = LocalCodingAgent(
             cwd=self.tempdir,
