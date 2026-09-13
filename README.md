@@ -206,6 +206,13 @@ Claw Base / Claw Enhanced / Pi Raw 三臂本地 SWE-bench Lite Dev 消融工具�
 attestation 文本宣称容器隔离已经由程序验证。设计和边界见
 [`PI_INSPIRED_HARNESS.md`](docs/architecture/PI_INSPIRED_HARNESS.md)。
 
+三臂入口可用 `--claw-sandbox-backend docker`、`--claw-sandbox-image`
+和 `--claw-sandbox-python` 将 Claw Base、Claw Enhanced 及三个臂的独立 Verifier
+固定到同一个 digest-pinned 镜像。Docker 模式会把 evaluator 入口随隐藏资产临时注入，
+不再引用容器不可见的宿主绝对路径。Pi Agent 本身仍必须通过 `--pi-executable` 指向
+操作者管理的容器包装器，并在关闭 macOS Seatbelt 时提供
+`--pi-sandbox-attestation`；该证明会归档，但仍不是 Claw 对 Pi 容器的独立认证。
+
 ### 已归档的代表性实验
 
 - Tool UX v2 冻结对照覆盖 10 个本地版本化任务：Qwen3-1.7B 为 0/10，

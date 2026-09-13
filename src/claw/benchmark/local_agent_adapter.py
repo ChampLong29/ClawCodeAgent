@@ -53,6 +53,7 @@ class LocalAgentBenchmarkAdapter:
         command_runner: Optional[Any] = None,
         sandbox_backend_name: str = "host",
         sandbox_image: Optional[str] = None,
+        manage_agent_sandbox: bool = True,
     ):
         for name, value in (
             ("model_ref", model_ref),
@@ -113,6 +114,7 @@ class LocalAgentBenchmarkAdapter:
         self.command_runner = command_runner
         self.sandbox_backend_name = sandbox_backend_name
         self.sandbox_image = sandbox_image
+        self.manage_agent_sandbox = bool(manage_agent_sandbox)
 
     def run(
         self,
@@ -240,6 +242,18 @@ class LocalAgentBenchmarkAdapter:
         episode_id: str,
     ) -> None:
         if self.sandbox_backend_name != "docker":
+            return
+        if not self.manage_agent_sandbox:
+            permissions = getattr(agent, "permissions", {})
+            if not isinstance(permissions, dict) or not str(
+                permissions.get("external_runtime", "")
+            ).strip() or not str(
+                permissions.get("isolation_attestation", "")
+            ).strip():
+                raise BenchmarkError(
+                    "unmanaged Docker benchmark Agent requires an external "
+                    "runtime isolation attestation"
+                )
             return
         required_attributes = (
             "sandbox_backend_name",

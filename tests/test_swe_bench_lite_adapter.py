@@ -1010,6 +1010,37 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
             self.assertEqual(private_payload["test_patch"], bundle.test_patch)
             self.assertFalse((materialized.template_root / ".git").exists())
 
+    def test_docker_materialization_uses_staged_evaluator_and_container_python(self):
+        task = {
+            item.instance_id: item for item in self.adapter.load_agent_tasks()
+        }["marshmallow-code__marshmallow-1343"]
+        bundle = self.adapter.load_evaluation_bundle(task.instance_id)
+        evaluator_script = ROOT / "tools" / "evaluate_swe_bench_lite_candidate.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            materialized = SweBenchLiteEpisodeTaskMaterializer(
+                evaluator_script
+            ).materialize(
+                task,
+                bundle,
+                output_root=Path(temporary) / "materialized",
+                python_executable=sys.executable,
+                sandbox_python_executable="/opt/claw/bin/python",
+            )
+
+            command = materialized.task_spec.test_commands[0]
+            self.assertIn("/opt/claw/bin/python", command)
+            self.assertIn(
+                ".claw_hidden_tests/evaluate_swe_bench_lite_candidate.py",
+                command,
+            )
+            self.assertNotIn(str(Path(sys.executable).absolute()), command)
+            self.assertTrue(
+                (
+                    materialized.evaluator_assets_root
+                    / "evaluate_swe_bench_lite_candidate.py"
+                ).is_file()
+            )
+
     def test_candidate_evaluation_uses_temp_copy_and_preserves_episode_workspace(self):
         test_patch = (
             "diff --git a/tests/test_regression.py b/tests/test_regression.py\n"

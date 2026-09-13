@@ -37,6 +37,30 @@ def main() -> int:
     parser.add_argument("--allow-path", action="append", required=True)
     parser.add_argument("--generation-commit")
     parser.add_argument(
+        "--claw-sandbox-backend",
+        choices=("host", "docker"),
+        default="host",
+        help="Execution backend for the Claw Base and Claw Enhanced arms.",
+    )
+    parser.add_argument(
+        "--claw-sandbox-image",
+        help="Digest-pinned image required for Docker Claw arms.",
+    )
+    parser.add_argument(
+        "--claw-sandbox-python",
+        help=(
+            "Python executable inside the pinned Claw image; the image must "
+            "contain Claw and the task's evaluator dependencies."
+        ),
+    )
+    parser.add_argument(
+        "--pi-sandbox-attestation",
+        help=(
+            "Operator evidence for the Pi isolation boundary; required when "
+            "macOS Seatbelt is disabled."
+        ),
+    )
+    parser.add_argument(
         "--no-macos-seatbelt",
         action="store_true",
         help=(
@@ -74,6 +98,10 @@ def main() -> int:
         max_total_tokens=args.max_total_tokens,
         timeout_seconds=args.timeout,
         enforce_macos_seatbelt=not args.no_macos_seatbelt,
+        sandbox_attestation=args.pi_sandbox_attestation,
+        claw_sandbox_backend=args.claw_sandbox_backend,
+        claw_sandbox_image=args.claw_sandbox_image,
+        claw_sandbox_python=args.claw_sandbox_python,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result["status"] == "comparable" else 2

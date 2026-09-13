@@ -351,6 +351,29 @@ python tools/compare_swe_bench_lite_runtimes.py --help
 python tools/run_swe_bench_lite_runtime_ablation.py --help
 ```
 
+在 Docker 主机运行三臂契约时，Claw 两臂与三个臂的 Verifier 可以固定到同一任务镜像：
+
+```bash
+python tools/run_swe_bench_lite_runtime_ablation.py \
+  --instance-id '<INSTANCE_ID>' \
+  --python '<HOST_CALIBRATED_PYTHON>' \
+  --output-root '<NEW_OUTPUT_ROOT>' \
+  --allow-path '<IMPLEMENTATION_PATH>' \
+  --model deepseek-flash \
+  --claw-sandbox-backend docker \
+  --claw-sandbox-image '<TASK_IMAGE@sha256:DIGEST>' \
+  --claw-sandbox-python /usr/local/bin/python \
+  --pi-executable '<OPERATOR_MANAGED_PI_DOCKER_WRAPPER>' \
+  --no-macos-seatbelt \
+  --pi-sandbox-attestation '<EXACT_PI_CONTAINER_BOUNDARY>'
+```
+
+镜像内 Python 必须可导入 Claw，并包含目标历史仓库的冻结测试依赖；宿主
+`--python` 仍用于模型调用前的工作区导入准入。Claw Agent 与 Verifier 由
+`SandboxBackend` 管理，Pi Agent 仍由外部包装器管理；不要把 Pi 的 attestation
+描述为程序独立验证。若缺少 digest、镜像内 Python 或非 macOS Pi 隔离证明，入口会在
+模型调用前失败。
+
 已归档一个 Marshmallow-1343 的真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
 是单样本本地机制证据。七任务三臂计划仅覆盖 20 题筛选中已经校准的有序子集，必须先
 完成 Docker/RPC 冒烟再启动付费 Episode。协议、证据边界和后续步骤见

@@ -9,6 +9,7 @@ from claw.agent_runtime import LocalCodingAgent
 from claw.agent_types import AgentPermissions
 from claw.benchmark import (
     BenchmarkConfig,
+    BenchmarkError,
     BenchmarkRunner,
     LocalAgentBenchmarkAdapter,
 )
@@ -173,6 +174,40 @@ class LocalAgentBenchmarkAdapterTests(unittest.TestCase):
             agent.sandbox_spec.security_profile,
             "benchmark_offline",
         )
+
+    def test_external_runtime_can_keep_attested_process_outside_backend(self):
+        digest = "sha256:" + "c" * 64
+        adapter = LocalAgentBenchmarkAdapter(
+            self.root / "episodes-external",
+            project_root=self.root,
+            agent_factory=lambda *_args: None,
+            model_ref=self.model_ref,
+            runtime_version="runtime.v1",
+            prompt_version="prompt.v1",
+            tool_version="tool.v1",
+            config_version="benchmark-config.v1",
+            sandbox_backend_name="docker",
+            sandbox_image=f"python@{digest}",
+            manage_agent_sandbox=False,
+        )
+
+        class ExternalAgent:
+            permissions = {
+                "external_runtime": "pi_rpc",
+                "isolation_attestation": "operator-managed-docker:pinned",
+            }
+
+        adapter._configure_agent_sandbox(
+            ExternalAgent(), episode_id="episode-external"
+        )
+
+        class UnattestedExternalAgent:
+            permissions = {"external_runtime": "pi_rpc"}
+
+        with self.assertRaisesRegex(BenchmarkError, "isolation attestation"):
+            adapter._configure_agent_sandbox(
+                UnattestedExternalAgent(), episode_id="episode-unattested"
+            )
 
     def test_real_episode_success_produces_metrics_and_auditable_refs(self):
         task = self.make_task()

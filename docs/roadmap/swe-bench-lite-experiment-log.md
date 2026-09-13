@@ -946,3 +946,16 @@ Pi 的隔离 attestation 及控制项，摘要见
 计划见 `configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json`；它只覆盖
 20 题筛选中已经校准的有序子集，付费运行前必须先在目标 Docker 主机完成 Claw
 Backend、Pi 容器包装和 RPC 冒烟。
+
+## 2026-09-13：三臂 Docker 执行契约接线
+
+在不产生模型调用的前提下，SWE-bench Lite Dev Collector 与三臂入口增加了 Claw
+Docker Backend、digest-pinned 镜像和镜像内 Python 参数。Claw Base、Claw Enhanced
+以及 Pi 臂的独立 Verifier 可以使用同一 Docker Backend；Docker 任务将 evaluator
+入口作为隐藏资产临时注入，避免把宿主绝对 Python 或脚本路径写入容器命令。Claw
+自有 Agent 由 Backend 管理，Pi Agent 仍必须通过操作者提供的全进程容器包装器运行；
+关闭 macOS Seatbelt 时缺少显式 attestation 会在模型调用前失败。
+
+该阶段仅完成代码与聚焦测试验证。没有据此宣称本机 Docker daemon、任务镜像、Pi
+容器包装器或付费三臂 Episode 已验证；真实运行前仍需恢复忽略的历史 Python 环境和
+Pi runtime，并执行 model-free Docker/RPC smoke。

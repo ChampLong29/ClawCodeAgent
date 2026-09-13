@@ -293,6 +293,11 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                     model_backend_version="v4-flash-9_10",
                     pi_executable=executable,
                     allowed_path_patterns=["src/marshmallow/schema.py"],
+                    claw_sandbox_backend="docker",
+                    claw_sandbox_image=(
+                        "claw/swe-pilot@sha256:" + "a" * 64
+                    ),
+                    claw_sandbox_python="/usr/local/bin/python",
                 )
 
             self.assertEqual(len(calls), 3)
@@ -304,6 +309,30 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             self.assertFalse(calls[0]["post_edit_contract_guidance"])
             self.assertEqual(calls[1]["implementation_deadline_turns"], 10)
             self.assertTrue(calls[1]["post_edit_contract_guidance"])
+            self.assertEqual(
+                [call.get("sandbox_backend_name") for call in calls],
+                ["docker", "docker", "docker"],
+            )
+            self.assertEqual(
+                [call.get("sandbox_image") for call in calls],
+                [
+                    "claw/swe-pilot@sha256:" + "a" * 64,
+                    "claw/swe-pilot@sha256:" + "a" * 64,
+                    "claw/swe-pilot@sha256:" + "a" * 64,
+                ],
+            )
+            self.assertEqual(
+                [call.get("sandbox_python_executable") for call in calls],
+                [
+                    "/usr/local/bin/python",
+                    "/usr/local/bin/python",
+                    "/usr/local/bin/python",
+                ],
+            )
+            self.assertEqual(
+                [call.get("manage_agent_sandbox") for call in calls],
+                [None, None, False],
+            )
             self.assertEqual(
                 {call["max_total_tokens"] for call in calls}, {250000}
             )
@@ -322,6 +351,49 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                 for path in output.rglob("*.json")
             )
             self.assertNotIn("do-not-persist", persisted)
+
+    def test_three_arm_ablation_fails_closed_on_unpinned_docker_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "pi"
+            executable.write_text("", encoding="utf-8")
+            with self.assertRaisesRegex(BenchmarkError, "digest-pinned"):
+                run_swe_bench_lite_runtime_ablation(
+                    benchmark_root=root / "benchmark",
+                    instance_id="unused",
+                    python_executable=root / "python",
+                    evaluator_script=root / "evaluator.py",
+                    output_root=root / "output",
+                    generation_commit="commit",
+                    api_config_root=root,
+                    model_ref="deepseek-flash",
+                    model_backend_version="v4-flash-9_10",
+                    pi_executable=executable,
+                    allowed_path_patterns=["target.py"],
+                    claw_sandbox_backend="docker",
+                    claw_sandbox_image="claw/swe-pilot:latest",
+                )
+
+    def test_non_macos_pi_requires_explicit_sandbox_attestation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "pi"
+            executable.write_text("", encoding="utf-8")
+            with self.assertRaisesRegex(BenchmarkError, "sandbox_attestation"):
+                run_swe_bench_lite_runtime_ablation(
+                    benchmark_root=root / "benchmark",
+                    instance_id="unused",
+                    python_executable=root / "python",
+                    evaluator_script=root / "evaluator.py",
+                    output_root=root / "output",
+                    generation_commit="commit",
+                    api_config_root=root,
+                    model_ref="deepseek-flash",
+                    model_backend_version="v4-flash-9_10",
+                    pi_executable=executable,
+                    allowed_path_patterns=["target.py"],
+                    enforce_macos_seatbelt=False,
+                )
 
 
 if __name__ == "__main__":

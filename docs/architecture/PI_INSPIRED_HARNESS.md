@@ -255,6 +255,14 @@ host, continue in this order:
 4. archive both local Verification v2 and official Harness evidence before
    making an official Benchmark claim.
 
+The three-arm entrypoint now accepts a digest-pinned Claw image and an
+in-container Python executable. Claw Base, Claw Enhanced, and every arm's
+Verifier use that backend; Docker task commands stage the evaluator with hidden
+assets rather than referencing host-only paths. Pi Agent execution remains the
+operator wrapper's responsibility, and disabling Seatbelt now fails closed
+unless an explicit Pi sandbox attestation is supplied. These are contract-level
+improvements, not evidence that a live Docker/Pi run succeeded.
+
 ## 8. Upstream references and provenance
 
 The design was informed by the public MIT-licensed Pi repository and these

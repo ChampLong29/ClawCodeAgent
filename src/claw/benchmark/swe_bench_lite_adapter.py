@@ -704,6 +704,7 @@ class SweBenchLiteEpisodeTaskMaterializer:
         python_executable: Path | str,
         timeout_seconds: float = 300.0,
         allowed_path_patterns: Optional[List[str]] = None,
+        sandbox_python_executable: Optional[str] = None,
     ) -> MaterializedSweBenchLiteEpisodeTask:
         if task.instance_id != bundle.instance_id:
             raise ValueError("task and evaluator bundle instance IDs differ")
@@ -740,17 +741,32 @@ class SweBenchLiteEpisodeTaskMaterializer:
         python_path = Path(python_executable).expanduser().absolute()
         if not python_path.is_file():
             raise FileNotFoundError(python_path)
-        command = self._shell_command(
-            [
-                str(Path(sys.executable).absolute()),
-                str(self.evaluator_script),
-                "--asset",
-                ".claw_hidden_tests/evaluation.json",
-                "--python",
-                str(python_path),
-                "--timeout",
-                str(timeout_seconds),
-            ]
+        evaluator_command = str(self.evaluator_script)
+        target_python = str(python_path)
+        command_python = str(Path(sys.executable).absolute())
+        if sandbox_python_executable is not None:
+            sandbox_python = str(sandbox_python_executable).strip()
+            if not sandbox_python:
+                raise ValueError("sandbox_python_executable must not be empty")
+            evaluator_name = "evaluate_swe_bench_lite_candidate.py"
+            shutil.copy2(self.evaluator_script, evaluator / evaluator_name)
+            command_python = sandbox_python
+            target_python = sandbox_python
+            evaluator_command = f".claw_hidden_tests/{evaluator_name}"
+        command_parts = [
+            command_python,
+            evaluator_command,
+            "--asset",
+            ".claw_hidden_tests/evaluation.json",
+            "--python",
+            target_python,
+            "--timeout",
+            str(timeout_seconds),
+        ]
+        command = (
+            " ".join(shlex.quote(part) for part in command_parts)
+            if sandbox_python_executable is not None
+            else self._shell_command(command_parts)
         )
         spec = TaskSpec(
             task_id=task.instance_id,

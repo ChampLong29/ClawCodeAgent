@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
@@ -164,6 +165,10 @@ def collect_swe_bench_lite_dev_episode(
     agent_factory: Optional[AgentFactory] = None,
     model_client: Optional[Any] = None,
     agent_command_runner: Optional[Any] = None,
+    sandbox_backend_name: str = "host",
+    sandbox_image: Optional[str] = None,
+    sandbox_python_executable: Optional[str] = None,
+    manage_agent_sandbox: bool = True,
 ) -> TrainingEpisodeCollectionResult:
     """Run one Dev issue while keeping evaluator assets outside agent context."""
     if not str(generation_commit).strip():
@@ -251,6 +256,24 @@ def collect_swe_bench_lite_dev_episode(
     patterns = [str(item) for item in allowed_path_patterns if str(item).strip()]
     if not patterns:
         raise BenchmarkError("SWE-bench collection requires explicit allowed paths")
+    sandbox_backend_name = str(sandbox_backend_name).strip().lower()
+    if sandbox_backend_name not in {"host", "docker"}:
+        raise BenchmarkError("sandbox_backend_name must be 'host' or 'docker'")
+    if sandbox_backend_name == "docker":
+        if re.fullmatch(
+            r"[^@\s]+@sha256:[0-9a-fA-F]{64}", str(sandbox_image or "")
+        ) is None:
+            raise BenchmarkError(
+                "Docker SWE-bench collection requires a digest-pinned sandbox_image"
+            )
+        if not str(sandbox_python_executable or "").strip():
+            raise BenchmarkError(
+                "Docker SWE-bench collection requires sandbox_python_executable"
+            )
+    elif sandbox_image or sandbox_python_executable:
+        raise BenchmarkError(
+            "sandbox_image and sandbox_python_executable require Docker"
+        )
 
     benchmark = SweBenchLiteDevAdapter(benchmark_root)
     tasks = {
@@ -274,6 +297,7 @@ def collect_swe_bench_lite_dev_episode(
         python_executable=python_executable,
         timeout_seconds=timeout_seconds,
         allowed_path_patterns=patterns,
+        sandbox_python_executable=sandbox_python_executable,
     )
     task = materialized.task_spec
     config_root = Path(api_config_root or Path.cwd()).resolve()
@@ -309,6 +333,12 @@ def collect_swe_bench_lite_dev_episode(
         decoding_config["max_tokens"] = max_tokens
     if thinking_mode is not None:
         decoding_config["thinking_mode"] = thinking_mode
+    decoding_config["sandbox_backend"] = sandbox_backend_name
+    if sandbox_backend_name == "docker":
+        decoding_config["sandbox_image"] = str(sandbox_image)
+        decoding_config["sandbox_python_executable"] = str(
+            sandbox_python_executable
+        )
 
     configured_python = Path(python_executable).expanduser().absolute()
     original_factory = agent_factory
@@ -457,6 +487,9 @@ def collect_swe_bench_lite_dev_episode(
         allowed_paths_resolver=lambda _task: list(patterns),
         input_token_price=input_token_price_per_million / 1_000_000,
         output_token_price=output_token_price_per_million / 1_000_000,
+        sandbox_backend_name=sandbox_backend_name,
+        sandbox_image=sandbox_image,
+        manage_agent_sandbox=manage_agent_sandbox,
     )
     try:
         result = adapter.run(task, dict(decoding_config))

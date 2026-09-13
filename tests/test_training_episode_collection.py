@@ -249,6 +249,39 @@ class SweBenchEnvironmentContractTests(unittest.TestCase):
                     allowed_path_patterns=("target.py",),
                 )
 
+    def test_docker_collection_requires_digest_pinned_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(BenchmarkError, "digest-pinned"):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    allowed_path_patterns=("target.py",),
+                    sandbox_backend_name="docker",
+                    sandbox_image="claw/swe-pilot:latest",
+                    sandbox_python_executable="python",
+                )
+
+    def test_docker_collection_requires_container_python(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            with self.assertRaisesRegex(
+                BenchmarkError, "sandbox_python_executable"
+            ):
+                collect_swe_bench_lite_dev_episode(
+                    benchmark_root=temporary,
+                    instance_id="unused",
+                    python_executable=sys.executable,
+                    evaluator_script=Path(temporary) / "evaluator.py",
+                    output_root=Path(temporary) / "output",
+                    generation_commit="test-commit",
+                    allowed_path_patterns=("target.py",),
+                    sandbox_backend_name="docker",
+                    sandbox_image="claw/swe-pilot@sha256:" + "a" * 64,
+                )
+
     def test_workspace_pythonpath_supports_src_and_root_layouts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

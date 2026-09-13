@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -670,6 +671,17 @@ def run_swe_bench_lite_runtime_comparison(
                 allow_write=True,
                 allow_shell=True,
                 restrict_workspace=True,
+                allowed_write_paths=list(allowed_path_patterns),
+                allowed_tools=[
+                    "list_dir",
+                    "read_file",
+                    "code_outline",
+                    "write_file",
+                    "edit_file",
+                    "glob_search",
+                    "grep_search",
+                    "bash",
+                ],
             ).to_dict(),
             budget=BudgetConfig(max_total_tokens=max_total_tokens),
             completion_reminder_turns=completion_reminder_turns,
@@ -781,9 +793,10 @@ def run_swe_bench_lite_runtime_ablation(
     pi_tool_version: str = "pi-builtins@0.85.1",
     pi_extra_args: Sequence[str] = DEFAULT_PI_COMPARISON_ARGS,
     enforce_macos_seatbelt: bool = True,
-    sandbox_attestation: str = (
-        "macos-seatbelt:episode-parent-write-deny+sensitive-paths-v2"
-    ),
+    sandbox_attestation: Optional[str] = None,
+    claw_sandbox_backend: str = "host",
+    claw_sandbox_image: Optional[str] = None,
+    claw_sandbox_python: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run Pi once beside frozen Claw Base and Claw Enhanced profiles."""
     root = Path(output_root).resolve()
@@ -793,6 +806,41 @@ def run_swe_bench_lite_runtime_ablation(
         raise BenchmarkError("model_ref and model_backend_version must not be empty")
     if not allowed_path_patterns:
         raise BenchmarkError("allowed_path_patterns must not be empty")
+    claw_sandbox_backend = str(claw_sandbox_backend).strip().lower()
+    if claw_sandbox_backend not in {"host", "docker"}:
+        raise BenchmarkError(
+            "claw_sandbox_backend must be either 'host' or 'docker'"
+        )
+    if claw_sandbox_backend == "docker":
+        if re.fullmatch(
+            r"[^@\s]+@sha256:[0-9a-fA-F]{64}",
+            str(claw_sandbox_image or ""),
+        ) is None:
+            raise BenchmarkError(
+                "Claw Docker ablation requires a digest-pinned "
+                "claw_sandbox_image"
+            )
+        if not str(claw_sandbox_python or "").strip():
+            raise BenchmarkError(
+                "Claw Docker ablation requires claw_sandbox_python"
+            )
+    elif claw_sandbox_image:
+        raise BenchmarkError(
+            "claw_sandbox_image is only valid with the Docker backend"
+        )
+    elif claw_sandbox_python:
+        raise BenchmarkError(
+            "claw_sandbox_python is only valid with the Docker backend"
+        )
+    if sandbox_attestation is None and enforce_macos_seatbelt:
+        sandbox_attestation = (
+            "macos-seatbelt:episode-parent-write-deny+sensitive-paths-v2"
+        )
+    if not str(sandbox_attestation or "").strip():
+        raise BenchmarkError(
+            "Pi requires an explicit sandbox_attestation when macOS Seatbelt "
+            "is disabled"
+        )
     config_root = Path(api_config_root).resolve()
     api_config = APIConfigRuntime(cwd=str(config_root)).get_config()
     if api_config.model != model_ref:
@@ -858,6 +906,17 @@ def run_swe_bench_lite_runtime_ablation(
                     allow_write=True,
                     allow_shell=True,
                     restrict_workspace=True,
+                    allowed_write_paths=list(allowed_path_patterns),
+                    allowed_tools=[
+                        "list_dir",
+                        "read_file",
+                        "code_outline",
+                        "write_file",
+                        "edit_file",
+                        "glob_search",
+                        "grep_search",
+                        "bash",
+                    ],
                 ).to_dict(),
                 budget=BudgetConfig(max_total_tokens=max_total_tokens),
                 completion_reminder_turns=int(
@@ -933,6 +992,9 @@ def run_swe_bench_lite_runtime_ablation(
             tool_version="tool-schema.v1",
             config_version=f"swe-bench-lite-claw-{profile_name}.v1",
             agent_factory=claw_factory(profile),
+            sandbox_backend_name=claw_sandbox_backend,
+            sandbox_image=claw_sandbox_image,
+            sandbox_python_executable=claw_sandbox_python,
             **profile,
             **shared,
         )
@@ -944,6 +1006,10 @@ def run_swe_bench_lite_runtime_ablation(
         tool_version=pi_tool_version,
         config_version="swe-bench-lite-pi-raw.v1",
         agent_factory=pi_factory,
+        sandbox_backend_name=claw_sandbox_backend,
+        sandbox_image=claw_sandbox_image,
+        sandbox_python_executable=claw_sandbox_python,
+        manage_agent_sandbox=False,
         **pi_profile,
         **shared,
     )

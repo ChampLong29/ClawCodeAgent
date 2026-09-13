@@ -232,10 +232,12 @@ python -m json.tool \
 - Docker Exec 当前为缓冲输出，不是真流式传输。
 - 进程退出清理是尽力而为；尚无跨进程 Lease 和残留扫描器。
 - SELinux Bind Mount Label、设备策略和 Rootless daemon 证明尚未实现。
-- 任务清单中的命令必须能在容器镜像内执行。宿主绝对 Python 路径不会自动映射为
-  容器路径。
+- 任务清单中的命令必须能在容器镜像内执行。SWE-bench Dev 三臂入口会把 evaluator
+  随隐藏资产注入并使用 `--claw-sandbox-python`，但镜像仍必须预装 Claw 和该历史任务的
+  冻结依赖；宿主校准环境不会自动复制进镜像。
 - 轻量 Rollout、训练 `SandboxManager`、MCP 外部进程和 Pi RPC 尚未统一迁移到该
-  Docker Backend。
+  Docker Backend。三臂入口可让 Pi 的 Verifier 使用同一 Backend，但 Pi Agent 进程
+  仍依赖操作者管理的容器包装器与显式 attestation。
 - 正式 SWE-bench 仍必须接入官方 Docker Harness；本地 Pilot 不能当作官方分数。
 
 推荐在 Docker 主机按以下顺序继续：
