@@ -1,0 +1,66 @@
+{
+  "schema_version": "swe_bench_lite_runtime_environments.v1",
+  "claim_boundary": "Local digest-pinned execution environments for the preregistered SWE-bench Lite Dev pilot; no model or benchmark outcome is implied.",
+  "tasks": {
+    "marshmallow-code__marshmallow-1343": {
+      "image": "claw-local/sweb-marshmallow1343@sha256:8090971e2cf3ce9e6e7911afc17e58270a939708992996d9c905674ae28fa52d",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "src/marshmallow/schema.py"
+      ]
+    },
+    "pylint-dev__astroid-1196": {
+      "image": "claw-local/sweb-astroid@sha256:4ad0ddae25284242edbd6cbc27f6555f96540164090edc883e9acb29486747e6",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "astroid/nodes/node_classes.py"
+      ]
+    },
+    "sqlfluff__sqlfluff-1763": {
+      "image": "claw-local/sweb-sqlfluff1763@sha256:cd779d42b6fe9fd7808f5245db4c30bfdaa03b935268f07d4313d30ba1ea4a50",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "src/sqlfluff/core/linter/linted_file.py"
+      ]
+    },
+    "pydicom__pydicom-1139": {
+      "image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "pydicom/valuerep.py"
+      ]
+    },
+    "pydicom__pydicom-1413": {
+      "image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "pydicom/dataelem.py"
+      ]
+    },
+    "pvlib__pvlib-python-1707": {
+      "image": "claw-local/sweb-pvlib1707@sha256:86822a97f04f0f0900921a8fac1750abb8f8ad45bd0b7dec088f6585a9b16f33",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "pvlib/iam.py"
+      ]
+    },
+    "pylint-dev__astroid-1333": {
+      "image": "claw-local/sweb-astroid@sha256:4ad0ddae25284242edbd6cbc27f6555f96540164090edc883e9acb29486747e6",
+      "task_python": "/opt/task/bin/python3.8",
+      "evaluator_python": "/usr/bin/python3",
+      "allow_paths": [
+        "astroid/modutils.py"
+      ]
+    }
+  },
+  "pi": {
+    "image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69",
+    "executable": "/opt/pi/node_modules/.bin/pi"
+  }
+}

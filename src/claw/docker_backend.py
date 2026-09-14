@@ -651,6 +651,8 @@ class DockerBackend:
             spec.workspace.sandbox_path,
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,size=256m",
+            "--tmpfs",
+            "/dev/shm:rw,nosuid,nodev,noexec,size=64m",
             "--network",
             "none" if spec.network.mode == NetworkMode.NONE else "bridge",
         ]

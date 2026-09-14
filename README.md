@@ -148,7 +148,7 @@ claw agent "修复当前项目并运行测试" \
 ```
 
 当前 Docker Profile 强制离线网络、非 root、只读 RootFS、`cap-drop=ALL`、
-`no-new-privileges` 及 CPU/内存/PID/超时/输出限制。它仍共享 Docker 宿主内核，
+`no-new-privileges`、私有受限 `/dev/shm` 及 CPU/内存/PID/超时/输出限制。它仍共享 Docker 宿主内核，
 不应宣称为 microVM 或公网多租户隔离。
 恢复会话时若未显式指定 Backend，会继承会话中记录的 Backend 与 Docker 镜像，
 避免无提示降级到 Host；显式指定则视为有意切换执行边界。
@@ -221,6 +221,13 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
 因此仅将每次运行生成、不含明文密钥的配置目录作为窄范围可写挂载；API Key 仍只通过
 子进程环境传入，容器根文件系统保持只读。
 
+仓库还提供版本化
+[`swe-bench-lite-runtime-environments-v1.json`](configs/integrations/swe-bench-lite-runtime-environments-v1.json)，
+把七个冻结任务的镜像摘要、镜像内解释器、写入范围以及 Pi 镜像集中配置。三臂入口在
+Docker 模式下默认读取它，因此不再要求为每题导出一个宿主机虚拟环境；显式参数仍可覆盖
+清单。每个臂在创建 Agent 前，会在固定镜像内验证工作区导入、pytest、镜像身份和 Python
+多进程信号量，失败即停止且不发送模型请求。
+
 ### 已归档的代表性实验
 
 - Tool UX v2 冻结对照覆盖 10 个本地版本化任务：Qwen3-1.7B 为 0/10，
@@ -253,6 +260,12 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
   收尾期间发现并修复了 Episode 后再次解析相对 Benchmark 路径会依赖进程 cwd 的问题；
   机器摘要完整披露了等价 Python 3.8 准入路径和仅补齐未执行臂的过程，见
   [`swe-bench-lite-pi-claw-ablation-astroid1196-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json)。
+- 第三题 SQLFluff-1763 的 Base 与 Pi 均未编辑并耗尽累计 Token；Enhanced 在第 15 轮
+  修改唯一允许文件并正常结束，但其错误替换策略未实现安全文件替换，3 条目标测试仍全部
+  失败，故 raw 与合规结果均为 0/0/0。原始 Verifier 同时暴露了隔离配置问题：
+  `--ipc=none` 下缺少私有 `/dev/shm`，令 3 条多进程回归产生基础设施假失败。保留原记录后，
+  修复配置的无模型干净复评确认三个候选均为目标 0/3、回归 66/66。机器摘要见
+  [`swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json)。
 
 ### 低成本 Agent 后训练路线
 

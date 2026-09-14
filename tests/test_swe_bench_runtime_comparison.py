@@ -17,6 +17,32 @@ from claw.data_pipeline.swe_bench_runtime_comparison import (
 
 
 class SweBenchRuntimeComparisonTests(unittest.TestCase):
+    def test_runtime_environment_manifest_covers_frozen_pilot(self):
+        repository = Path(__file__).resolve().parents[1]
+        plan = json.loads(
+            (
+                repository
+                / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        environments = json.loads(
+            (
+                repository
+                / "configs/integrations/swe-bench-lite-runtime-environments-v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        task_ids = {task["instance_id"] for task in plan["tasks"]}
+
+        self.assertEqual(set(environments["tasks"]), task_ids)
+        for task in environments["tasks"].values():
+            self.assertRegex(task["image"], r"@sha256:[0-9a-f]{64}$")
+            self.assertTrue(task["task_python"].startswith("/"))
+            self.assertTrue(task["evaluator_python"].startswith("/"))
+            self.assertTrue(task["allow_paths"])
+        self.assertRegex(
+            environments["pi"]["image"], r"@sha256:[0-9a-f]{64}$"
+        )
+
     def test_v2_ablation_plan_preserves_v1_and_pins_reconstructable_pi(self):
         repository = Path(__file__).resolve().parents[1]
         v1_path = (
@@ -99,6 +125,51 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             result["results"]["claw_enhanced"]["policy_compliant_resolved"]
         )
         self.assertFalse(result["results"]["pi_raw"]["raw_resolved"])
+        self.assertIn("not an official SWE-bench score", result["claim_boundary"])
+
+    def test_third_ablation_result_preserves_verifier_correction(self):
+        repository = Path(__file__).resolve().parents[1]
+        plan_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+        )
+        environment_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-runtime-environments-v1.json"
+        )
+        result = json.loads(
+            (
+                repository
+                / "configs/integrations/"
+                "swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            result["protocol"]["sha256"],
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            result["reproducibility_remediation"][
+                "manifest_sha256_at_capture"
+            ],
+            hashlib.sha256(environment_path.read_bytes()).hexdigest(),
+        )
+        self.assertIn(
+            "Base was not rerun",
+            result["infrastructure_continuation"]["path_fix"],
+        )
+        for arm in ("claw_base", "claw_enhanced", "pi_raw"):
+            self.assertFalse(result["results"][arm]["raw_resolved"])
+            self.assertFalse(
+                result["results"][arm]["policy_compliant_resolved"]
+            )
+            supplemental = result["supplemental_clean_verification"][arm]
+            self.assertEqual(supplemental["pass_to_pass"], "66 passed, 0 failed")
+            self.assertEqual(supplemental["fail_to_pass"], "0 passed, 3 failed")
+        self.assertEqual(
+            result["supplemental_clean_verification"]["model_calls"], 0
+        )
         self.assertIn("not an official SWE-bench score", result["claim_boundary"])
 
     def test_versioned_ablation_plan_is_calibrated_selection_subset(self):
@@ -393,6 +464,10 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                 )
 
             self.assertEqual(len(calls), 3)
+            for call in calls:
+                self.assertTrue(Path(call["benchmark_root"]).is_absolute())
+                self.assertTrue(Path(call["python_executable"]).is_absolute())
+                self.assertTrue(Path(call["evaluator_script"]).is_absolute())
             self.assertEqual(
                 [Path(call["output_root"]).name for call in calls],
                 ["claw-base", "claw-enhanced", "pi-raw"],

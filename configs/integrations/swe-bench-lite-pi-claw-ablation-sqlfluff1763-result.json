@@ -1,0 +1,132 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-14",
+  "status": "third_task_complete_with_verifier_infrastructure_correction",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "generation_commit": "c61e6c3aa176ed28cfbea78fd8754214c15b520a",
+  "data_transfer_authorization": "The user explicitly authorized sending this third task's repository code and task context to the configured DeepSeek endpoint and running all three frozen arms.",
+  "task": {
+    "instance_id": "sqlfluff__sqlfluff-1763",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "controls": {
+    "model": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": [
+      "src/sqlfluff/core/linter/linted_file.py"
+    ],
+    "task_image": "claw-local/sweb-sqlfluff1763@sha256:cd779d42b6fe9fd7808f5245db4c30bfdaa03b935268f07d4313d30ba1ea4a50",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69"
+  },
+  "infrastructure_continuation": {
+    "host_admission": "The planned ignored host Python path was absent. A Python 3.8.20 environment was exported from the exact digest-pinned task image and used only for the pre-model workspace-import gate; Agent and Verifier execution remained in the pinned image.",
+    "post_base_failure": "After Claw Base was archived, the three-arm driver resolved a relative shared path after Docker teardown had made the process cwd unavailable.",
+    "path_fix": "Benchmark root, host Python, and evaluator paths are now resolved before the first arm. Claw Base was not rerun; only the not-yet-sampled Enhanced and Pi arms were continued.",
+    "verifier_discrepancy": "The original isolated Verifier marked PASS_TO_PASS failed for all arms. A model-free reproduction identified three multiprocessing tests failing because --ipc=none provided no usable /dev/shm semaphore backing.",
+    "verifier_fix": "DockerBackend now mounts a private, size-limited, noexec /dev/shm while preserving the isolated IPC namespace. Original immutable Episode and Verification records were not overwritten."
+  },
+  "results": {
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "original_test_pass_rate": 0.0,
+      "turns": 22,
+      "tool_calls": 33,
+      "input_tokens": 259187,
+      "output_tokens": 10098,
+      "first_target_path_turn": 1,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "max_total_tokens",
+      "process_violations": 0,
+      "collection_manifest_sha256": "9e530780df0d16d0d6ae996dca07d6a2e01dc003fa2a86f93264b9c5283f86",
+      "trajectory_sha256": "4c1d0152326b58c897e27493cd70cac00f67002f01ac01e96bc6c0213e5b1e5b",
+      "verification_sha256": "d9f4f7de5ea22bb348e82a518a4c4f8ca09f29f2bcac247ebec98f281cf30b53"
+    },
+    "claw_enhanced": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "original_test_pass_rate": 0.0,
+      "turns": 18,
+      "tool_calls": 20,
+      "input_tokens": 144094,
+      "output_tokens": 5120,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 15,
+      "direct_mutation_calls": 1,
+      "implementation_deadline_turn": 10,
+      "implementation_escalation_turn": 14,
+      "post_edit_contract_guidance_turn": 15,
+      "changed_files": [
+        "src/sqlfluff/core/linter/linted_file.py"
+      ],
+      "termination": "completed",
+      "process_violations": 0,
+      "collection_manifest_sha256": "d63e64da028094409d7268c52cfd4f495582b586b4ba1fd67321520eb8986fe8",
+      "trajectory_sha256": "a39285dc32bdfc399761d874e23f6e28b1aa2f1a0a542c7f4ad1e45309ca4dad",
+      "verification_sha256": "25c359bf22f63627b29f3ea1eac4b637b6c271e738d16e10acb82898a49b5ece"
+    },
+    "pi_raw": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "original_test_pass_rate": 0.0,
+      "turns": 16,
+      "tool_calls": 21,
+      "input_tokens": 248518,
+      "output_tokens": 5753,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "max_total_tokens",
+      "process_violations": 0,
+      "collection_manifest_sha256": "a4abae2e2495ce49564802a1df806a35bddfb14fa4bfa7e44bc330b9cffc079d",
+      "trajectory_sha256": "9072c8a7366557ff3d8bd31442b0732f57a7b7398d661d37026d47df09a49ee5b",
+      "verification_sha256": "8214d0dcaa63d902b78cbeeeac486a03ec204affdd1d862e9ed0708b1c64cf23"
+    }
+  },
+  "supplemental_clean_verification": {
+    "model_calls": 0,
+    "candidate_reconstruction": "Each archived candidate was rebuilt from task Git HEAD, overlaid only with its allowlisted candidate file, injected with the frozen hidden test patch, and run in the same digest-pinned image after the private-/dev/shm fix.",
+    "claw_base": {
+      "fail_to_pass": "0 passed, 3 failed",
+      "pass_to_pass": "66 passed, 0 failed"
+    },
+    "claw_enhanced": {
+      "fail_to_pass": "0 passed, 3 failed",
+      "pass_to_pass": "66 passed, 0 failed"
+    },
+    "pi_raw": {
+      "fail_to_pass": "0 passed, 3 failed",
+      "pass_to_pass": "66 passed, 0 failed"
+    },
+    "interpretation": "The original regression failures were isolation-infrastructure false negatives. All three candidates still fail the target behavior, so raw and policy-compliant outcomes remain false."
+  },
+  "diagnosis": {
+    "supported": "Enhanced reduced turns, tool calls, and tokens and produced the only allowlisted edit, but its backslash-replacement write changed encoding-error behavior rather than implementing failure-safe file replacement; all three target-test groups remained 0/3.",
+    "cross_task_observation": "After three tasks, raw test resolution is Claw Base 0/3, Claw Enhanced 1/3, and Pi Raw 1/3; policy-compliant resolution remains 0/3 for every arm.",
+    "unsupported": "Three local Dev tasks do not establish a statistically significant runtime advantage or an official SWE-bench score."
+  },
+  "reproducibility_remediation": {
+    "runtime_environment_manifest": "configs/integrations/swe-bench-lite-runtime-environments-v1.json",
+    "manifest_sha256_at_capture": "4a3faa81784668352ffdbc579e81baba6f350fa0b2f2da8020c89f76b868dc5e",
+    "container_native_admission": "Docker runs now probe the workspace import, pytest version, image identity, and multiprocessing semaphore inside the pinned task image before agent creation. A task-specific host virtualenv export is no longer required.",
+    "fail_fast_boundary": "Missing images, interpreters, imports, pytest, or shared-memory semaphore support stop before a model request."
+  },
+  "local_artifact_roots": {
+    "claw_base_and_driver_failure": ".port_sessions/swe-bench-lite-ablation-20260914-sqlfluff1763",
+    "remaining_arms": ".port_sessions/swe-bench-lite-ablation-20260914-sqlfluff1763-remainder"
+  },
+  "claim_boundary": "Benchmark-verified execution evidence for one controlled local SWE-bench Lite Dev task, with immutable original Verifier failures and a separately disclosed model-free infrastructure correction. This is not an official SWE-bench score or a completed-pilot estimate."
+}

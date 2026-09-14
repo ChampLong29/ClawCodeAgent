@@ -729,7 +729,7 @@ class SweBenchLiteEpisodeTaskMaterializer:
         bundle: SweBenchLiteEvaluationBundle,
         *,
         output_root: Path | str,
-        python_executable: Path | str,
+        python_executable: Optional[Path | str],
         timeout_seconds: float = 300.0,
         allowed_path_patterns: Optional[List[str]] = None,
         sandbox_python_executable: Optional[str] = None,
@@ -767,12 +767,7 @@ class SweBenchLiteEpisodeTaskMaterializer:
             + "\n",
             encoding="utf-8",
         )
-        python_path = Path(python_executable).expanduser().absolute()
-        if not python_path.is_file():
-            raise FileNotFoundError(python_path)
         evaluator_command = str(self.evaluator_script)
-        target_python = str(python_path)
-        command_python = str(Path(sys.executable).absolute())
         if sandbox_python_executable is not None:
             sandbox_python = str(sandbox_python_executable).strip()
             if not sandbox_python:
@@ -794,6 +789,16 @@ class SweBenchLiteEpisodeTaskMaterializer:
                 "sandbox_evaluator_python_executable requires "
                 "sandbox_python_executable"
             )
+        else:
+            if python_executable is None:
+                raise ValueError(
+                    "python_executable is required without sandbox_python_executable"
+                )
+            python_path = Path(python_executable).expanduser().absolute()
+            if not python_path.is_file():
+                raise FileNotFoundError(python_path)
+            target_python = str(python_path)
+            command_python = str(Path(sys.executable).absolute())
         command_parts = [
             command_python,
             evaluator_command,

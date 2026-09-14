@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from claw.agent_runtime import LocalCodingAgent
 from claw.agent_types import AgentPermissions, ModelConfig
@@ -18,6 +20,7 @@ from claw.data_pipeline import (
 from claw.data_pipeline.swe_bench_collection import (
     collect_swe_bench_lite_dev_episode,
     _infer_workspace_import_name,
+    _probe_docker_workspace_import,
     _probe_workspace_import,
     _workspace_pythonpath,
 )
@@ -167,6 +170,48 @@ class TrainingEpisodeCollectionTests(unittest.TestCase):
 
 
 class SweBenchEnvironmentContractTests(unittest.TestCase):
+    def test_docker_import_probe_uses_pinned_container_environment(self):
+        fake_backend = SimpleNamespace()
+        fake_handle = SimpleNamespace(
+            backend_metadata={"image_identity": "sha256:" + "a" * 64}
+        )
+        fake_backend.prepare = lambda _spec: fake_handle
+        fake_backend.start = lambda _handle: None
+        fake_backend.destroy = lambda _handle: None
+        fake_backend.exec = lambda _handle, _request: SimpleNamespace(
+            ok=True,
+            stdout=json.dumps(
+                {
+                    "python_version": "3.8.20",
+                    "import_name": "demo",
+                    "module_file": "src/demo/__init__.py",
+                    "required_modules": {"pytest": "8.3.5"},
+                    "runtime_capabilities": {
+                        "multiprocessing_semaphore": True
+                    },
+                }
+            ),
+            stderr="",
+        )
+        with tempfile.TemporaryDirectory() as temporary, patch(
+            "claw.data_pipeline.swe_bench_collection.DockerBackend",
+            return_value=fake_backend,
+        ):
+            result = _probe_docker_workspace_import(
+                cwd=temporary,
+                image="claw/demo@sha256:" + "b" * 64,
+                python_executable="/opt/task/bin/python3.8",
+                import_name="demo",
+            )
+
+        self.assertEqual(result["status"], "passed")
+        self.assertEqual(result["backend"], "docker")
+        self.assertEqual(result["python_version"], "3.8.20")
+        self.assertEqual(result["image_identity"], "sha256:" + "a" * 64)
+        self.assertTrue(
+            result["runtime_capabilities"]["multiprocessing_semaphore"]
+        )
+
     def test_import_probe_fails_closed_without_inferred_package(self):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaisesRegex(

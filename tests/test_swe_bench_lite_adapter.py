@@ -1023,7 +1023,7 @@ class SweBenchLiteDevAdapterTests(unittest.TestCase):
                 task,
                 bundle,
                 output_root=Path(temporary) / "materialized",
-                python_executable=sys.executable,
+                python_executable=None,
                 sandbox_python_executable="/opt/task/bin/python3.8",
                 sandbox_evaluator_python_executable="/usr/local/bin/python",
             )

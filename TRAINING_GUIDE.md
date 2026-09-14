@@ -356,23 +356,19 @@ python tools/run_swe_bench_lite_runtime_ablation.py --help
 ```bash
 python tools/run_swe_bench_lite_runtime_ablation.py \
   --instance-id '<INSTANCE_ID>' \
-  --python '<HOST_CALIBRATED_PYTHON>' \
   --output-root '<NEW_OUTPUT_ROOT>' \
-  --allow-path '<IMPLEMENTATION_PATH>' \
   --model deepseek-flash \
   --claw-sandbox-backend docker \
-  --claw-sandbox-image '<TASK_IMAGE@sha256:DIGEST>' \
-  --claw-sandbox-python /opt/task/bin/python3.8 \
-  --claw-sandbox-evaluator-python /usr/bin/python3 \
-  --pi-docker-image 'claw-local/pi-rpc@sha256:<64-hex-digest>' \
-  --pi-container-executable /opt/pi/node_modules/.bin/pi \
   --no-macos-seatbelt \
   --pi-sandbox-attestation '<EXACT_PI_CONTAINER_BOUNDARY>'
 ```
 
-镜像内 evaluator Python 必须可导入 Claw，task Python 必须包含目标历史仓库的冻结
-测试依赖；两者可以是不同版本。宿主
-`--python` 仍用于模型调用前的工作区导入准入。Claw Agent 与 Verifier 由
+默认的 `configs/integrations/swe-bench-lite-runtime-environments-v1.json` 集中解析任务
+镜像摘要、task/evaluator Python、Allowlist 与 Pi 容器；可用
+`--runtime-environments` 切换另一份版本化清单，或用原有参数逐项覆盖。镜像内 evaluator
+Python 必须可导入 Claw，task Python 必须包含目标历史仓库的冻结测试依赖；两者可以是
+不同版本。Docker 模式不再依赖逐题导出的宿主虚拟环境，而是在模型调用前直接在固定镜像
+内验证工作区导入、pytest、镜像身份和多进程信号量。Claw Agent 与 Verifier 由
 `SandboxBackend` 管理。Pi Docker RPC 由入口构造受限容器命令，但不归属于 Session
 Sandbox Backend；不要把 Pi 的 attestation 描述为完整策略等价认证。Pi 的模型请求和
 工具同进程，因此 Provider 网络也对 Pi Shell 可见，而 Claw Shell 保持离线。这是必须
@@ -397,6 +393,12 @@ Collector 收尾因重新解析相对 Benchmark 路径时进程 cwd 不可用而
 模型调用前已解析的 Adapter 路径，并只执行此前尚未采样的 Enhanced/Pi。该组装方式和
 准入 Python 路径替换均记录在
 `configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json`。
+
+第三题 SQLFluff-1763 三臂的 raw 与合规结果均为 0/0/0。Enhanced 是唯一产生编辑的臂，
+但 3 条目标测试仍失败；Base 与 Pi 均未编辑并耗尽累计 Token。原始 Verifier 的回归失败
+随后被定位为 `--ipc=none` 缺少可用 `/dev/shm` 所致，而非候选回归。保留原 Verification
+后，加入私有受限共享内存的无模型干净复评确认三个候选均通过 66 条回归、仍失败 3 条目标。
+证据见 `configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`。
 
 ## 7. Episode、Trajectory 与 Verification
 

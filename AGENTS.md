@@ -128,10 +128,12 @@ provider calls and tools share that container's network; record the difference
 from Claw's offline Shell sandbox and do not claim network-policy parity.
 
 For the three-arm SWE-bench Lite Dev entrypoint, Docker Claw arms require
-`--claw-sandbox-backend docker`, a digest-pinned `--claw-sandbox-image`, and
-`--claw-sandbox-python` naming the historical task interpreter inside that
-image. Use `--claw-sandbox-evaluator-python` when the staged Claw evaluator
-requires a newer interpreter than the task. All three Verifier runs use that Backend. Pi itself still runs through the explicitly
+`--claw-sandbox-backend docker`. The default versioned runtime-environment
+manifest resolves the digest-pinned task image, task/evaluator interpreters,
+write allowlist, and Pi image; explicit flags may override it. Docker admission
+runs inside that task image and does not require an exported host virtualenv.
+Use `--claw-sandbox-evaluator-python` when the staged Claw evaluator requires a
+newer interpreter than the task. All three Verifier runs use that Backend. Pi itself still runs through the explicitly
 attested host executable supplied as `--pi-executable`, or through the explicit
 `--pi-docker-image` boundary; disabling Seatbelt requires
 `--pi-sandbox-attestation`.
@@ -294,6 +296,11 @@ When changing tool execution:
   Sandbox Backend. Host mode is compatibility execution, not OS isolation.
 - Docker mode requires an explicit local image, must not pull implicitly, and
   must fail closed rather than fall back to Host.
+- Isolated Docker containers keep `--ipc=none` and mount a private, bounded,
+  noexec `/dev/shm`; removing it breaks Python multiprocessing semaphores and
+  can create false regression failures. Docker SWE admission must probe the
+  workspace import, pytest, image identity, and semaphore capability before a
+  model request.
 - Session resume inherits its persisted sandbox backend unless the caller
   explicitly selects a replacement boundary.
 - Preserve stdout, stderr, return code, timeout, and error detail in `ToolResult`.
@@ -437,6 +444,13 @@ When changing session schemas, maintain backward-compatible loading or provide a
   run whose collection finalization failed after verification, and preserve
   the disclosed continuation that sampled only the remaining Enhanced/Pi arms.
   All three policy-compliant and budgeted outcomes remain failures.
+- SQLFluff-1763 is sampled with raw and policy-compliant outcomes 0/0/0.
+  Enhanced alone edited but failed all three target tests; Base and Pi made no
+  edit. Preserve the original Verifier records whose PASS_TO_PASS runs failed
+  because the isolated containers lacked usable `/dev/shm`. The separately
+  disclosed model-free clean verification after the generic Docker fix passes
+  all 66 regression tests for every archived candidate while all three target
+  tests still fail.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

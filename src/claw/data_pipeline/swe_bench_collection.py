@@ -19,7 +19,9 @@ from ..benchmark import (
 from ..benchmark.local_agent_adapter import AgentFactory
 from ..benchmark.metrics import compute_metrics
 from ..benchmark.runner import BenchmarkError
+from ..docker_backend import DockerBackend
 from ..experiment.schemas import canonical_hash
+from ..sandbox_backend import ExecRequest, SandboxSpec
 from ..trajectory.schema import stable_id
 from ..verification import VerificationPolicy
 from .collection import (
@@ -127,11 +129,104 @@ def _probe_workspace_import(
     }
 
 
+def _probe_docker_workspace_import(
+    *,
+    cwd: str,
+    image: str,
+    python_executable: str,
+    import_name: Optional[str],
+    required_modules: Sequence[str] = ("pytest",),
+) -> Dict[str, Any]:
+    """Run the environment gate inside the pinned task image."""
+    if import_name is None:
+        raise BenchmarkError("primary workspace import name could not be inferred")
+    script = (
+        "import importlib,json,multiprocessing,pathlib,sys;"
+        "root=pathlib.Path(sys.argv[2]).resolve();"
+        "sys.path[:0]=[str(root/'src'),str(root)];"
+        "lock=multiprocessing.Lock();"
+        "module=importlib.import_module(sys.argv[1]);"
+        "origin=pathlib.Path(module.__file__).resolve();"
+        "relative=origin.relative_to(root);"
+        "required={name:getattr(importlib.import_module(name),'__version__','unknown') "
+        "for name in sys.argv[3:]};"
+        "print(json.dumps({'python_version':sys.version.split()[0],"
+        "'import_name':sys.argv[1],'module_file':relative.as_posix(),"
+        "'required_modules':required,"
+        "'runtime_capabilities':{'multiprocessing_semaphore':True}}))"
+    )
+    modules = [str(item).strip() for item in required_modules if str(item).strip()]
+    backend = DockerBackend(cleanup_on_exit=False)
+    sandbox_id = stable_id(
+        "docker-preflight",
+        {
+            "cwd": str(Path(cwd).resolve()),
+            "image": image,
+            "python_executable": python_executable,
+        },
+    )
+    spec = SandboxSpec.for_docker_workspace(
+        cwd,
+        image=image,
+        owner_kind="benchmark_preflight",
+        owner_id=f"{sandbox_id}:environment",
+        sandbox_id=sandbox_id,
+        security_profile="benchmark_offline",
+    )
+    handle = None
+    try:
+        handle = backend.prepare(spec)
+        backend.start(handle)
+        completed = backend.exec(
+            handle,
+            ExecRequest(
+                command=(
+                    python_executable,
+                    "-c",
+                    script,
+                    import_name,
+                    spec.workspace.sandbox_path,
+                    *modules,
+                ),
+                cwd=".",
+                timeout_seconds=30.0,
+            ),
+        )
+        if not completed.ok:
+            raise BenchmarkError(
+                "pinned Docker task environment does not import the Episode "
+                "workspace or required evaluator modules: "
+                + (completed.stderr.strip() or completed.stdout.strip())[:500]
+            )
+        payload = json.loads(completed.stdout)
+        return {
+            "schema_version": ENVIRONMENT_CONTRACT_SCHEMA_VERSION,
+            "status": "passed",
+            "backend": "docker",
+            "image_reference": image,
+            "image_identity": handle.backend_metadata.get("image_identity"),
+            "sandbox_python_executable": python_executable,
+            "python_version": payload["python_version"],
+            "import_name": payload["import_name"],
+            "module_file": payload["module_file"],
+            "required_modules": payload["required_modules"],
+            "runtime_capabilities": payload["runtime_capabilities"],
+            "pythonpath_layouts": ["src", "root"],
+            "claim_boundary": (
+                "Pinned-container import and evaluator-dependency preflight only; "
+                "not a task-quality result."
+            ),
+        }
+    finally:
+        if handle is not None:
+            backend.destroy(handle)
+
+
 def collect_swe_bench_lite_dev_episode(
     *,
     benchmark_root: Union[str, Path],
     instance_id: str,
-    python_executable: Union[str, Path],
+    python_executable: Optional[Union[str, Path]],
     evaluator_script: Union[str, Path],
     output_root: Union[str, Path],
     generation_commit: str,
@@ -352,7 +447,11 @@ def collect_swe_bench_lite_dev_episode(
             or sandbox_python_executable
         )
 
-    configured_python = Path(python_executable).expanduser().absolute()
+    configured_python = (
+        Path(python_executable).expanduser().absolute()
+        if python_executable is not None
+        else None
+    )
     original_factory = agent_factory
     if original_factory is None:
         def original_factory(cwd: str, inference_config: Dict[str, Any]):
@@ -451,6 +550,36 @@ def collect_swe_bench_lite_dev_episode(
 
     def configured_agent_factory(cwd: str, inference_config: Dict[str, Any]):
         nonlocal environment_contract
+        if sandbox_backend_name == "docker":
+            try:
+                environment_contract = _probe_docker_workspace_import(
+                    cwd=cwd,
+                    image=str(sandbox_image),
+                    python_executable=str(sandbox_python_executable),
+                    import_name=_infer_workspace_import_name(public_task.repo, cwd),
+                )
+            except Exception as exc:
+                environment_contract = {
+                    "schema_version": ENVIRONMENT_CONTRACT_SCHEMA_VERSION,
+                    "status": "failed",
+                    "backend": "docker",
+                    "image_reference": str(sandbox_image),
+                    "error_type": type(exc).__name__,
+                    "reason": str(exc)[:500],
+                    "claim_boundary": (
+                        "Pinned-container import and evaluator-dependency preflight "
+                        "only; not a task-quality result."
+                    ),
+                }
+                raise
+            assert original_factory is not None
+            agent = original_factory(cwd, inference_config)
+            if agent_command_runner is not None:
+                setattr(agent, "command_runner", agent_command_runner)
+            return agent
+
+        if configured_python is None:
+            raise BenchmarkError("host SWE-bench collection requires python_executable")
         python_bin = str(configured_python.parent)
         existing_path = environment_before["PATH"] or ""
         os.environ["PATH"] = (

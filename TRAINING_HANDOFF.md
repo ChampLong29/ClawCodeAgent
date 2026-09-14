@@ -35,6 +35,15 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
 - The resource-bounded comparison protocol separates DSH Minimal, Claw Minimal,
   and Claw Controlled and fixes policy-compliant resolution plus budgeted
   resolution as primary metrics.
+- The seven-task Claw Base / Claw Enhanced / Pi Raw pilot has completed its first
+  three tasks. Raw resolution is respectively Base 0/3, Enhanced 1/3, and Pi 1/3;
+  every policy-compliant result is 0/3. The SQLFluff-1763 original Verifier
+  regression failures are preserved but were traced to missing private `/dev/shm`;
+  model-free clean verification passes all 66 regressions for every candidate.
+- `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
+  portable source of truth for the seven task images, in-container interpreters,
+  allowlists, and Pi image. Docker admission now runs inside the pinned image, so
+  these pilot tasks do not require task-specific host virtualenv exports.
 - No real LoRA/QLoRA training effect or aggregate official SWE-bench score is
   claimed.
 
@@ -49,6 +58,8 @@ The authoritative evidence files are:
 - `docs/roadmap/harness-comparison-experiment-design.md`
 - `configs/integrations/tool-ux-v2-cross-model-smoke-result.json`
 - `configs/integrations/swe-bench-lite-pvlib1854-official-harness-evidence.json`
+- `configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`
+- `configs/integrations/swe-bench-lite-runtime-environments-v1.json`
 
 ## 2. What Git does not transfer
 
@@ -142,6 +153,16 @@ passes, and Oracle regressions pass.
 The calibration CLI loads and validates only the requested `--instance-id` local
 workspace while still validating the complete versioned pilot metadata. The other
 ignored pilot repositories do not need to be reconstructed for these two commands.
+
+The commands above reproduce the older completed read-to-edit experiment. For the
+current seven-task Docker pilot, do not export a task environment to the host.
+Load or rebuild the exact images recorded in
+`configs/integrations/swe-bench-lite-runtime-environments-v1.json`, reconstruct the
+selected task checkout at its recorded commit, then use
+`tools/run_swe_bench_lite_runtime_ablation.py --claw-sandbox-backend docker`.
+The entrypoint resolves the task image, both interpreters, allowlist, and Pi image
+from that manifest and fails before any model request if the workspace import,
+pytest, image identity, or multiprocessing semaphore check fails.
 
 ## 4. Completed frozen experiment (do not rerun)
 

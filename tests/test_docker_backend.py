@@ -151,6 +151,16 @@ class DockerBackendContractTest(unittest.TestCase):
         self.assertIn("--cpus", create)
         self.assertIn("--memory", create)
         self.assertIn("--pids-limit", create)
+        tmpfs_mounts = [
+            create[index + 1]
+            for index, value in enumerate(create)
+            if value == "--tmpfs"
+        ]
+        self.assertIn("/tmp:rw,nosuid,nodev,size=256m", tmpfs_mounts)
+        self.assertIn(
+            "/dev/shm:rw,nosuid,nodev,noexec,size=64m",
+            tmpfs_mounts,
+        )
         self.assertNotIn("--privileged", create)
         self.assertNotIn("OPENAI_API_KEY", create_text)
         mount = create[create.index("--mount") + 1]

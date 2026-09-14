@@ -1021,3 +1021,28 @@ budgeted Resolved 均为 0/0/0。前两题的 raw 成功分别落在 Pi 与 Enha
 0/2，而所有臂的合规成功仍为 0/2；样本过少且 Pilot 未完成，不能据此宣称运行时优势。
 机器证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json`。
+
+## 2026-09-14：第三题 SQLFluff-1763 与容器环境契约收口
+
+用户明确授权将第三题仓库代码与任务上下文发送至已配置的 DeepSeek 端点。Claw Base
+先完成并归档，但 Driver 在启动 Enhanced 前因 Docker 清理后再次解析相对路径而中断；
+修复将 Benchmark root、宿主 Python 和 evaluator 路径全部在首个模型调用前绝对化，随后
+只执行尚未采样的 Enhanced 与 Pi，没有重跑 Base。
+
+Base 在 22 轮、33 次工具后累计 Token 超限且未编辑；Enhanced 在第 15 轮编辑唯一允许
+文件并于第 18 轮正常结束，但 `errors="backslashreplace"` 改变了编码失败语义，没有实现
+失败安全的文件替换；Pi 在 16 轮、21 次工具后累计 Token 超限且未编辑。三个候选的
+3 条 FAIL_TO_PASS 均失败，因此 raw、policy-compliant 与 budgeted Resolved 均为 0/0/0。
+
+原始 Verifier 还把三个候选的 PASS_TO_PASS 都判为失败。无模型复现证明原因是通用
+Docker Profile 同时设置 `--ipc=none` 且没有私有 `/dev/shm`，SQLFluff 的三条并行测试
+因此无法创建 Python `SemLock`。修复保留独立 IPC 命名空间，增加 64 MiB、`noexec` 的
+私有共享内存。原始 Episode/Verification 不改写；从 Git HEAD 重建并只覆盖允许文件的
+补充干净复评显示三个候选均通过 66 条回归、仍失败 3 条目标。
+
+为避免继续依赖逐题临时虚拟环境，新增
+`configs/integrations/swe-bench-lite-runtime-environments-v1.json`，集中固定七题的镜像摘要、
+镜像内 task/evaluator Python、Allowlist 和 Pi 容器。三臂 Docker 入口默认读取该清单，
+并在 Agent 创建前直接在任务镜像内验证工作区导入、pytest、镜像身份与多进程信号量；
+缺失能力会在模型请求前 fail closed。机器结果见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`。

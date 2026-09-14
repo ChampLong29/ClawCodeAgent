@@ -577,7 +577,7 @@ def run_swe_bench_lite_runtime_comparison(
     *,
     benchmark_root: Union[str, Path],
     instance_id: str,
-    python_executable: Union[str, Path],
+    python_executable: Optional[Union[str, Path]],
     evaluator_script: Union[str, Path],
     output_root: Union[str, Path],
     generation_commit: str,
@@ -726,10 +726,14 @@ def run_swe_bench_lite_runtime_comparison(
         )
 
     shared = {
-        "benchmark_root": benchmark_root,
+        "benchmark_root": Path(benchmark_root).resolve(),
         "instance_id": instance_id,
-        "python_executable": python_executable,
-        "evaluator_script": evaluator_script,
+        "python_executable": (
+            Path(python_executable).resolve()
+            if python_executable is not None
+            else None
+        ),
+        "evaluator_script": Path(evaluator_script).resolve(),
         "generation_commit": generation_commit,
         "api_config_root": config_root,
         "model_ref": model_ref,
@@ -776,7 +780,7 @@ def run_swe_bench_lite_runtime_ablation(
     *,
     benchmark_root: Union[str, Path],
     instance_id: str,
-    python_executable: Union[str, Path],
+    python_executable: Optional[Union[str, Path]],
     evaluator_script: Union[str, Path],
     output_root: Union[str, Path],
     generation_commit: str,
@@ -1014,10 +1018,14 @@ def run_swe_bench_lite_runtime_ablation(
         )
 
     shared = {
-        "benchmark_root": benchmark_root,
+        "benchmark_root": Path(benchmark_root).resolve(),
         "instance_id": instance_id,
-        "python_executable": python_executable,
-        "evaluator_script": evaluator_script,
+        "python_executable": (
+            Path(python_executable).resolve()
+            if python_executable is not None
+            else None
+        ),
+        "evaluator_script": Path(evaluator_script).resolve(),
         "generation_commit": generation_commit,
         "api_config_root": config_root,
         "model_ref": model_ref,
