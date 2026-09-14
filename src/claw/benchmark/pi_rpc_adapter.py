@@ -352,6 +352,8 @@ class PiDockerRpcClient(PiRpcClient):
     Pi performs provider requests and tool execution in the same process, so
     this boundary needs provider network access.  That tool-network difference
     from Claw's offline Shell sandbox must remain visible in experiment claims.
+    The root filesystem stays read-only; the run-scoped, secret-free config
+    mount is writable because Pi takes an adjacent credential-store lock.
     """
 
     def __init__(
@@ -425,7 +427,12 @@ class PiDockerRpcClient(PiRpcClient):
             "--mount",
             f"type=bind,src={self.cwd},dst=/workspace",
             "--mount",
-            f"type=bind,src={self.config_dir},dst=/pi-config,readonly",
+            # Pi's credential store takes an adjacent directory lock even when
+            # auth.json is an empty, pre-seeded store.  The config directory is
+            # generated per benchmark run and contains no literal API secret,
+            # so expose only that narrow mount as writable while keeping the
+            # container root filesystem read-only.
+            f"type=bind,src={self.config_dir},dst=/pi-config",
             "--workdir",
             "/workspace",
             "--env",

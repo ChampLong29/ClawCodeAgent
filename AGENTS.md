@@ -426,9 +426,12 @@ When changing session schemas, maintain backward-compatible loading or provide a
   replace first-run outcomes with best-of-N quality retries.
 - The seven-task three-arm pilot has four digest-pinned historical task images;
   all seven baseline-to-Oracle transitions passed in restricted local Docker
-  containers. This clears the environment gate only. Keep paid model calls
-  blocked until the frozen `deepseek-flash` identity matches the configured
-  endpoint's observed model identity.
+  containers. The first Marshmallow-1343 task has been sampled. Preserve its
+  two Claw first-run failures. Pi's first two attempts failed before any model
+  call because its credential store needed a file and then an adjacent lock;
+  the disclosed Pi-only infrastructure retry passed all tests but exceeded the
+  cumulative token budget, so it is raw Resolved but not policy-compliant or
+  budgeted Resolved. Do not replace these records with quality retries.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

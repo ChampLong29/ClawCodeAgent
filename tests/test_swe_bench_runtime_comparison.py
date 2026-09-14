@@ -43,6 +43,34 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         )
         self.assertFalse(plan["admission"]["model_calls_started"])
 
+    def test_first_ablation_result_preserves_raw_and_budgeted_outcomes(self):
+        repository = Path(__file__).resolve().parents[1]
+        plan_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+        )
+        result = json.loads(
+            (
+                repository
+                / "configs/integrations/"
+                "swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            result["protocol"]["sha256"],
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        )
+        self.assertFalse(result["first_run"]["claw_base"]["raw_resolved"])
+        self.assertFalse(result["first_run"]["claw_enhanced"]["raw_resolved"])
+        pi_retry = result["pi_infrastructure_retries"][-1]
+        self.assertTrue(pi_retry["raw_resolved"])
+        self.assertFalse(pi_retry["policy_compliant_resolved"])
+        self.assertFalse(pi_retry["budgeted_resolved"])
+        self.assertEqual(pi_retry["termination"], "max_total_tokens")
+        self.assertEqual(result["pi_infrastructure_retries"][0]["model_calls"], 0)
+        self.assertIn("not an official SWE-bench score", result["claim_boundary"])
+
     def test_versioned_ablation_plan_is_calibrated_selection_subset(self):
         repository = Path(__file__).resolve().parents[1]
         plan = json.loads(
@@ -211,6 +239,12 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             self.assertTrue(result["comparability"]["temperature_is_explicit"]["pi"])
             config = (output / "pi-runtime-config" / "models.json").read_text(
                 encoding="utf-8"
+            )
+            self.assertEqual(
+                (output / "pi-runtime-config" / "auth.json").read_text(
+                    encoding="utf-8"
+                ),
+                "{}\n",
             )
             self.assertNotIn("do-not-persist", config)
             self.assertIn("$CLAW_PI_API_KEY", config)
@@ -388,6 +422,12 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             persisted = "\n".join(
                 path.read_text(encoding="utf-8")
                 for path in output.rglob("*.json")
+            )
+            self.assertEqual(
+                (output / "pi-runtime-config" / "auth.json").read_text(
+                    encoding="utf-8"
+                ),
+                "{}\n",
             )
             self.assertNotIn("do-not-persist", persisted)
 

@@ -979,3 +979,26 @@ stats 返回 0 消息、0 工具、0 Token，未产生模型调用。
 Claw Shell 仍离线，因此两者不具备网络策略等价性。当前只完成首题任务镜像，按冻结
 准入规则，剩余任务镜像/校准及 `.env` 模型 ID 对齐完成前不启动 21 个付费 Episode。
 新计划见 `configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json`。
+
+## 2026-09-14：七题准入完成与首题三臂采样
+
+四个 digest-pinned 历史任务镜像完成全部七题的 Docker baseline→Oracle 校准，冻结
+`deepseek-flash`（后端 `v4-flash-9_10`）、温度 0、单响应 4096 Token、累计 250k
+Token、24 Turns 后启动 Marshmallow-1343。首次结果必须原样保留：Claw Base 在 24
+轮、34 次工具、257,135 Token 后仍未编辑；Claw Enhanced 在第 10 轮收到 Deadline，
+但第 12 轮因单响应 Token 上限停止，也未编辑。Enhanced 将总 Token 降至 89,985，
+却没有带来 raw Resolved；两臂目标测试均失败且终止门均失败。
+
+Pi 首次运行在任何模型调用前因只读配置挂载缺少 `auth.json` 失败。预置空认证存储后，
+第二次仍因 Pi 需要创建相邻 `auth.json.lock` 而在零模型调用时失败。修复保持容器 RootFS
+只读、非 root、能力清空和资源限制，只把本次运行生成且不含明文密钥的配置目录作为
+窄范围可写挂载；API Key 仍仅经环境变量传入。由于两次均未发起模型请求，按基础设施
+重试规则只补跑 Pi，没有重跑两个 Claw 臂。
+
+Pi 补跑第 1 轮定位目标，第 21 轮首次编辑（此前已有 25 次工具调用），唯一修改
+`src/marshmallow/schema.py`；独立 Docker Verifier 的 1 条 FAIL_TO_PASS 与 24 条
+PASS_TO_PASS 全部通过，Diff Scope 与权限门通过。但它在最终答复前超过 250k 累计
+Token，终止门失败。因此该题的 raw Resolved 为 Base/Enhanced/Pi = 0/0/1，而
+policy-compliant 与 budgeted Resolved 均为 0/0/0。支持的结论仅是三臂都存在早定位、
+晚编辑或不编辑的预算效率问题；不支持单题运行时优劣或成功率结论。机器证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`。

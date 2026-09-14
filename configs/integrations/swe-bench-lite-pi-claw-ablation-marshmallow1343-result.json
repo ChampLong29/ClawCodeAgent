@@ -1,0 +1,122 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-14",
+  "status": "first_task_complete_with_pi_infrastructure_retry",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "generation_commit": "c9b0c6a7dd40f1c4a9bc3e339a7110e7cd0f2143",
+  "task": {
+    "instance_id": "marshmallow-code__marshmallow-1343",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "model": {
+    "configured_id": "deepseek-flash",
+    "claw_response_id": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "pi_note": "Pi used the same custom provider and configured model alias; Pi RPC events do not expose a separate provider response-model field."
+  },
+  "controls": {
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": ["src/marshmallow/schema.py"],
+    "task_image": "claw-local/sweb-marshmallow1343@sha256:8090971e2cf3ce9e6e7911afc17e58270a939708992996d9c905674ae28fa52d",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69",
+    "runtime_report_comparable": true,
+    "runtime_report_control_mismatches": {}
+  },
+  "first_run": {
+    "ablation_id": "swe_bench_runtime_ablation_ac0b6b1ddeee6a402262",
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "test_pass_rate": 0.0,
+      "turns": 24,
+      "tool_calls": 34,
+      "total_tokens": 257135,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": null,
+      "termination": "max_turns",
+      "process_violations": 0
+    },
+    "claw_enhanced": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "test_pass_rate": 0.0,
+      "turns": 12,
+      "tool_calls": 21,
+      "total_tokens": 89985,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": null,
+      "implementation_deadline_turn": 10,
+      "termination": "per_response_token_limit",
+      "process_violations": 0
+    },
+    "pi_raw": {
+      "model_calls": 0,
+      "classification": "pre_model_infrastructure_failure",
+      "error": "Pi credential store could not open missing auth.json on the read-only config mount."
+    }
+  },
+  "pi_infrastructure_retries": [
+    {
+      "attempt": 1,
+      "model_calls": 0,
+      "classification": "pre_model_infrastructure_failure",
+      "error": "Pi credential store could not create auth.json.lock on the read-only config mount.",
+      "trajectory_sha256": "f3cdb00488a749ec32f3ed8587dd9721ecfc91e057166712df96b60dd2de1ac3"
+    },
+    {
+      "attempt": 2,
+      "scope": "pi_raw_only",
+      "reason": "Retry only the arm that had made zero model calls after fixing its container startup boundary.",
+      "raw_resolved": true,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_count": 1,
+      "pass_to_pass_count": 24,
+      "changed_files": ["src/marshmallow/schema.py"],
+      "turns": 23,
+      "tool_calls": 27,
+      "input_tokens": 247143,
+      "output_tokens": 12176,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 21,
+      "tool_calls_before_first_mutation": 25,
+      "termination": "max_total_tokens",
+      "termination_compliance": false,
+      "process_violations": 0,
+      "collection_manifest_sha256": "f032effc861106b62240c7df4612e0c31c473b1cc7163c7823fc8bd166ee59ff",
+      "trajectory_sha256": "b9e2ad5cb3c77aa2994b91e0f1afdfd7f92e40ad6a9158906a5bf1d8c0098a2e",
+      "verification_sha256": "32f2cc6485d50a8244522c01beba6a72d957697f26430c4f874dac1109c07476"
+    }
+  ],
+  "first_run_artifact_hashes": {
+    "runtime_ablation_sha256": "e3b0e3c8e7761a6316139b17ad0ac6599719d8ad5acff24b7d77ad412bda27b4",
+    "claw_base_trajectory_sha256": "717dc09a04b601703fae051f4aa109d27570aaec639eabcc52611b63a70c4c40",
+    "claw_base_verification_sha256": "275fe9b113e024ff7f3a5f63b658ca7f3c0b71440fcee6b06753de16ffa69551",
+    "claw_enhanced_trajectory_sha256": "cb1d4bbb6afd0081462903496dd9bf1e22aac582fd4265a8873af72feffed34f",
+    "claw_enhanced_verification_sha256": "c14daaff5729cdf64c0140b59c4c016996f6c9119b648e72567ac9b7565d3339",
+    "pi_pre_model_trajectory_sha256": "5b58ab7e461337613559ed0160755b6e817060ea2ab268b0b9533aa3964965f1"
+  },
+  "diagnosis": {
+    "supported": "On this task, Pi eventually produced an allowlisted patch that passed the target and regression tests, while both Claw arms made no source edit. None of the three arms achieved policy-compliant or budgeted resolution.",
+    "enhanced_effect": "The frozen Claw guidance reduced turns, tool calls, tokens, and latency relative to Claw Base but did not cause an edit or improve raw resolution.",
+    "shared_failure_pattern": "All model-running arms localized the target early but spent too much budget investigating before mutation; Pi first edited at turn 21 after 25 tool calls.",
+    "unsupported": "One local Dev task cannot establish runtime superiority, a success rate, or a causal quality gain from Claw guidance."
+  },
+  "retry_policy": "The two Claw first-run outcomes are retained and will not be quality-retried. Pi was retried alone only because the prior attempts made zero model calls and failed before task execution.",
+  "local_artifact_roots": {
+    "first_run": ".port_sessions/swe-bench-lite-ablation-20260914-marshmallow1343",
+    "pi_auth_file_retry": ".port_sessions/swe-bench-lite-ablation-20260914-marshmallow1343-pi-infra-retry",
+    "pi_writable_config_retry": ".port_sessions/swe-bench-lite-ablation-20260914-marshmallow1343-pi-infra-retry2"
+  },
+  "claim_boundary": "Benchmark-verified execution evidence for one controlled local SWE-bench Lite Dev task only. The Pi raw test pass occurred in a disclosed infrastructure-only retry and failed the frozen termination budget. This is not an official SWE-bench score or a statistical runtime comparison."
+}

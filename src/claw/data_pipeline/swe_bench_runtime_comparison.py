@@ -658,6 +658,7 @@ def run_swe_bench_lite_runtime_comparison(
         pi_config_dir / "models.json",
         json.dumps(pi_config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
+    _atomic_write(pi_config_dir / "auth.json", "{}\n")
 
     def claw_factory(cwd: str, inference_config: Dict[str, Any]) -> LocalCodingAgent:
         agent = LocalCodingAgent(
@@ -921,6 +922,10 @@ def run_swe_bench_lite_runtime_ablation(
         pi_config_dir / "models.json",
         json.dumps(pi_config, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
+    # Pi initializes its credential store even though this provider receives
+    # the key through $CLAW_PI_API_KEY. An empty valid store never persists the
+    # key and lets Docker Pi take its lock in the run-scoped config mount.
+    _atomic_write(pi_config_dir / "auth.json", "{}\n")
 
     def claw_factory(profile: Dict[str, Any]):
         def factory(cwd: str, inference_config: Dict[str, Any]) -> LocalCodingAgent:

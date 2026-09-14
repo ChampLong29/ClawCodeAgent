@@ -45,6 +45,9 @@ class TestPiRpcClient(unittest.TestCase):
         self.assertIn("claw/pi@sha256:" + "a" * 64, command)
         self.assertIn("CLAW_PI_API_KEY", command)
         self.assertNotIn("secret", command)
+        config_mount = f"type=bind,src={os.path.realpath(config)},dst=/pi-config"
+        self.assertIn(config_mount, command)
+        self.assertNotIn(config_mount + ",readonly", command)
         self.assertEqual(
             command[-4:],
             ["--provider", "claw-openai-compat", "--model", "deepseek-flash"],

@@ -217,7 +217,9 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
 也可用 `--pi-docker-image` 让三臂入口直接构造完整 Pi RPC 容器：镜像必须固定 digest，
 启动时禁止隐式拉取，并采用非 root、只读 RootFS、丢弃能力和资源限制。Pi 的 Provider
 请求与工具执行同进程，因此 Provider 网络也会对 Pi Shell 可见，而 Claw Shell 保持
-离线；报告必须保留这项处理差异，不能宣称网络策略完全一致。
+离线；报告必须保留这项处理差异，不能宣称网络策略完全一致。Pi 会对认证存储创建锁，
+因此仅将每次运行生成、不含明文密钥的配置目录作为窄范围可写挂载；API Key 仍只通过
+子进程环境传入，容器根文件系统保持只读。
 
 ### 已归档的代表性实验
 
@@ -236,11 +238,15 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
   这是单样本机制证据，不是官方 SWE-bench 分数，也不能推出统计上的运行时优劣；
   证据见
   [`swe-bench-lite-claw-pi-deepseek-flash-20260911.json`](configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json)。
-- 当前 v2 三臂计划保留原七题顺序和 `pi@0.85.1` 控制项，并将可重建包明确固定为
+- v2 三臂计划保留原七题顺序和 `pi@0.85.1` 控制项，并将可重建包明确固定为
   `@earendil-works/pi-coding-agent@0.85.1`。四个 digest-pinned 历史任务镜像覆盖全部
   七题，均在离线、只读 RootFS、非 root 容器中完成 baseline→Oracle 校准；正确版本
-  的 Pi 容器也已通过无模型 RPC 冒烟。付费 Pilot 仍以冻结模型标识与实际端点返回的
-  模型身份一致为最后准入门槛。
+  的 Pi 容器也已通过无模型 RPC 冒烟。首题 Marshmallow-1343 已完成首次三臂采样：
+  Claw Base 与 Enhanced 均未编辑并失败；Pi 的首次运行在模型调用前暴露只读认证存储
+  兼容问题，修复后的 Pi-only 基础设施补跑产生了通过全部目标/回归测试的允许范围补丁，
+  但在最终答复前超过累计 Token 预算。因此首题 raw Resolved 为 0/0/1，合规且预算内
+  Resolved 为 0/0/0；这是一题本地 Dev 证据，不是成功率估计。机器摘要见
+  [`swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json)。
 
 ### 低成本 Agent 后训练路线
 

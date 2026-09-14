@@ -204,6 +204,10 @@ def _prepare_claw_api_config(
         config_dir / "models.json",
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
+    # Pi opens auth.json during startup even when the custom provider reads its
+    # key from an environment reference. Seed a valid secret-free store; Docker
+    # Pi may then take its adjacent lock in the narrow run-scoped config mount.
+    atomic_write_text(config_dir / "auth.json", "{}\n")
     environment = dict(base_environment or os.environ)
     environment["CLAW_PI_API_KEY"] = api_config.api_key
     environment["PI_CODING_AGENT_DIR"] = str(config_dir)

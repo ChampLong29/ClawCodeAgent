@@ -377,14 +377,18 @@ python tools/run_swe_bench_lite_runtime_ablation.py \
 Sandbox Backend；不要把 Pi 的 attestation 描述为完整策略等价认证。Pi 的模型请求和
 工具同进程，因此 Provider 网络也对 Pi Shell 可见，而 Claw Shell 保持离线。这是必须
 报告的处理差异。若缺少 digest、镜像内 Python 或非 macOS Pi 隔离证明，入口会在
-模型调用前失败。
+模型调用前失败。Pi 0.85.1 启动时会读取认证文件并创建相邻锁目录；入口预置空
+`auth.json`，并只将每次运行生成、不含明文密钥的配置目录设为可写挂载。容器 RootFS
+仍为只读，API Key 仍只经环境变量传递。
 
-已归档一个 Marshmallow-1343 的真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
-是单样本本地机制证据。七任务三臂计划仅覆盖 20 题筛选中已经校准的有序子集。四个
-digest-pinned 历史任务镜像已覆盖全部七题，并在离线、只读 RootFS、非 root 容器中
-通过 baseline→Oracle 校准；Pi 镜像已通过无模型 RPC 冒烟。启动付费 Episode 前仍须
-核对冻结的 `deepseek-flash` 与端点实际返回的模型身份。协议、证据边界和后续步骤见
-`docs/architecture/PI_INSPIRED_HARNESS.md`。
+已归档一个早期 Marshmallow-1343 真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
+是单样本本地机制证据。七任务三臂计划随后以四个 digest-pinned 历史任务镜像完成全部
+七题 baseline→Oracle 准入，并已启动首题正式采样。首题首次运行中两个 Claw 臂均未
+编辑；Pi 因认证目录只读在零模型调用时失败。保留原始记录后，仅对 Pi 做基础设施补跑：
+其允许范围补丁通过 1 条目标与 24 条回归，但累计 Token 超限，故 raw Resolved 为真而
+policy-compliant/budgeted Resolved 仍为假。不得把这个补跑替换首次结果，也不得据单题
+估计成功率。协议、证据边界和摘要见 `docs/architecture/PI_INSPIRED_HARNESS.md` 与
+`configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`。
 
 ## 7. Episode、Trajectory 与 Verification
 

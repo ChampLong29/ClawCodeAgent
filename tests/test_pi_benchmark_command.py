@@ -178,6 +178,12 @@ class PiBenchmarkCommandTests(unittest.TestCase):
 
         config_path = self.output / "configured" / "pi-config" / "models.json"
         text = config_path.read_text(encoding="utf-8")
+        self.assertEqual(
+            (self.output / "configured" / "pi-config" / "auth.json").read_text(
+                encoding="utf-8"
+            ),
+            "{}\n",
+        )
         self.assertEqual(provider, "claw-anthropic-compat")
         self.assertNotIn("top-secret", text)
         self.assertIn("$CLAW_PI_API_KEY", text)
