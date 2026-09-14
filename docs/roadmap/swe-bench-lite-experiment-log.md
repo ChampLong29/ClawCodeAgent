@@ -1002,3 +1002,22 @@ Token，终止门失败。因此该题的 raw Resolved 为 Base/Enhanced/Pi = 0/
 policy-compliant 与 budgeted Resolved 均为 0/0/0。支持的结论仅是三臂都存在早定位、
 晚编辑或不编辑的预算效率问题；不支持单题运行时优劣或成功率结论。机器证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`。
+
+## 2026-09-14：第二题 Astroid-1196 三臂采样
+
+冻结计划中的 `.port_sessions/environments/astroid-py38/bin/python` 未在本机恢复，首次
+准入在 Agent 创建前关闭。随后使用同仓库族现存的 Python 3.8.20 + pytest 7.4.4 环境
+只做工作区导入准入；Agent 与 Verifier 仍运行于固定 Astroid 镜像。Claw Base 完成实际
+采样与验证后，Collector 收尾重新解析相对 Benchmark 路径时遇到不可用的进程 cwd，
+因此没有写出 Collection Manifest，但不可变 Trajectory 与 Verification 已归档。
+修复改为复用模型调用前已经绝对化的 Adapter 路径，并只补齐尚未采样的 Enhanced/Pi，
+没有重跑 Base。
+
+Base 在 22 轮、33 次工具、266,068 provider-processed Token 后超限且未编辑，目标失败。
+Enhanced 在 Deadline 后第 12 轮首次编辑，共 4 次直接编辑；唯一变更文件通过 2 条目标
+和 24 条回归，但第 24 轮达到 Turn 上限，终止硬门失败。Pi 在累计 Token 超限前未编辑，
+目标失败。该题 raw Resolved 为 Base/Enhanced/Pi = 0/1/0，policy-compliant 与
+budgeted Resolved 均为 0/0/0。前两题的 raw 成功分别落在 Pi 与 Enhanced，Base 为
+0/2，而所有臂的合规成功仍为 0/2；样本过少且 Pilot 未完成，不能据此宣称运行时优势。
+机器证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json`。

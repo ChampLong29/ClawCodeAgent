@@ -390,6 +390,14 @@ policy-compliant/budgeted Resolved 仍为假。不得把这个补跑替换首次
 估计成功率。协议、证据边界和摘要见 `docs/architecture/PI_INSPIRED_HARNESS.md` 与
 `configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`。
 
+第二题 Astroid-1196 的 Base 在累计 Token 超限前未编辑；Enhanced 的允许范围候选通过
+2 条目标与 24 条回归，但达到 Turn 上限，Pi 则累计 Token 超限且未编辑。因此 raw
+Resolved 为 Base/Enhanced/Pi = 0/1/0，合规与预算内结果仍全失败。Base 完成验证后，
+Collector 收尾因重新解析相对 Benchmark 路径时进程 cwd 不可用而中断；修复改为复用
+模型调用前已解析的 Adapter 路径，并只执行此前尚未采样的 Enhanced/Pi。该组装方式和
+准入 Python 路径替换均记录在
+`configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json`。
+
 ## 7. Episode、Trajectory 与 Verification
 
 ### Episode

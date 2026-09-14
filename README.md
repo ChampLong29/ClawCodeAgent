@@ -247,6 +247,12 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
   但在最终答复前超过累计 Token 预算。因此首题 raw Resolved 为 0/0/1，合规且预算内
   Resolved 为 0/0/0；这是一题本地 Dev 证据，不是成功率估计。机器摘要见
   [`swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-marshmallow1343-result.json)。
+- 第二题 Astroid-1196 也已按不重跑既有模型臂的原则完成：Base 与 Pi 均未编辑；
+  Enhanced 在第 12 轮首次编辑，候选通过 2 条目标与 24 条回归，但因达到 Turn 上限而
+  未通过终止硬门。该题 raw Resolved 为 0/1/0，合规且预算内 Resolved 仍为 0/0/0。
+  收尾期间发现并修复了 Episode 后再次解析相对 Benchmark 路径会依赖进程 cwd 的问题；
+  机器摘要完整披露了等价 Python 3.8 准入路径和仅补齐未执行臂的过程，见
+  [`swe-bench-lite-pi-claw-ablation-astroid1196-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-astroid1196-result.json)。
 
 ### 低成本 Agent 后训练路线
 

@@ -1,0 +1,108 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-14",
+  "status": "second_task_complete_with_infrastructure_continuation",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "generation_commit": "3b0f71e258326064542ef0ba88be4909e8275e22",
+  "task": {
+    "instance_id": "pylint-dev__astroid-1196",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "controls": {
+    "model": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": ["astroid/nodes/node_classes.py"],
+    "task_image": "claw-local/sweb-astroid@sha256:4ad0ddae25284242edbd6cbc27f6555f96540164090edc883e9acb29486747e6",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69"
+  },
+  "infrastructure_continuation": {
+    "attempt_before_model_calls": "The preregistered .port_sessions/environments/astroid-py38/bin/python path was absent, so admission stopped before agent creation.",
+    "host_admission_python_substitution": ".port_sessions/environments/astroid-1268-py38/bin/python",
+    "substitution_contract": "Same repository family, Python 3.8.20 and pytest 7.4.4; it was used only for workspace-import admission. Agent and Verifier execution remained in the frozen digest-pinned task image.",
+    "post_base_failure": "After the first Claw Base Episode and verification were archived, collection finalization consulted a no-longer-available process cwd while resolving an already-known benchmark path.",
+    "code_fix": "Collection finalization now reuses SweBenchLiteDevAdapter.agent_inputs_path, which was resolved before model execution.",
+    "continuation_scope": "The Base Episode was not rerun; only the not-yet-sampled Enhanced and Pi arms were executed after the finalization fix.",
+    "enhanced_and_pi_generation_worktree_note": "The collection-tail path fix was uncommitted during these two arms; it changes post-Episode manifest path resolution, not model prompts, tools, budgets, sandboxes, or verification."
+  },
+  "results": {
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "turns": 22,
+      "tool_calls": 33,
+      "input_tokens": 257891,
+      "output_tokens": 8177,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "max_total_tokens",
+      "process_violations": 0,
+      "trajectory_sha256": "05070c4398f1b2c1974f21e5c14f922837aff67697e5a0624f7bd49c8be9bd47",
+      "verification_sha256": "ed6adecb4e307f0a5cf9758b4fd6e699358182401e950f377fd47055bc9da1e3"
+    },
+    "claw_enhanced": {
+      "raw_resolved": true,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass_count": 2,
+      "pass_to_pass_count": 24,
+      "turns": 24,
+      "tool_calls": 26,
+      "input_tokens": 202609,
+      "output_tokens": 11205,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 12,
+      "tool_calls_before_first_mutation": 13,
+      "direct_mutation_calls": 4,
+      "changed_files": ["astroid/nodes/node_classes.py"],
+      "implementation_deadline_turn": 10,
+      "post_edit_contract_guidance_turn": 12,
+      "termination": "max_turns",
+      "process_violations": 0,
+      "collection_manifest_sha256": "739d9f470bbd48cfb5aa1ff35c2571ea91ec0ba18601f8107509af39d5236572",
+      "trajectory_sha256": "a98d8af6812bd24712805db02616536855307fe534d8f5d3a56ab316153a0bce",
+      "verification_sha256": "ab7d83e5d5ef002ab885cbb99902f6073a330dd39045978c75b846ea137a2817"
+    },
+    "pi_raw": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "turns": 25,
+      "tool_calls": 32,
+      "input_tokens": 259687,
+      "output_tokens": 6719,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "max_total_tokens",
+      "process_violations": 0,
+      "collection_manifest_sha256": "995b1651b45cabd762fbc9df9c2bc839cd584374643ecda2e4bac87aa0f55903",
+      "trajectory_sha256": "ca87f6bf8e05331ba347e6e8f212d5da7721c2ecfb6d4e4440fbc398334cfaa8",
+      "verification_sha256": "934ec516dc2f142832498c2495f56f474313f3298f90931c3858158ac8dbe581"
+    }
+  },
+  "diagnosis": {
+    "supported": "Enhanced alone produced an allowlisted patch that passed both target tests and all 24 regression tests, while Base and Pi made no source mutation.",
+    "termination_boundary": "Enhanced still failed the required termination gate at max turns; all three policy-compliant and budgeted outcomes are failures.",
+    "cross_task_observation": "Across the first two pilot tasks, raw test success is split between Pi on Marshmallow and Enhanced on Astroid, while Base is 0/2 and every arm is 0/2 on policy-compliant resolution.",
+    "unsupported": "The result is one task in an incomplete frozen pilot and does not establish a causal or statistical runtime advantage."
+  },
+  "local_artifact_roots": {
+    "pre_model_missing_python": ".port_sessions/swe-bench-lite-ablation-20260914-astroid1196",
+    "claw_base_and_collection_tail_failure": ".port_sessions/swe-bench-lite-ablation-20260914-astroid1196-infra-retry",
+    "remaining_arms": ".port_sessions/swe-bench-lite-ablation-20260914-astroid1196-remainder"
+  },
+  "claim_boundary": "Benchmark-verified arm evidence for one controlled local SWE-bench Lite Dev task, assembled with disclosed infrastructure-only continuation. This is not an official SWE-bench score or a completed-pilot success-rate estimate."
+}

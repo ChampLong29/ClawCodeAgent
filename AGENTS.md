@@ -432,6 +432,11 @@ When changing session schemas, maintain backward-compatible loading or provide a
   the disclosed Pi-only infrastructure retry passed all tests but exceeded the
   cumulative token budget, so it is raw Resolved but not policy-compliant or
   budgeted Resolved. Do not replace these records with quality retries.
+- Astroid-1196 is also sampled. Base and Pi made no edit; Enhanced passed two
+  target and 24 regression tests but hit the turn limit. Preserve Base from the
+  run whose collection finalization failed after verification, and preserve
+  the disclosed continuation that sampled only the remaining Enhanced/Pi arms.
+  All three policy-compliant and budgeted outcomes remain failures.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

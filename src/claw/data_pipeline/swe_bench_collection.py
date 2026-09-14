@@ -545,7 +545,10 @@ def collect_swe_bench_lite_dev_episode(
         suite_id="swe-bench-lite-dev-pilot",
         suite_version=public_task.dataset_revision,
         suite_content_hash=suite_content_hash,
-        suite_ref=str(Path(benchmark_root).resolve() / "pilot-agent-inputs.json"),
+        # The adapter resolved this path before model execution. Reuse it here
+        # so collection finalization does not consult the process cwd after
+        # sandbox teardown.
+        suite_ref=str(benchmark.agent_inputs_path),
         split="dev",
         task_ids=[task.task_id],
         episode_refs=[episode_ref],

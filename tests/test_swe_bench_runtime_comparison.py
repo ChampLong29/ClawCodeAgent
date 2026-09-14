@@ -71,6 +71,36 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(result["pi_infrastructure_retries"][0]["model_calls"], 0)
         self.assertIn("not an official SWE-bench score", result["claim_boundary"])
 
+    def test_second_ablation_result_preserves_infrastructure_continuation(self):
+        repository = Path(__file__).resolve().parents[1]
+        plan_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+        )
+        result = json.loads(
+            (
+                repository
+                / "configs/integrations/"
+                "swe-bench-lite-pi-claw-ablation-astroid1196-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            result["protocol"]["sha256"],
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        )
+        self.assertIn(
+            "Base Episode was not rerun",
+            result["infrastructure_continuation"]["continuation_scope"],
+        )
+        self.assertFalse(result["results"]["claw_base"]["raw_resolved"])
+        self.assertTrue(result["results"]["claw_enhanced"]["raw_resolved"])
+        self.assertFalse(
+            result["results"]["claw_enhanced"]["policy_compliant_resolved"]
+        )
+        self.assertFalse(result["results"]["pi_raw"]["raw_resolved"])
+        self.assertIn("not an official SWE-bench score", result["claim_boundary"])
+
     def test_versioned_ablation_plan_is_calibrated_selection_subset(self):
         repository = Path(__file__).resolve().parents[1]
         plan = json.loads(
