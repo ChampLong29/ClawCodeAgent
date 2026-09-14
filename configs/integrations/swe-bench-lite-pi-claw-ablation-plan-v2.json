@@ -1,6 +1,6 @@
 {
   "schema_version": "swe_bench_lite_runtime_ablation_plan.v2",
-  "status": "infrastructure_calibration",
+  "status": "model_identity_pending",
   "claim_boundary": "Local SWE-bench Lite Dev pilot only; not an official SWE-bench score.",
   "extends": {
     "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json",
@@ -21,6 +21,10 @@
   },
   "container_boundaries": {
     "claw_marshmallow_1343_image": "claw-local/sweb-marshmallow1343@sha256:8090971e2cf3ce9e6e7911afc17e58270a939708992996d9c905674ae28fa52d",
+    "claw_astroid_image": "claw-local/sweb-astroid@sha256:4ad0ddae25284242edbd6cbc27f6555f96540164090edc883e9acb29486747e6",
+    "claw_sqlfluff_1763_image": "claw-local/sweb-sqlfluff1763@sha256:cd779d42b6fe9fd7808f5245db4c30bfdaa03b935268f07d4313d30ba1ea4a50",
+    "claw_pydicom_image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+    "claw_pvlib_1707_image": "claw-local/sweb-pvlib1707@sha256:86822a97f04f0f0900921a8fac1750abb8f8ad45bd0b7dec088f6585a9b16f33",
     "claw_task_python": "/opt/task/bin/python3.8",
     "claw_evaluator_python": "/usr/bin/python3",
     "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69",
@@ -31,8 +35,15 @@
   "admission": {
     "model_calls_started": false,
     "marshmallow_1343_docker_calibration": "passed",
+    "astroid_1196_docker_calibration": "passed",
+    "astroid_1333_docker_calibration": "passed",
+    "sqlfluff_1763_docker_calibration": "passed",
+    "pydicom_1139_docker_calibration": "passed",
+    "pydicom_1413_docker_calibration": "passed",
+    "pvlib_1707_docker_calibration": "passed",
     "pi_rpc_model_free_smoke": "passed",
-    "remaining_task_images": "required_before_paid_pilot",
+    "remaining_task_images": [],
+    "historical_environment_gate": "passed_7_of_7",
     "model_id_match": "required_before_paid_pilot"
   }
 }

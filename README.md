@@ -237,8 +237,10 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
   证据见
   [`swe-bench-lite-claw-pi-deepseek-flash-20260911.json`](configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json)。
 - 当前 v2 三臂计划保留原七题顺序和 `pi@0.85.1` 控制项，并将可重建包明确固定为
-  `@earendil-works/pi-coding-agent@0.85.1`。首题任务镜像完成校准；正确版本的 Pi
-  容器已通过无模型 RPC 冒烟，其余任务仍须完成镜像校准后才进入付费 Pilot。
+  `@earendil-works/pi-coding-agent@0.85.1`。四个 digest-pinned 历史任务镜像覆盖全部
+  七题，均在离线、只读 RootFS、非 root 容器中完成 baseline→Oracle 校准；正确版本
+  的 Pi 容器也已通过无模型 RPC 冒烟。付费 Pilot 仍以冻结模型标识与实际端点返回的
+  模型身份一致为最后准入门槛。
 
 ### 低成本 Agent 后训练路线
 

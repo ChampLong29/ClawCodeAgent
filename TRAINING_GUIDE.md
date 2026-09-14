@@ -380,8 +380,10 @@ Sandbox Backend；不要把 Pi 的 attestation 描述为完整策略等价认证
 模型调用前失败。
 
 已归档一个 Marshmallow-1343 的真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
-是单样本本地机制证据。七任务三臂计划仅覆盖 20 题筛选中已经校准的有序子集，必须先
-完成 Docker/RPC 冒烟再启动付费 Episode。协议、证据边界和后续步骤见
+是单样本本地机制证据。七任务三臂计划仅覆盖 20 题筛选中已经校准的有序子集。四个
+digest-pinned 历史任务镜像已覆盖全部七题，并在离线、只读 RootFS、非 root 容器中
+通过 baseline→Oracle 校准；Pi 镜像已通过无模型 RPC 冒烟。启动付费 Episode 前仍须
+核对冻结的 `deepseek-flash` 与端点实际返回的模型身份。协议、证据边界和后续步骤见
 `docs/architecture/PI_INSPIRED_HARNESS.md`。
 
 ## 7. Episode、Trajectory 与 Verification

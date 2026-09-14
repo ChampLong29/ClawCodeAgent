@@ -424,6 +424,11 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - Under a limited budget, run one fresh Episode per task/arm first. Repeat paired
   disagreements and a preregistered sample of agreements for stability; never
   replace first-run outcomes with best-of-N quality retries.
+- The seven-task three-arm pilot has four digest-pinned historical task images;
+  all seven baseline-to-Oracle transitions passed in restricted local Docker
+  containers. This clears the environment gate only. Keep paid model calls
+  blocked until the frozen `deepseek-flash` identity matches the configured
+  endpoint's observed model identity.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.
