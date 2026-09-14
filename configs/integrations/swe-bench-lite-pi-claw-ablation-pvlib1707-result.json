@@ -1,0 +1,147 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-14",
+  "status": "fifth_task_complete_with_termination_semantics_correction",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "generation_commit": "f2afc266bfa725055bc29c855ce711dde8078e35",
+  "data_transfer_authorization": "The user explicitly authorized sending the fifth task's repository code and task context to the configured DeepSeek endpoint and running Claw Base, Claw Enhanced, and Pi Raw once each.",
+  "task": {
+    "instance_id": "pvlib__pvlib-python-1707",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "base_commit": "40e9e978c170bdde4eeee1547729417665dbc34c",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "controls": {
+    "model": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": ["pvlib/iam.py"],
+    "task_image": "claw-local/sweb-pvlib1707@sha256:86822a97f04f0f0900921a8fac1750abb8f8ad45bd0b7dec088f6585a9b16f33",
+    "task_python": "/opt/task/bin/python3.8",
+    "evaluator_python": "/usr/bin/python3",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69"
+  },
+  "admission": {
+    "repository_commit_match": true,
+    "task_image_digest_match": true,
+    "pi_image_digest_match": true,
+    "api_key_presence_checked_without_disclosure": true,
+    "environment_contract": {
+      "status": "passed",
+      "python_version": "3.8.20",
+      "pytest_version": "7.4.4",
+      "workspace_import": "pvlib/__init__.py",
+      "multiprocessing_semaphore": true
+    },
+    "model_calls_before_admission_passed": 0
+  },
+  "results": {
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass": "0 passed, 1 failed",
+      "pass_to_pass": "30 passed, 0 failed",
+      "turns": 20,
+      "tool_calls": 19,
+      "input_tokens": 182776,
+      "output_tokens": 12253,
+      "first_target_path_turn": 1,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "model_output_truncated",
+      "provider_finish_reason": "length",
+      "original_bad_case": "environment_or_infra",
+      "derived_bad_case_after_classifier_fix": "budget_or_timeout",
+      "process_violations": 0,
+      "collection_manifest_sha256": "ad10a5716b12a71a46c82136875d1285c352fa16dd9ee0d83e9ec3bd28601ab0",
+      "trajectory_sha256": "ebbb0d2a1a5dd09f10a1dd9de48b9aa1e3c4880ca0f5f1bdbe0b199c373728fa",
+      "verification_sha256": "b15620209f510764f88f80a3d393c508fcf2e3c458fdc02997259fcb7f645709"
+    },
+    "claw_enhanced": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass": "0 passed, 1 failed",
+      "pass_to_pass": "30 passed, 0 failed",
+      "turns": 10,
+      "tool_calls": 12,
+      "input_tokens": 63316,
+      "output_tokens": 10466,
+      "first_target_path_turn": 1,
+      "direct_mutation_calls": 0,
+      "implementation_deadline_triggered": false,
+      "changed_files": [],
+      "termination": "model_output_truncated",
+      "provider_finish_reason": "length",
+      "original_bad_case": "environment_or_infra",
+      "derived_bad_case_after_classifier_fix": "budget_or_timeout",
+      "process_violations": 0,
+      "collection_manifest_sha256": "3a7f612db40267d6cf248fd71a2a412eb2a1f95e874af33d385d64ee6a195eef",
+      "trajectory_sha256": "ee6e39a9c04f06bee4b2cde16611ea8167530da450fa565b75ccbd3228a353f3",
+      "verification_sha256": "31a421129b67c29a17f851b8e1eef03bd5fb45f6510d09e32652e25e43b73089"
+    },
+    "pi_raw": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass": "0 passed, 1 failed",
+      "pass_to_pass": "30 passed, 0 failed",
+      "turns": 13,
+      "tool_calls": 19,
+      "input_tokens": 93755,
+      "cache_read_input_tokens": 86272,
+      "output_tokens": 9167,
+      "first_target_path_turn": 1,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "original_termination": "completed",
+      "terminal_provider_finish_reason": "length",
+      "original_bad_case": "test_failure",
+      "corrected_future_adapter_interpretation": "model_output_truncated",
+      "process_violations": 0,
+      "collection_manifest_sha256": "17ede9ac1f488a9dad49dd3bd205d84f2851961a27322a31e12857c508110c33",
+      "trajectory_sha256": "69481afe1cda8b7961d9518ac79ba37943673d2997b1287dd8c3e35ad8607032",
+      "verification_sha256": "36911d95bc8e19c348026334cf582f0c594410e4b8cbaba87db6a4840821ec4f"
+    }
+  },
+  "termination_semantics_correction": {
+    "model_calls": 0,
+    "original_records_rewritten": false,
+    "claw_classifier_issue": "The immutable Claw trajectories correctly recorded finish_reason=length and runtime_stop=model_output_truncated, but a generic runtime_error with stop_reason=stopped was prioritized as environment_or_infra.",
+    "classifier_fix": "model_output_truncated and per-request token-limit runtime errors are now classified as budget_or_timeout rather than environment_or_infra.",
+    "pi_adapter_issue": "The immutable Pi trajectory retained its final finish_reason=length, but the adapter treated RPC settlement as successful completion and emitted no runtime_stop.",
+    "pi_adapter_fix": "Future Pi length/max_tokens terminal responses produce stop_reason=stopped, an explicit error detail, and runtime_stop=model_output_truncated.",
+    "derived_reclassification": {
+      "claw_base": "budget_or_timeout",
+      "claw_enhanced": "budget_or_timeout",
+      "pi_raw": "Original immutable evidence remains test_failure because the pre-fix adapter omitted runtime_stop; the terminal provider event independently proves finish_reason=length."
+    }
+  },
+  "diagnosis": {
+    "supported": "All three arms found the target file on the first model turn, inspected the relevant physical IAM implementation and tests, but made no source mutation. The target behavior required handling n=1 at rear-plane angles while preserving scalar, NumPy array, and pandas Series behavior. Base and Enhanced lost their final response to the per-request token limit; Pi reached the same provider finish reason and made no edit.",
+    "harness_interpretation": "This task exposes both a model action-efficiency failure and a Harness evidence-semantics defect. It does not show an environment failure: container admission and evaluation integrity passed, and all unchanged candidates passed 30 regression tests. Enhanced guidance did not trigger before truncation, so this Episode does not estimate its causal effect.",
+    "cross_task_observation": "After five frozen local Dev tasks, raw test resolution is Claw Base 0/5, Claw Enhanced 1/5, and Pi Raw 1/5; policy-compliant and budgeted resolution remain 0/5 for every arm.",
+    "unsupported": "Five local Dev tasks do not establish statistical runtime superiority, an official SWE-bench score, or a causal quality benefit from Enhanced guidance."
+  },
+  "reproducibility": {
+    "runtime_environment_manifest": "configs/integrations/swe-bench-lite-runtime-environments-v1.json",
+    "runtime_environment_manifest_sha256": "4a3faa81784668352ffdbc579e81baba6f350fa0b2f2da8020c89f76b868dc5e",
+    "runtime_ablation_sha256": "4cadd02cafbe11de12493c9e90b41db7cceaf88b68bdd32f2a6a7628169b7808",
+    "quality_retries": 0,
+    "infrastructure_retries": 0,
+    "local_artifact_root": ".port_sessions/swe-bench-lite-ablation-20260914-pvlib1707"
+  },
+  "claim_boundary": "Benchmark-verified execution evidence for one controlled local SWE-bench Lite Dev task, plus a separately disclosed zero-model-call termination-semantics correction. This is not an official SWE-bench score or a completed-pilot estimate."
+}

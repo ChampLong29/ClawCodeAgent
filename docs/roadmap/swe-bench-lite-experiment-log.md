@@ -1067,3 +1067,30 @@ raw、policy-compliant、budgeted Resolved 都为 0/0/0。Enhanced 将首次编�
 Base 0/4、Enhanced 1/4、Pi 1/4，所有合规且预算内结果仍为 0/4；样本量不足以推断统计
 优劣，也不是官方 SWE-bench 分数。机器证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`。
+
+## 2026-09-14：第五题 Pvlib-1707 与终止语义修复
+
+用户明确授权将第五题代码与任务上下文发送至已配置的 DeepSeek。版本化准入核对
+`40e9e978c170bdde4eeee1547729417665dbc34c`、任务/Pi 镜像摘要，并在固定镜像内通过
+Python 3.8.20、pytest 7.4.4、工作区导入和 semaphore 检查。随后三臂各运行一次，
+没有基础设施或质量重试。
+
+三个臂都在首个模型轮定位 `pvlib/iam.py`，并检查了 `physical()` 与相关测试，但均未
+编辑。独立 Verifier 对三个未变候选均得到 FAIL_TO_PASS 0/1、PASS_TO_PASS 30/30，
+因此 raw、policy-compliant、budgeted Resolved 均为 0/0/0。Base 在第 20 轮以
+182,776 输入、12,253 输出 Token 截断；Enhanced 在第 10 轮以 63,316 输入、10,466
+输出 Token 截断，Deadline 尚未真正触发；Pi 第 13 轮未编辑，记录 93,755 输入（含
+86,272 cache-read）与 9,167 输出 Token。
+
+本题同时暴露证据语义问题。Base/Enhanced 的不可变轨迹已正确保存
+`finish_reason=length` 与 `runtime_stop=model_output_truncated`，但通用 `runtime_error`
+使原 Verification 将其优先误标为 `environment_or_infra`；修复后的只读派生分类为
+`budget_or_timeout`。Pi 的不可变终端 provider 事件也为 `length`，但旧适配器将 RPC
+settlement 记为 completed 且没有 runtime_stop。通用修复使未来 Pi `length/max_tokens`
+终端响应显式停止并记录相同 runtime_stop，同时修正 Bad Case 分类。原始第五题证据没有
+改写，Pi 也没有重跑。
+
+前五题累计 raw Resolved 为 Base 0/5、Enhanced 1/5、Pi 1/5，合规且预算内均为 0/5。
+该结果支持“早定位仍可能长期不编辑，单响应截断会成为独立瓶颈”，但不支持 Enhanced
+的因果结论或运行时统计优劣。机器证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-pvlib1707-result.json`。

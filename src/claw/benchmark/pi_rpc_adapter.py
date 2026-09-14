@@ -271,6 +271,7 @@ class PiRpcClient:
     ) -> PiRpcRun:
         final_message: Optional[str] = None
         error: Optional[str] = None
+        terminal_finish_reason = ""
         model_calls = 0
         for event in events:
             if event.get("type") != "message_end":
@@ -282,7 +283,10 @@ class PiRpcClient:
             text = _message_text(message)
             if text:
                 final_message = text
-            if str(message.get("stopReason", "")).lower() == "error":
+            terminal_finish_reason = str(
+                message.get("stopReason", "")
+            ).lower()
+            if terminal_finish_reason == "error":
                 error = str(message.get("errorMessage") or "Pi model request failed")
         tokens = stats.get("tokens", {})
         if not isinstance(tokens, dict):
@@ -306,11 +310,18 @@ class PiRpcClient:
             model_calls=model_calls,
             tool_calls=tool_calls,
         )
+        stop_reason = "error" if error else "completed"
+        if not error and terminal_finish_reason in {"length", "max_tokens"}:
+            stop_reason = "stopped"
+            error = (
+                "Pi model response reached its per-request token limit "
+                f"(finish_reason={terminal_finish_reason})."
+            )
         return PiRpcRun(
             events=events,
             final_message=final_message,
             usage=usage,
-            stop_reason="error" if error else "completed",
+            stop_reason=stop_reason,
             error=error,
         )
 
@@ -581,7 +592,7 @@ class PiRpcAgent:
                 max_turns=max_turns,
                 max_total_tokens=self.max_total_tokens,
             )
-            self._record_events(run.events)
+            self._record_events(run.events, stop_reason=run.stop_reason)
             if run.final_message:
                 self.session.add_assistant_message(run.final_message)
             result = AgentRunResult(
@@ -600,13 +611,28 @@ class PiRpcAgent:
             self.runtime_observer.on_run_finish(result, phase_id="runtime")
         return result
 
-    def _record_events(self, events: List[Dict[str, Any]]) -> None:
+    def _record_events(
+        self,
+        events: List[Dict[str, Any]],
+        *,
+        stop_reason: str,
+    ) -> None:
         if self.runtime_observer is None:
             return
         active_model_event: Optional[str] = None
         tool_event_ids: Dict[str, str] = {}
         tool_arguments_valid: Dict[str, bool] = {}
-        for event in events:
+        terminal_assistant_event_index = max(
+            (
+                index
+                for index, event in enumerate(events)
+                if event.get("type") == "message_end"
+                and isinstance(event.get("message"), dict)
+                and event["message"].get("role") == "assistant"
+            ),
+            default=-1,
+        )
+        for event_index, event in enumerate(events):
             event_type = event.get("type")
             if event_type == "turn_start":
                 active_model_event = self.runtime_observer.record(
@@ -619,17 +645,35 @@ class PiRpcAgent:
                 if not isinstance(message, dict) or message.get("role") != "assistant":
                     continue
                 usage = message.get("usage", {})
-                self.runtime_observer.record(
+                finish_reason = message.get("stopReason")
+                response_event_id = self.runtime_observer.record(
                     "model_response",
                     payload={
                         "source": "pi_rpc",
                         "content": _message_text(message),
                         "usage": usage if isinstance(usage, dict) else {},
-                        "finish_reason": message.get("stopReason"),
+                        "finish_reason": finish_reason,
                     },
                     parent_event_id=active_model_event,
                     phase_id="runtime",
                 )
+                normalized_finish_reason = str(finish_reason or "").lower()
+                if (
+                    stop_reason == "stopped"
+                    and event_index == terminal_assistant_event_index
+                    and normalized_finish_reason in {"length", "max_tokens"}
+                ):
+                    self.runtime_observer.record(
+                        "runtime_stop",
+                        payload={
+                            "source": "pi_rpc",
+                            "reason": "model_output_truncated",
+                            "finish_reason": normalized_finish_reason,
+                            "content_present": bool(_message_text(message)),
+                        },
+                        parent_event_id=response_event_id,
+                        phase_id="runtime",
+                    )
             elif event_type == "tool_execution_start":
                 call_id = str(event.get("toolCallId", ""))
                 requested_name = str(event.get("toolName", ""))

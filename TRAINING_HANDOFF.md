@@ -36,8 +36,8 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   and Claw Controlled and fixes policy-compliant resolution plus budgeted
   resolution as primary metrics.
 - The seven-task Claw Base / Claw Enhanced / Pi Raw pilot has completed its first
-  four tasks. Raw resolution is respectively Base 0/4, Enhanced 1/4, and Pi 1/4;
-  every policy-compliant and budgeted result is 0/4. The SQLFluff-1763 original Verifier
+  five tasks. Raw resolution is respectively Base 0/5, Enhanced 1/5, and Pi 1/5;
+  every policy-compliant and budgeted result is 0/5. The SQLFluff-1763 original Verifier
   regression failures are preserved but were traced to missing private `/dev/shm`;
   model-free clean verification passes all 66 regressions for every candidate.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
@@ -48,6 +48,11 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   regression tests, but all failed the three-test target group. Base and Enhanced
   added generator-style `__iter__`; Pi added `__iter__` plus `__contains__`; none
   implemented the frozen `__next__`/self-iterator contract. No arm was retried.
+- On Pvlib-1707 every arm localized `pvlib/iam.py` on turn one but made no edit;
+  all passed 30 regressions and failed the target. Base and Enhanced ended on
+  `finish_reason=length`; Pi's terminal response had the same finish reason but
+  the pre-fix adapter called it completed. The immutable records are preserved,
+  while the generic classifier and Pi adapter are corrected for future runs.
 - No real LoRA/QLoRA training effect or aggregate official SWE-bench score is
   claimed.
 

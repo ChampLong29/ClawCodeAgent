@@ -273,6 +273,13 @@ Docker 模式下默认读取它，因此不再要求为每题导出一个宿主�
   1/4、Pi 1/4，三臂合规且预算内均为 0/4。该结果说明 Enhanced 的提前编辑不能替代
   规格/测试推理，不支持运行时优劣结论。机器摘要见
   [`swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json)。
+- 第五题 Pvlib-1707 三臂都在首轮定位 `pvlib/iam.py`，但均未编辑；三个未变候选都通过
+  30 条回归、失败 1 条目标。Base/Enhanced 的终端响应达到单响应 Token 上限，Pi 的
+  最后一条 provider 事件同样为 `finish_reason=length`。实验暴露并修复了两处证据语义：
+  Token 截断不再误分为环境故障，Pi 也不再把终端截断记作正常完成。原始轨迹和 Verification
+  保持不变、没有模型重跑。前五题累计 raw 为 Base 0/5、Enhanced 1/5、Pi 1/5，合规且
+  预算内均为 0/5。机器摘要见
+  [`swe-bench-lite-pi-claw-ablation-pvlib1707-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-pvlib1707-result.json)。
 
 ### 低成本 Agent 后训练路线
 

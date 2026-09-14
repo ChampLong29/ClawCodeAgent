@@ -331,6 +331,47 @@ class TestVerifierPipeline(unittest.TestCase):
             report.bad_cases[0]["secondary_categories"],
         )
 
+    def test_model_output_truncation_is_not_misclassified_as_infrastructure(self):
+        trajectory = make_trajectory(passed_tests=0)
+        trajectory.events.pop()
+        trajectory.header.termination = None
+        trajectory.header.finished_at = None
+        trajectory.append(
+            "runtime_stop",
+            payload={
+                "reason": "model_output_truncated",
+                "finish_reason": "length",
+                "content_present": False,
+            },
+        )
+        trajectory.append(
+            "runtime_error",
+            payload={
+                "stop_reason": "stopped",
+                "error": (
+                    "Model response reached its per-request token limit before "
+                    "producing a complete response."
+                ),
+            },
+        )
+        trajectory.terminate(
+            "cancelled",
+            detail=(
+                "Model response reached its per-request token limit before "
+                "producing a complete response."
+            ),
+        )
+
+        report = VerifierPipeline().verify(context(trajectory))
+
+        self.assertEqual(
+            report.bad_cases[0]["primary_category"], "budget_or_timeout"
+        )
+        self.assertNotIn(
+            "environment_or_infra",
+            report.bad_cases[0]["secondary_categories"],
+        )
+
     def test_output_schema_is_validated_without_external_dependency(self):
         report = VerifierPipeline().verify(
             context(

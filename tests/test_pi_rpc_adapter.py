@@ -184,6 +184,33 @@ class TestPiRpcClient(unittest.TestCase):
         self.assertEqual(run.stop_reason, "budget_exceeded")
         self.assertEqual(run.error, "Pi run reached max_total_tokens=10")
 
+    def test_token_limited_response_is_stopped(self):
+        server = textwrap.dedent(
+            """
+            import json, sys
+            request = json.loads(sys.stdin.readline())
+            for record in [
+                {"id": request["id"], "type": "response", "command": "prompt", "success": True},
+                {"type": "turn_start"},
+                {"type": "message_end", "message": {"role": "assistant", "content": [], "stopReason": "length", "usage": {"input": 5, "output": 4}}},
+                {"type": "turn_end", "message": {}, "toolResults": []},
+                {"type": "agent_settled"},
+            ]:
+                print(json.dumps(record), flush=True)
+            stats = json.loads(sys.stdin.readline())
+            print(json.dumps({"id": stats["id"], "type": "response", "success": True, "data": {"tokens": {"input": 5, "output": 4}}}), flush=True)
+            """
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            client = PiRpcClient(
+                tmp,
+                command=[sys.executable, "-u", "-c", server],
+            )
+            run = client.run("work", timeout_seconds=5)
+
+        self.assertEqual(run.stop_reason, "stopped")
+        self.assertIn("finish_reason=length", run.error)
+
 
 class _Observer:
     def __init__(self):
@@ -240,6 +267,33 @@ class _FakeClient:
         )
 
 
+class _LengthClient:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    def run(self, _prompt, **_kwargs):
+        return PiRpcRun(
+            events=[
+                {"type": "turn_start"},
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "content": [],
+                        "usage": {"input": 4, "output": 4},
+                        "stopReason": "length",
+                    },
+                },
+            ],
+            usage=UsageStats(input_tokens=4, output_tokens=4, model_calls=1),
+            stop_reason="stopped",
+            error=(
+                "Pi model response reached its per-request token limit "
+                "(finish_reason=length)."
+            ),
+        )
+
+
 class TestPiRpcAgent(unittest.TestCase):
     def test_maps_pi_events_to_claw_trajectory_events(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -262,6 +316,59 @@ class TestPiRpcAgent(unittest.TestCase):
         self.assertEqual(tool_result["requested_tool_name"], "edit")
         self.assertEqual(tool_result["actual_tool_name"], "edit_file")
         self.assertIs(observer.finished[0], result)
+
+    def test_maps_token_limited_response_to_runtime_stop(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = PiRpcAgent(
+                tmp, model="provider/model", client_factory=_LengthClient
+            )
+            observer = _Observer()
+            agent.runtime_observer = observer
+            result = agent.run("fix it", max_turns=5)
+
+        self.assertEqual(result.stop_reason, "stopped")
+        stop = next(
+            payload
+            for event_type, payload in observer.events
+            if event_type == "runtime_stop"
+        )
+        self.assertEqual(stop["reason"], "model_output_truncated")
+        self.assertEqual(stop["finish_reason"], "length")
+
+    def test_records_runtime_stop_only_for_terminal_assistant_response(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = PiRpcAgent(
+                tmp, model="provider/model", client_factory=_LengthClient
+            )
+            observer = _Observer()
+            agent.runtime_observer = observer
+            events = [
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "content": [],
+                        "stopReason": "length",
+                    },
+                },
+                {
+                    "type": "message_end",
+                    "message": {
+                        "role": "assistant",
+                        "content": [],
+                        "stopReason": "length",
+                    },
+                },
+            ]
+
+            agent._record_events(events, stop_reason="stopped")
+
+        stops = [
+            payload
+            for event_type, payload in observer.events
+            if event_type == "runtime_stop"
+        ]
+        self.assertEqual(len(stops), 1)
 
     def test_agent_exposes_secret_free_isolation_metadata(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -408,6 +408,15 @@ PASS_TO_PASS，但都失败三项 FAIL_TO_PASS 组成的目标组：Base/Enhance
 Base/Enhanced/Pi = 0/4、1/4、1/4，合规且预算内全部为 0/4。证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`。
 
+第五题 Pvlib-1707 的三个臂均首轮定位允许文件，但都没有修改源码；未变候选通过 30 条
+PASS_TO_PASS、失败 1 条 FAIL_TO_PASS。Base 在第 20 轮、Enhanced 在第 10 轮收到
+`finish_reason=length`，Pi 第 13 轮的终端 provider 事件也是 `length`。Enhanced 的
+Deadline 尚未注入，因此本题不能估计该处理的因果作用。该运行还暴露两处通用证据缺陷：
+Claw 的截断停止被 Bad Case 优先级误标为环境故障，Pi 则把截断的 RPC settlement 记作
+completed。修复后，未来两条路径都保留 `runtime_stop=model_output_truncated` 并归入
+`budget_or_timeout`；原始 Episode 不改写、不重跑。证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-pvlib1707-result.json`。
+
 ## 7. Episode、Trajectory 与 Verification
 
 ### Episode

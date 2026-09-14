@@ -457,6 +457,14 @@ When changing session schemas, maintain backward-compatible loading or provide a
   Enhanced added only generator-style `__iter__`, while Pi also added
   `__contains__` and then exceeded the cumulative token budget. Do not infer a
   dispatch-policy failure or quality-retry these Episodes.
+- Pvlib-1707 is sampled with raw and policy-compliant outcomes 0/0/0. Every
+  arm localized the target on its first turn but made no edit; all unchanged
+  candidates passed 30 regressions and failed the one target. Preserve Base
+  and Enhanced's immutable `model_output_truncated` trajectories and their
+  original, incorrect `environment_or_infra` classifications. The corrected
+  classifier derives `budget_or_timeout`. Preserve Pi's original completed
+  record while disclosing its terminal `finish_reason=length`; future Pi runs
+  must emit `runtime_stop=model_output_truncated`. Do not quality-retry.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

@@ -263,6 +263,11 @@ class BadCaseClassifier:
                         event.event_id
                     )
                     continue
+                if payload.get("reason") == "model_output_truncated":
+                    candidates.setdefault("budget_or_timeout", []).append(
+                        event.event_id
+                    )
+                    continue
             if event.event_type == "tool_result":
                 payload = event.payload
                 failed = payload.get("exit_code") not in {None, 0} or bool(
@@ -280,7 +285,16 @@ class BadCaseClassifier:
                     )
                     continue
                 stop_reason = str(event.payload.get("stop_reason", ""))
-                if stop_reason in {"budget_exceeded", "timeout"}:
+                token_limited = any(
+                    marker in error
+                    for marker in (
+                        "model_output_truncated",
+                        "per-request token limit",
+                        "finish_reason=length",
+                        "max_tokens",
+                    )
+                )
+                if stop_reason in {"budget_exceeded", "timeout"} or token_limited:
                     candidates.setdefault("budget_or_timeout", []).append(
                         event.event_id
                     )
