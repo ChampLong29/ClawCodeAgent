@@ -36,14 +36,18 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   and Claw Controlled and fixes policy-compliant resolution plus budgeted
   resolution as primary metrics.
 - The seven-task Claw Base / Claw Enhanced / Pi Raw pilot has completed its first
-  three tasks. Raw resolution is respectively Base 0/3, Enhanced 1/3, and Pi 1/3;
-  every policy-compliant result is 0/3. The SQLFluff-1763 original Verifier
+  four tasks. Raw resolution is respectively Base 0/4, Enhanced 1/4, and Pi 1/4;
+  every policy-compliant and budgeted result is 0/4. The SQLFluff-1763 original Verifier
   regression failures are preserved but were traced to missing private `/dev/shm`;
   model-free clean verification passes all 66 regressions for every candidate.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
   portable source of truth for the seven task images, in-container interpreters,
   allowlists, and Pi image. Docker admission now runs inside the pinned image, so
   these pilot tasks do not require task-specific host virtualenv exports.
+- On Pydicom-1139 every arm edited only `pydicom/valuerep.py` and passed all 38
+  regression tests, but all failed the three-test target group. Base and Enhanced
+  added generator-style `__iter__`; Pi added `__iter__` plus `__contains__`; none
+  implemented the frozen `__next__`/self-iterator contract. No arm was retried.
 - No real LoRA/QLoRA training effect or aggregate official SWE-bench score is
   claimed.
 

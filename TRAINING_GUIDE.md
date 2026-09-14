@@ -400,6 +400,14 @@ Collector 收尾因重新解析相对 Benchmark 路径时进程 cwd 不可用而
 后，加入私有受限共享内存的无模型干净复评确认三个候选均通过 66 条回归、仍失败 3 条目标。
 证据见 `configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`。
 
+第四题 Pydicom-1139 没有基础设施重试或质量重试。三个臂均修改允许文件并通过 38 条
+PASS_TO_PASS，但都失败三项 FAIL_TO_PASS 组成的目标组：Base/Enhanced 仅添加生成器式
+`__iter__`，Pi 添加 `__iter__` 与 `__contains__`，均未实现冻结测试要求的 `__next__`
+和对象自身迭代状态。Enhanced 将首次编辑从 Base 的第 16 轮提前到第 14 轮，但没有带来
+正确性；Pi 第 11 轮编辑且最终超过 250k 累计 Token。前四题 raw Resolved 累计为
+Base/Enhanced/Pi = 0/4、1/4、1/4，合规且预算内全部为 0/4。证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`。
+
 ## 7. Episode、Trajectory 与 Verification
 
 ### Episode

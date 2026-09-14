@@ -172,6 +172,51 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         )
         self.assertIn("not an official SWE-bench score", result["claim_boundary"])
 
+    def test_fourth_ablation_result_preserves_partial_protocol_failure(self):
+        repository = Path(__file__).resolve().parents[1]
+        plan_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+        )
+        environment_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-runtime-environments-v1.json"
+        )
+        result = json.loads(
+            (
+                repository
+                / "configs/integrations/"
+                "swe-bench-lite-pi-claw-ablation-pydicom1139-result.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            result["protocol"]["sha256"],
+            hashlib.sha256(plan_path.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            result["reproducibility"]["runtime_environment_manifest_sha256"],
+            hashlib.sha256(environment_path.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(result["reproducibility"]["quality_retries"], 0)
+        self.assertEqual(
+            result["reproducibility"]["infrastructure_retries"], 0
+        )
+        for arm in ("claw_base", "claw_enhanced", "pi_raw"):
+            arm_result = result["results"][arm]
+            self.assertFalse(arm_result["raw_resolved"])
+            self.assertFalse(arm_result["policy_compliant_resolved"])
+            self.assertEqual(
+                arm_result["pass_to_pass_group"], "38 passed, 0 failed"
+            )
+            self.assertEqual(
+                arm_result["changed_files"], ["pydicom/valuerep.py"]
+            )
+        self.assertEqual(
+            result["results"]["pi_raw"]["termination"], "max_total_tokens"
+        )
+        self.assertIn("not an official SWE-bench score", result["claim_boundary"])
+
     def test_versioned_ablation_plan_is_calibrated_selection_subset(self):
         repository = Path(__file__).resolve().parents[1]
         plan = json.loads(

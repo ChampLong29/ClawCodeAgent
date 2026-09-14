@@ -1046,3 +1046,24 @@ Docker Profile 同时设置 `--ipc=none` 且没有私有 `/dev/shm`，SQLFluff �
 并在 Agent 创建前直接在任务镜像内验证工作区导入、pytest、镜像身份与多进程信号量；
 缺失能力会在模型请求前 fail closed。机器结果见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`。
+
+## 2026-09-14：第四题 Pydicom-1139 三臂采样
+
+用户明确授权将第四题仓库代码与任务上下文发送至已配置的 DeepSeek。付费调用前以
+版本化环境清单核对 base commit、任务/Pi 镜像摘要，并在 Pydicom 固定镜像内验证
+Python 3.8.20、pytest 5.4.3、工作区导入及 multiprocessing semaphore；准入通过后，
+Base、Enhanced、Pi Raw 各运行一次，没有基础设施重试或质量重试。
+
+三个臂都定位并只修改 `pydicom/valuerep.py`，Diff、权限、格式、评测完整性门通过，
+38 条 PASS_TO_PASS 全部通过。然而 Base 与 Enhanced 都只添加了从 `str(self)` 产出字符
+的生成器式 `__iter__`；Pi 添加同类 `__iter__` 和 `__contains__`，但三个候选均遗漏冻结
+`test_next` 所要求的 `__next__` 以及 `iter(pn) is pn` 式对象状态。因此目标测试组均失败，
+raw、policy-compliant、budgeted Resolved 都为 0/0/0。Enhanced 将首次编辑从 Base 的
+第 16 轮提前到第 14 轮但未改善正确性；Pi 第 11 轮编辑、使用 249,534 输入 Token 与
+11,294 输出 Token，并在最终答复前超过 250k 累计预算。
+
+该结果反驳“只要更早强制编辑即可提高成功率”的简单假设：本题没有写入拒绝或越界，
+瓶颈是对完整 iterator protocol 与冻结测试规格的推断不足。前四题累计 raw Resolved 为
+Base 0/4、Enhanced 1/4、Pi 1/4，所有合规且预算内结果仍为 0/4；样本量不足以推断统计
+优劣，也不是官方 SWE-bench 分数。机器证据见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`。

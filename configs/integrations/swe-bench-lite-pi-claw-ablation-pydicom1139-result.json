@@ -1,0 +1,132 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-14",
+  "status": "fourth_task_complete",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "generation_commit": "3b2f63d8bdce84e542b54a8c55e056e05a618c58",
+  "data_transfer_authorization": "The user explicitly authorized sending the fourth task's repository code and task context to the configured DeepSeek endpoint and running Claw Base, Claw Enhanced, and Pi Raw once each.",
+  "task": {
+    "instance_id": "pydicom__pydicom-1139",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "base_commit": "b9fb05c177b685bf683f7f57b2d57374eb7d882d",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "controls": {
+    "model": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": ["pydicom/valuerep.py"],
+    "task_image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+    "task_python": "/opt/task/bin/python3.8",
+    "evaluator_python": "/usr/bin/python3",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69"
+  },
+  "admission": {
+    "repository_commit_match": true,
+    "task_image_digest_match": true,
+    "pi_image_digest_match": true,
+    "api_key_presence_checked_without_disclosure": true,
+    "environment_contract": {
+      "status": "passed",
+      "python_version": "3.8.20",
+      "pytest_version": "5.4.3",
+      "workspace_import": "pydicom/__init__.py",
+      "multiprocessing_semaphore": true
+    },
+    "model_calls_before_admission_passed": 0
+  },
+  "results": {
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass_group": "failed",
+      "pass_to_pass_group": "38 passed, 0 failed",
+      "turns": 21,
+      "tool_calls": 26,
+      "input_tokens": 144294,
+      "output_tokens": 4282,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 16,
+      "direct_mutation_calls": 1,
+      "changed_files": ["pydicom/valuerep.py"],
+      "candidate_summary": "Added generator-style __iter__ yielding characters from str(self), but did not implement __next__ or stateful self-iteration required by the frozen target tests.",
+      "termination": "completed",
+      "process_violations": 0,
+      "collection_manifest_sha256": "4bbd6eb07b6ec3a286a41eca69a795d6b2187808de114a1f9c0d979de5870e87",
+      "trajectory_sha256": "284c7c318fc2b29fd12ad9312b1b5fc36be6bb4233c057377d2d2cc2366f0e8b",
+      "verification_sha256": "b7dbc4c3f16cb6115634cdada6a5713cda12bcc84913c487e1c92cb4da344e83"
+    },
+    "claw_enhanced": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass_group": "failed",
+      "pass_to_pass_group": "38 passed, 0 failed",
+      "turns": 22,
+      "tool_calls": 27,
+      "input_tokens": 147158,
+      "output_tokens": 7403,
+      "first_target_path_turn": 3,
+      "first_direct_mutation_turn": 14,
+      "direct_mutation_calls": 1,
+      "implementation_deadline_turn": 10,
+      "post_edit_contract_guidance_turn": 14,
+      "changed_files": ["pydicom/valuerep.py"],
+      "candidate_summary": "Added the same generator-style __iter__ as Base. Guidance advanced mutation by two turns but did not recover the omitted __next__ contract.",
+      "termination": "completed",
+      "process_violations": 0,
+      "collection_manifest_sha256": "a944597a1e67bd6ce7bec387bfd3b979642281bae36aa7ddeea1b384b13e6fba",
+      "trajectory_sha256": "4640333ceb35f457bbcb622bde491eed1c4f6f3fcdadacc78a9c877160f3cb2d",
+      "verification_sha256": "c83303e2fd3496be7d55b6ea690e86ca1fb28ae7ab4add7105723c7edb8a3a18"
+    },
+    "pi_raw": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass_group": "failed",
+      "pass_to_pass_group": "38 passed, 0 failed",
+      "turns": 25,
+      "tool_calls": 34,
+      "input_tokens": 249534,
+      "cache_read_input_tokens": 237440,
+      "output_tokens": 11294,
+      "first_target_path_turn": 1,
+      "first_direct_mutation_turn": 11,
+      "direct_mutation_calls": 2,
+      "changed_files": ["pydicom/valuerep.py"],
+      "candidate_summary": "Added generator-style __iter__ and __contains__, but omitted __next__; the candidate remained incomplete and the run exceeded the total-token budget.",
+      "termination": "max_total_tokens",
+      "process_violations": 0,
+      "collection_manifest_sha256": "6d234d1331e5ab861cdf919cdbbafeec8b8dfe94337b7ca3360d4df6c7450266",
+      "trajectory_sha256": "56b28b69f2b6109fcc23f20fa289d512494e9bc3c6f5c3d501fa1c294d3e1fe0",
+      "verification_sha256": "60f076ab30a606c913947efd161a310e170e379cc7bc8a92095a5f93ad324b95"
+    }
+  },
+  "diagnosis": {
+    "supported": "All arms localized and modified the allowed file, and every candidate preserved all 38 regression tests. All three nevertheless implemented only part of the frozen iterator protocol: Base and Enhanced added __iter__, while Pi added __iter__ plus __contains__, but none implemented __next__ and the self-iterator state required by test_next. Enhanced improved mutation timing but not correctness; Pi mutated earliest but consumed the most processed tokens and exceeded budget.",
+    "harness_interpretation": "This task does not support a claim that dispatch constraints prevented success: no requested writes were rejected, every arm produced an in-scope candidate, and evaluation integrity passed. The observed bottleneck is incomplete specification inference and insufficient test-directed validation. Shell remained intentionally disposable and could not persist or expose hidden tests to the Agent.",
+    "cross_task_observation": "After four frozen local Dev tasks, raw test resolution is Claw Base 0/4, Claw Enhanced 1/4, and Pi Raw 1/4; policy-compliant and budgeted resolution remain 0/4 for every arm.",
+    "unsupported": "Four local Dev tasks do not establish statistical runtime superiority, an official SWE-bench score, or a causal quality benefit from the Enhanced guidance."
+  },
+  "reproducibility": {
+    "runtime_environment_manifest": "configs/integrations/swe-bench-lite-runtime-environments-v1.json",
+    "runtime_environment_manifest_sha256": "4a3faa81784668352ffdbc579e81baba6f350fa0b2f2da8020c89f76b868dc5e",
+    "runtime_ablation_sha256": "d54427360591721a76469de4f5bab9cead066614f01b90fec4b7339dd7f40b87",
+    "quality_retries": 0,
+    "infrastructure_retries": 0,
+    "local_artifact_root": ".port_sessions/swe-bench-lite-ablation-20260914-pydicom1139"
+  },
+  "claim_boundary": "Benchmark-verified execution evidence for one controlled local SWE-bench Lite Dev task. This is not an official SWE-bench score or a completed-pilot estimate."
+}

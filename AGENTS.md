@@ -451,6 +451,12 @@ When changing session schemas, maintain backward-compatible loading or provide a
   disclosed model-free clean verification after the generic Docker fix passes
   all 66 regression tests for every archived candidate while all three target
   tests still fail.
+- Pydicom-1139 is sampled with raw and policy-compliant outcomes 0/0/0.
+  All three arms made an allowlisted edit and passed all 38 regression tests,
+  but each missed the frozen `__next__`/self-iterator behavior: Base and
+  Enhanced added only generator-style `__iter__`, while Pi also added
+  `__contains__` and then exceeded the cumulative token budget. Do not infer a
+  dispatch-policy failure or quality-retry these Episodes.
 - For cross-device continuation, follow `TRAINING_HANDOFF.md`. Ignored task repositories,
   `.port_sessions`, credentials, environments, and checkpoints are not transferred by Git;
   reconstruct and revalidate them before model calls or training.

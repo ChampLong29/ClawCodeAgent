@@ -266,6 +266,13 @@ Docker 模式下默认读取它，因此不再要求为每题导出一个宿主�
   `--ipc=none` 下缺少私有 `/dev/shm`，令 3 条多进程回归产生基础设施假失败。保留原记录后，
   修复配置的无模型干净复评确认三个候选均为目标 0/3、回归 66/66。机器摘要见
   [`swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json)。
+- 第四题 Pydicom-1139 三臂都修改了唯一允许文件并通过 38 条回归，但都没有完整实现冻结
+  测试要求的 iterator protocol：Base/Enhanced 只增加生成器式 `__iter__`，Pi 另加
+  `__contains__`，三者均遗漏 `__next__` 与对象自身迭代状态。故 raw 与合规结果均为
+  0/0/0；Pi 还达到累计 Token 上限。前四题累计 raw Resolved 为 Base 0/4、Enhanced
+  1/4、Pi 1/4，三臂合规且预算内均为 0/4。该结果说明 Enhanced 的提前编辑不能替代
+  规格/测试推理，不支持运行时优劣结论。机器摘要见
+  [`swe-bench-lite-pi-claw-ablation-pydicom1139-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1139-result.json)。
 
 ### 低成本 Agent 后训练路线
 
