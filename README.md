@@ -209,9 +209,15 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
 三臂入口可用 `--claw-sandbox-backend docker`、`--claw-sandbox-image`
 和 `--claw-sandbox-python` 将 Claw Base、Claw Enhanced 及三个臂的独立 Verifier
 固定到同一个 digest-pinned 镜像。Docker 模式会把 evaluator 入口随隐藏资产临时注入，
-不再引用容器不可见的宿主绝对路径。Pi Agent 本身仍必须通过 `--pi-executable` 指向
+不再引用容器不可见的宿主绝对路径；历史任务 Python 低于 Claw 的最低版本时，可用
+`--claw-sandbox-evaluator-python` 指定镜像内独立的 evaluator 解释器。Pi Agent 本身仍必须通过 `--pi-executable` 指向
 操作者管理的容器包装器，并在关闭 macOS Seatbelt 时提供
 `--pi-sandbox-attestation`；该证明会归档，但仍不是 Claw 对 Pi 容器的独立认证。
+
+也可用 `--pi-docker-image` 让三臂入口直接构造完整 Pi RPC 容器：镜像必须固定 digest，
+启动时禁止隐式拉取，并采用非 root、只读 RootFS、丢弃能力和资源限制。Pi 的 Provider
+请求与工具执行同进程，因此 Provider 网络也会对 Pi Shell 可见，而 Claw Shell 保持
+离线；报告必须保留这项处理差异，不能宣称网络策略完全一致。
 
 ### 已归档的代表性实验
 
@@ -230,6 +236,9 @@ attestation 文本宣称容器隔离已经由程序验证。设计和边界见
   这是单样本机制证据，不是官方 SWE-bench 分数，也不能推出统计上的运行时优劣；
   证据见
   [`swe-bench-lite-claw-pi-deepseek-flash-20260911.json`](configs/integrations/swe-bench-lite-claw-pi-deepseek-flash-20260911.json)。
+- 当前 v2 三臂计划保留原七题顺序和 `pi@0.85.1` 控制项，并将可重建包明确固定为
+  `@earendil-works/pi-coding-agent@0.85.1`。首题任务镜像完成校准；正确版本的 Pi
+  容器已通过无模型 RPC 冒烟，其余任务仍须完成镜像校准后才进入付费 Pilot。
 
 ### 低成本 Agent 后训练路线
 

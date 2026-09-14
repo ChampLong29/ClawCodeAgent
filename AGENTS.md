@@ -121,12 +121,20 @@ enforces the bundled macOS profile; on Docker hosts, run Pi inside an
 operator-managed container boundary and record that boundary. The Pi RPC process
 is not yet owned by Claw's session `SandboxBackend`.
 
+The three-arm entrypoint can construct the complete Pi container through
+`--pi-docker-image`. Require a digest pin, no implicit pull, non-root execution,
+a read-only root filesystem, dropped capabilities, and resource limits. Pi
+provider calls and tools share that container's network; record the difference
+from Claw's offline Shell sandbox and do not claim network-policy parity.
+
 For the three-arm SWE-bench Lite Dev entrypoint, Docker Claw arms require
 `--claw-sandbox-backend docker`, a digest-pinned `--claw-sandbox-image`, and
-`--claw-sandbox-python` naming an interpreter inside that image. All three
-Verifier runs use that Backend. Pi itself still runs through the explicitly
-attested operator wrapper supplied as `--pi-executable`; disabling Seatbelt
-requires `--pi-sandbox-attestation`.
+`--claw-sandbox-python` naming the historical task interpreter inside that
+image. Use `--claw-sandbox-evaluator-python` when the staged Claw evaluator
+requires a newer interpreter than the task. All three Verifier runs use that Backend. Pi itself still runs through the explicitly
+attested host executable supplied as `--pi-executable`, or through the explicit
+`--pi-docker-image` boundary; disabling Seatbelt requires
+`--pi-sandbox-attestation`.
 
 Use `--api-config-root <dir>` when benchmark arms need isolated model-provider
 configuration. It changes API configuration discovery only, not the task workspace.
@@ -359,8 +367,10 @@ When changing session schemas, maintain backward-compatible loading or provide a
   Agent and Verifier owners/handles must remain distinct, and Docker benchmark
   images must be digest-pinned.
 - Docker SWE-bench Dev materialization stages the evaluator entrypoint with the
-  hidden assets and names an interpreter inside the pinned image. Do not emit
-  host-only absolute evaluator or virtualenv paths into Docker task commands.
+  hidden assets and names task and optional evaluator interpreters inside the
+  pinned image. Do not emit host-only absolute evaluator or virtualenv paths
+  into Docker task commands, and do not conflate Claw's Python floor with a
+  historical task's Python version.
 - Destroy the Agent sandbox before final verification. A cleanup failure is an
   infrastructure failure and must not be reported as an ordinary test failure.
 - Benchmark Diff allowlists default to paths represented by the task Oracle; explicit `--allow-path` replaces that default.

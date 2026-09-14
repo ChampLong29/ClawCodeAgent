@@ -318,7 +318,14 @@ class LocalSweBenchLiteCalibrationRunner:
 
     def _git(self, repository: Path, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [self.git_executable, "-C", str(repository), *args],
+            [
+                self.git_executable,
+                "-c",
+                f"safe.directory={repository}",
+                "-C",
+                str(repository),
+                *args,
+            ],
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -343,6 +350,8 @@ class LocalSweBenchLiteCalibrationRunner:
         archived = subprocess.run(
             [
                 self.git_executable,
+                "-c",
+                f"safe.directory={source}",
                 "-C",
                 str(source),
                 "archive",
@@ -605,7 +614,16 @@ def evaluate_swe_bench_lite_candidate(
             # files that are inside the declared implementation scope.  Hidden
             # tests therefore never depend on an agent-contaminated test tree.
             archived = subprocess.run(
-                ["git", "-C", str(source), "archive", "--format=tar", "HEAD"],
+                [
+                    "git",
+                    "-c",
+                    f"safe.directory={source}",
+                    "-C",
+                    str(source),
+                    "archive",
+                    "--format=tar",
+                    "HEAD",
+                ],
                 capture_output=True,
                 check=False,
             )
@@ -623,7 +641,17 @@ def evaluate_swe_bench_lite_candidate(
                 archive.extractall(evaluation_root)
 
             base_files = subprocess.run(
-                ["git", "-C", str(source), "ls-tree", "-r", "--name-only", "HEAD"],
+                [
+                    "git",
+                    "-c",
+                    f"safe.directory={source}",
+                    "-C",
+                    str(source),
+                    "ls-tree",
+                    "-r",
+                    "--name-only",
+                    "HEAD",
+                ],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -705,6 +733,7 @@ class SweBenchLiteEpisodeTaskMaterializer:
         timeout_seconds: float = 300.0,
         allowed_path_patterns: Optional[List[str]] = None,
         sandbox_python_executable: Optional[str] = None,
+        sandbox_evaluator_python_executable: Optional[str] = None,
     ) -> MaterializedSweBenchLiteEpisodeTask:
         if task.instance_id != bundle.instance_id:
             raise ValueError("task and evaluator bundle instance IDs differ")
@@ -748,11 +777,23 @@ class SweBenchLiteEpisodeTaskMaterializer:
             sandbox_python = str(sandbox_python_executable).strip()
             if not sandbox_python:
                 raise ValueError("sandbox_python_executable must not be empty")
+            sandbox_evaluator_python = str(
+                sandbox_evaluator_python_executable or sandbox_python
+            ).strip()
+            if not sandbox_evaluator_python:
+                raise ValueError(
+                    "sandbox_evaluator_python_executable must not be empty"
+                )
             evaluator_name = "evaluate_swe_bench_lite_candidate.py"
             shutil.copy2(self.evaluator_script, evaluator / evaluator_name)
-            command_python = sandbox_python
+            command_python = sandbox_evaluator_python
             target_python = sandbox_python
             evaluator_command = f".claw_hidden_tests/{evaluator_name}"
+        elif sandbox_evaluator_python_executable is not None:
+            raise ValueError(
+                "sandbox_evaluator_python_executable requires "
+                "sandbox_python_executable"
+            )
         command_parts = [
             command_python,
             evaluator_command,

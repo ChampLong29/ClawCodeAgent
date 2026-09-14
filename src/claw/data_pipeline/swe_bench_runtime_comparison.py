@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
 
@@ -12,7 +13,7 @@ from ..agent_runtime import LocalCodingAgent
 from ..agent_types import AgentPermissions, BudgetConfig, ModelConfig
 from ..api_config import APIConfigRuntime
 from ..benchmark.metrics import BenchmarkEpisodeResult
-from ..benchmark.pi_rpc_adapter import PiRpcAgent
+from ..benchmark.pi_rpc_adapter import PiDockerRpcClient, PiRpcAgent
 from ..benchmark.runner import BenchmarkError
 from ..experiment.schemas import canonical_hash
 from ..openai_compat import OpenAICompatClient
@@ -718,6 +719,7 @@ def run_swe_bench_lite_runtime_comparison(
             timeout_seconds=timeout_seconds,
             max_total_tokens=max_total_tokens,
             isolation_attestation=sandbox_attestation,
+            isolation_metadata={"boundary": "operator_attested_process"},
             process_environment=environment,
             enforce_macos_seatbelt=enforce_macos_seatbelt,
         )
@@ -797,6 +799,10 @@ def run_swe_bench_lite_runtime_ablation(
     claw_sandbox_backend: str = "host",
     claw_sandbox_image: Optional[str] = None,
     claw_sandbox_python: Optional[str] = None,
+    claw_sandbox_evaluator_python: Optional[str] = None,
+    pi_docker_image: Optional[str] = None,
+    pi_docker_executable: str = "docker",
+    pi_container_executable: str = "/opt/pi/node_modules/.bin/pi",
 ) -> Dict[str, Any]:
     """Run Pi once beside frozen Claw Base and Claw Enhanced profiles."""
     root = Path(output_root).resolve()
@@ -806,6 +812,14 @@ def run_swe_bench_lite_runtime_ablation(
         raise BenchmarkError("model_ref and model_backend_version must not be empty")
     if not allowed_path_patterns:
         raise BenchmarkError("allowed_path_patterns must not be empty")
+    if pi_docker_image and re.fullmatch(
+        r"[^@\s]+@sha256:[0-9a-fA-F]{64}", str(pi_docker_image)
+    ) is None:
+        raise BenchmarkError("Pi Docker image must be digest-pinned")
+    if pi_docker_image and enforce_macos_seatbelt:
+        raise BenchmarkError(
+            "Pi Docker mode requires disabling macOS Seatbelt explicitly"
+        )
     claw_sandbox_backend = str(claw_sandbox_backend).strip().lower()
     if claw_sandbox_backend not in {"host", "docker"}:
         raise BenchmarkError(
@@ -832,6 +846,10 @@ def run_swe_bench_lite_runtime_ablation(
         raise BenchmarkError(
             "claw_sandbox_python is only valid with the Docker backend"
         )
+    elif claw_sandbox_evaluator_python:
+        raise BenchmarkError(
+            "claw_sandbox_evaluator_python is only valid with the Docker backend"
+        )
     if sandbox_attestation is None and enforce_macos_seatbelt:
         sandbox_attestation = (
             "macos-seatbelt:episode-parent-write-deny+sensitive-paths-v2"
@@ -854,10 +872,22 @@ def run_swe_bench_lite_runtime_ablation(
         openai_base_url = openai_base_url[: -len("/anthropic")]
 
     resolved_pi = Path(pi_executable).expanduser()
-    if not resolved_pi.is_absolute():
-        resolved_pi = (config_root / resolved_pi).resolve()
-    if not resolved_pi.is_file():
-        raise FileNotFoundError(resolved_pi)
+    if pi_docker_image:
+        resolved_pi_executable = str(pi_container_executable).strip()
+        if not resolved_pi_executable.startswith("/"):
+            raise BenchmarkError("Pi container executable must be absolute")
+        pi_client_factory = partial(
+            PiDockerRpcClient,
+            docker_image=str(pi_docker_image),
+            docker_executable=str(pi_docker_executable),
+        )
+    else:
+        if not resolved_pi.is_absolute():
+            resolved_pi = (config_root / resolved_pi).resolve()
+        if not resolved_pi.is_file():
+            raise FileNotFoundError(resolved_pi)
+        resolved_pi_executable = str(resolved_pi)
+        pi_client_factory = None
 
     root.mkdir(parents=True)
     pi_config_dir = root / "pi-runtime-config"
@@ -954,13 +984,28 @@ def run_swe_bench_lite_runtime_ablation(
             cwd,
             model=model_ref,
             provider="claw-openai-compat",
-            executable=str(resolved_pi),
+            executable=resolved_pi_executable,
             extra_args=tuple(pi_extra_args),
             timeout_seconds=timeout_seconds,
             max_total_tokens=max_total_tokens,
             isolation_attestation=sandbox_attestation,
+            isolation_metadata=(
+                {
+                    "boundary": "pi_docker_rpc",
+                    "image": str(pi_docker_image),
+                    "network_mode": "bridge",
+                    "tool_network_matches_claw_shell": False,
+                }
+                if pi_docker_image
+                else {"boundary": "operator_attested_process"}
+            ),
             process_environment=environment,
             enforce_macos_seatbelt=enforce_macos_seatbelt,
+            **(
+                {"client_factory": pi_client_factory}
+                if pi_client_factory is not None
+                else {}
+            ),
         )
 
     shared = {
@@ -995,6 +1040,9 @@ def run_swe_bench_lite_runtime_ablation(
             sandbox_backend_name=claw_sandbox_backend,
             sandbox_image=claw_sandbox_image,
             sandbox_python_executable=claw_sandbox_python,
+            sandbox_evaluator_python_executable=(
+                claw_sandbox_evaluator_python
+            ),
             **profile,
             **shared,
         )
@@ -1009,6 +1057,7 @@ def run_swe_bench_lite_runtime_ablation(
         sandbox_backend_name=claw_sandbox_backend,
         sandbox_image=claw_sandbox_image,
         sandbox_python_executable=claw_sandbox_python,
+        sandbox_evaluator_python_executable=claw_sandbox_evaluator_python,
         manage_agent_sandbox=False,
         **pi_profile,
         **shared,

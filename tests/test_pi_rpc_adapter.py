@@ -10,6 +10,7 @@ from unittest import mock
 
 from claw.agent_types import UsageStats
 from claw.benchmark.pi_rpc_adapter import (
+    PiDockerRpcClient,
     PiRpcAgent,
     PiRpcBenchmarkAdapter,
     PiRpcClient,
@@ -19,6 +20,54 @@ from claw.benchmark.runner import BenchmarkError
 
 
 class TestPiRpcClient(unittest.TestCase):
+    def test_builds_digest_pinned_constrained_docker_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = os.path.join(tmp, "config")
+            os.mkdir(config)
+            environment = dict(os.environ)
+            environment["CLAW_PI_API_KEY"] = "secret"
+            environment["PI_CODING_AGENT_DIR"] = config
+            client = PiDockerRpcClient(
+                tmp,
+                docker_image="claw/pi@sha256:" + "a" * 64,
+                executable="/opt/pi/node_modules/.bin/pi",
+                provider="claw-openai-compat",
+                model="deepseek-flash",
+                process_environment=environment,
+            )
+            command = client._build_command()
+
+        self.assertEqual(command[:3], ["docker", "run", "--rm"])
+        self.assertIn("--pull=never", command)
+        self.assertIn("--read-only", command)
+        self.assertIn("--cap-drop=ALL", command)
+        self.assertIn("no-new-privileges", command)
+        self.assertIn("claw/pi@sha256:" + "a" * 64, command)
+        self.assertIn("CLAW_PI_API_KEY", command)
+        self.assertNotIn("secret", command)
+        self.assertEqual(
+            command[-4:],
+            ["--provider", "claw-openai-compat", "--model", "deepseek-flash"],
+        )
+
+    def test_docker_command_requires_digest_and_config_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError, "digest-pinned"):
+                PiDockerRpcClient(tmp, docker_image="claw/pi:latest")
+            with self.assertRaisesRegex(ValueError, "PI_CODING_AGENT_DIR"):
+                PiDockerRpcClient(
+                    tmp,
+                    docker_image="claw/pi@sha256:" + "b" * 64,
+                )
+            with self.assertRaisesRegex(ValueError, "does not exist"):
+                PiDockerRpcClient(
+                    tmp,
+                    docker_image="claw/pi@sha256:" + "b" * 64,
+                    process_environment={
+                        "PI_CODING_AGENT_DIR": os.path.join(tmp, "missing")
+                    },
+                )
+
     def test_passes_explicit_environment_without_persisting_secret(self):
         server = textwrap.dedent(
             """
@@ -210,6 +259,29 @@ class TestPiRpcAgent(unittest.TestCase):
         self.assertEqual(tool_result["requested_tool_name"], "edit")
         self.assertEqual(tool_result["actual_tool_name"], "edit_file")
         self.assertIs(observer.finished[0], result)
+
+    def test_agent_exposes_secret_free_isolation_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = PiRpcAgent(
+                tmp,
+                model="provider/model",
+                isolation_attestation="docker-profile-v1",
+                isolation_metadata={
+                    "boundary": "pi_docker_rpc",
+                    "image": "claw/pi@sha256:" + "a" * 64,
+                    "tool_network_matches_claw_shell": False,
+                },
+            )
+
+        self.assertEqual(
+            agent.permissions["isolation_metadata"]["boundary"],
+            "pi_docker_rpc",
+        )
+        self.assertFalse(
+            agent.permissions["isolation_metadata"][
+                "tool_network_matches_claw_shell"
+            ]
+        )
 
     def test_benchmark_adapter_requires_isolation_attestation(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -334,8 +335,7 @@ class PiRpcClient:
             destination.put(line)
         destination.put(None)
 
-    @staticmethod
-    def _stop_process(process: subprocess.Popen) -> None:
+    def _stop_process(self, process: subprocess.Popen) -> None:
         if process.poll() is not None:
             return
         process.terminate()
@@ -344,6 +344,121 @@ class PiRpcClient:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=2.0)
+
+
+class PiDockerRpcClient(PiRpcClient):
+    """Run the complete Pi RPC process in a constrained Docker container.
+
+    Pi performs provider requests and tool execution in the same process, so
+    this boundary needs provider network access.  That tool-network difference
+    from Claw's offline Shell sandbox must remain visible in experiment claims.
+    """
+
+    def __init__(
+        self,
+        cwd: Union[str, Path],
+        *,
+        docker_image: str,
+        docker_executable: str = "docker",
+        network_mode: str = "bridge",
+        memory_limit: str = "1g",
+        cpu_limit: float = 2.0,
+        pids_limit: int = 256,
+        **kwargs: Any,
+    ) -> None:
+        if kwargs.get("command") is not None:
+            raise ValueError("Pi Docker RPC does not accept a custom command")
+        if kwargs.get("enforce_macos_seatbelt"):
+            raise ValueError("Pi Docker RPC cannot also enforce macOS Seatbelt")
+        if re.fullmatch(
+            r"[^@\s]+@sha256:[0-9a-fA-F]{64}", str(docker_image)
+        ) is None:
+            raise ValueError("Pi Docker image must be digest-pinned")
+        if network_mode not in {"bridge", "host"}:
+            raise ValueError("Pi Docker network_mode must be bridge or host")
+        if cpu_limit <= 0 or pids_limit <= 0:
+            raise ValueError("Pi Docker resource limits must be positive")
+        super().__init__(cwd, **kwargs)
+        config_dir = (self.process_environment or {}).get("PI_CODING_AGENT_DIR")
+        if not config_dir:
+            raise ValueError("Pi Docker RPC requires PI_CODING_AGENT_DIR")
+        resolved_config_dir = Path(config_dir).resolve()
+        if not resolved_config_dir.is_dir():
+            raise ValueError("Pi Docker RPC config directory does not exist")
+        self.config_dir = str(resolved_config_dir)
+        for label, value in (("workspace", self.cwd), ("config", self.config_dir)):
+            if "," in value:
+                raise ValueError(f"Pi Docker {label} path must not contain a comma")
+        self.docker_image = str(docker_image)
+        self.docker_executable = str(docker_executable)
+        self.network_mode = network_mode
+        self.memory_limit = str(memory_limit)
+        self.cpu_limit = float(cpu_limit)
+        self.pids_limit = int(pids_limit)
+        self.container_name = f"claw-pi-rpc-{uuid.uuid4().hex[:12]}"
+
+    def _build_command(self) -> List[str]:
+        command = [
+            self.docker_executable,
+            "run",
+            "--rm",
+            "--interactive",
+            "--pull=never",
+            "--name",
+            self.container_name,
+            "--network",
+            self.network_mode,
+            "--read-only",
+            "--user",
+            "1000:1000",
+            "--cap-drop=ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--pids-limit",
+            str(self.pids_limit),
+            "--memory",
+            self.memory_limit,
+            "--cpus",
+            str(self.cpu_limit),
+            "--tmpfs",
+            "/tmp:rw,nosuid,nodev,noexec,size=256m",
+            "--mount",
+            f"type=bind,src={self.cwd},dst=/workspace",
+            "--mount",
+            f"type=bind,src={self.config_dir},dst=/pi-config,readonly",
+            "--workdir",
+            "/workspace",
+            "--env",
+            "CLAW_PI_API_KEY",
+            "--env",
+            "PI_CODING_AGENT_DIR=/pi-config",
+            "--env",
+            "PI_OFFLINE=1",
+            "--env",
+            "HOME=/tmp/pi-home",
+            self.docker_image,
+            self.executable,
+            "--mode",
+            "rpc",
+            "--no-session",
+        ]
+        if self.provider:
+            command.extend(["--provider", self.provider])
+        if self.model:
+            command.extend(["--model", self.model])
+        command.extend(self.extra_args)
+        return command
+
+    def _stop_process(self, process: subprocess.Popen) -> None:
+        super()._stop_process(process)
+        subprocess.run(
+            [self.docker_executable, "rm", "--force", self.container_name],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=self.process_environment,
+        )
 
 
 def _message_text(message: Dict[str, Any]) -> str:
@@ -403,6 +518,7 @@ class PiRpcAgent:
         timeout_seconds: float = 900.0,
         max_total_tokens: Optional[int] = None,
         isolation_attestation: str = "",
+        isolation_metadata: Optional[Mapping[str, Any]] = None,
         process_environment: Optional[Mapping[str, str]] = None,
         enforce_macos_seatbelt: bool = False,
         client_factory: PiClientFactory = PiRpcClient,
@@ -416,6 +532,7 @@ class PiRpcAgent:
             raise ValueError("max_total_tokens must be positive")
         self.max_total_tokens = max_total_tokens
         self.isolation_attestation = isolation_attestation
+        self.isolation_metadata = dict(isolation_metadata or {})
         self.process_environment = process_environment
         self.enforce_macos_seatbelt = bool(enforce_macos_seatbelt)
         self.client_factory = client_factory
@@ -423,6 +540,7 @@ class PiRpcAgent:
         self.permissions: Dict[str, Any] = {
             "external_runtime": "pi_rpc",
             "isolation_attestation": isolation_attestation,
+            "isolation_metadata": self.isolation_metadata,
         }
         self.session: Optional[AgentSession] = None
         self.runtime_observer: Optional[Any] = None

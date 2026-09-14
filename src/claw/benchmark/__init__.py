@@ -8,7 +8,13 @@ from .metrics import (
 )
 from .local_agent_adapter import LocalAgentBenchmarkAdapter
 from .local_command import run_local_benchmark
-from .pi_rpc_adapter import PiRpcAgent, PiRpcBenchmarkAdapter, PiRpcClient, PiRpcError
+from .pi_rpc_adapter import (
+    PiDockerRpcClient,
+    PiRpcAgent,
+    PiRpcBenchmarkAdapter,
+    PiRpcClient,
+    PiRpcError,
+)
 from .pi_command import run_pi_benchmark
 from .report import AblationReportGenerator
 from .runtime_comparison import (
@@ -61,6 +67,7 @@ __all__ = [
     "PiRpcAgent",
     "PiRpcBenchmarkAdapter",
     "PiRpcClient",
+    "PiDockerRpcClient",
     "PiRpcError",
     "RuntimeComparisonReportGenerator",
     "SweBenchLiteAgentTask",

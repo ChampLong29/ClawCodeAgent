@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -16,6 +17,32 @@ from claw.data_pipeline.swe_bench_runtime_comparison import (
 
 
 class SweBenchRuntimeComparisonTests(unittest.TestCase):
+    def test_v2_ablation_plan_preserves_v1_and_pins_reconstructable_pi(self):
+        repository = Path(__file__).resolve().parents[1]
+        v1_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json"
+        )
+        plan = json.loads(
+            (
+                repository
+                / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            plan["extends"]["sha256"],
+            hashlib.sha256(v1_path.read_bytes()).hexdigest(),
+        )
+        self.assertEqual(
+            plan["pi_package"]["logical_runtime_version"], "pi@0.85.1"
+        )
+        self.assertRegex(
+            plan["container_boundaries"]["pi_image"],
+            r"@sha256:[0-9a-f]{64}$",
+        )
+        self.assertFalse(plan["admission"]["model_calls_started"])
+
     def test_versioned_ablation_plan_is_calibrated_selection_subset(self):
         repository = Path(__file__).resolve().parents[1]
         plan = json.loads(
@@ -297,7 +324,8 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                     claw_sandbox_image=(
                         "claw/swe-pilot@sha256:" + "a" * 64
                     ),
-                    claw_sandbox_python="/usr/local/bin/python",
+                    claw_sandbox_python="/opt/task/bin/python3.8",
+                    claw_sandbox_evaluator_python="/usr/local/bin/python",
                 )
 
             self.assertEqual(len(calls), 3)
@@ -323,6 +351,17 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             )
             self.assertEqual(
                 [call.get("sandbox_python_executable") for call in calls],
+                [
+                    "/opt/task/bin/python3.8",
+                    "/opt/task/bin/python3.8",
+                    "/opt/task/bin/python3.8",
+                ],
+            )
+            self.assertEqual(
+                [
+                    call.get("sandbox_evaluator_python_executable")
+                    for call in calls
+                ],
                 [
                     "/usr/local/bin/python",
                     "/usr/local/bin/python",
@@ -372,6 +411,25 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                     allowed_path_patterns=["target.py"],
                     claw_sandbox_backend="docker",
                     claw_sandbox_image="claw/swe-pilot:latest",
+                )
+
+    def test_three_arm_ablation_fails_closed_on_unpinned_pi_image(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with self.assertRaisesRegex(BenchmarkError, "Pi Docker image"):
+                run_swe_bench_lite_runtime_ablation(
+                    benchmark_root=root / "benchmark",
+                    instance_id="unused",
+                    python_executable=root / "python",
+                    evaluator_script=root / "evaluator.py",
+                    output_root=root / "output",
+                    generation_commit="commit",
+                    api_config_root=root,
+                    model_ref="deepseek-flash",
+                    model_backend_version="v4-flash-9_10",
+                    pi_executable=root / "unused-pi",
+                    pi_docker_image="claw/pi:latest",
+                    allowed_path_patterns=["target.py"],
                 )
 
     def test_non_macos_pi_requires_explicit_sandbox_attestation(self):

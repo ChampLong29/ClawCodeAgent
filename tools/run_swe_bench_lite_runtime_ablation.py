@@ -24,6 +24,8 @@ def main() -> int:
     parser.add_argument("--api-config-root", type=Path, default=Path.cwd())
     parser.add_argument("--model", default=DEFAULT_MODEL_NAME)
     parser.add_argument("--model-backend-version", default="v4-flash-9_10")
+    parser.add_argument("--pi-runtime-version", default="pi@0.85.1")
+    parser.add_argument("--pi-tool-version", default="pi-builtins@0.85.1")
     parser.add_argument(
         "--pi-executable",
         type=Path,
@@ -43,14 +45,29 @@ def main() -> int:
         help="Execution backend for the Claw Base and Claw Enhanced arms.",
     )
     parser.add_argument(
+        "--pi-docker-image",
+        help="Digest-pinned image for running the complete Pi RPC process.",
+    )
+    parser.add_argument(
+        "--pi-container-executable",
+        default="/opt/pi/node_modules/.bin/pi",
+        help="Absolute Pi executable path inside --pi-docker-image.",
+    )
+    parser.add_argument(
         "--claw-sandbox-image",
         help="Digest-pinned image required for Docker Claw arms.",
     )
     parser.add_argument(
         "--claw-sandbox-python",
         help=(
-            "Python executable inside the pinned Claw image; the image must "
-            "contain Claw and the task's evaluator dependencies."
+            "Task-test Python executable inside the pinned Claw image."
+        ),
+    )
+    parser.add_argument(
+        "--claw-sandbox-evaluator-python",
+        help=(
+            "Optional Python executable used to run the staged Claw evaluator; "
+            "defaults to --claw-sandbox-python."
         ),
     )
     parser.add_argument(
@@ -91,6 +108,8 @@ def main() -> int:
         model_ref=args.model,
         model_backend_version=args.model_backend_version,
         pi_executable=args.pi_executable,
+        pi_runtime_version=args.pi_runtime_version,
+        pi_tool_version=args.pi_tool_version,
         allowed_path_patterns=args.allow_path,
         temperature=args.temperature,
         max_tokens=args.max_tokens,
@@ -102,6 +121,9 @@ def main() -> int:
         claw_sandbox_backend=args.claw_sandbox_backend,
         claw_sandbox_image=args.claw_sandbox_image,
         claw_sandbox_python=args.claw_sandbox_python,
+        claw_sandbox_evaluator_python=args.claw_sandbox_evaluator_python,
+        pi_docker_image=args.pi_docker_image,
+        pi_container_executable=args.pi_container_executable,
     )
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0 if result["status"] == "comparable" else 2

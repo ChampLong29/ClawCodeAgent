@@ -1,8 +1,8 @@
 # Docker Sandbox 主机验证与接续手册
 
-状态：实现已完成，合同已验证；真实 Docker 安全验证与 Benchmark Pilot 待执行
+状态：实现与合同已验证；真实 Docker 边界及首个任务镜像已完成冒烟，付费 Pilot 未执行
 
-状态日期：2026-09-11
+状态日期：2026-09-14
 
 本文是把当前工作迁移到具备 Docker 的主机后直接继续执行的操作手册。架构决策、
 威胁模型和后端比较见
@@ -233,11 +233,13 @@ python -m json.tool \
 - 进程退出清理是尽力而为；尚无跨进程 Lease 和残留扫描器。
 - SELinux Bind Mount Label、设备策略和 Rootless daemon 证明尚未实现。
 - 任务清单中的命令必须能在容器镜像内执行。SWE-bench Dev 三臂入口会把 evaluator
-  随隐藏资产注入并使用 `--claw-sandbox-python`，但镜像仍必须预装 Claw 和该历史任务的
-  冻结依赖；宿主校准环境不会自动复制进镜像。
-- 轻量 Rollout、训练 `SandboxManager`、MCP 外部进程和 Pi RPC 尚未统一迁移到该
-  Docker Backend。三臂入口可让 Pi 的 Verifier 使用同一 Backend，但 Pi Agent 进程
-  仍依赖操作者管理的容器包装器与显式 attestation。
+  随隐藏资产注入，并分别支持 `--claw-sandbox-python` 历史任务解释器与可选的
+  `--claw-sandbox-evaluator-python`；镜像仍必须预装 Claw 和该历史任务的冻结依赖，
+  宿主校准环境不会自动复制进镜像。
+- 轻量 Rollout、训练 `SandboxManager`、MCP 外部进程和 Pi RPC 尚未统一迁移到 Session
+  Docker Backend。三臂入口可让 Pi 的 Verifier 使用同一 Backend，并可由
+  `PiDockerRpcClient` 启动完整 Pi 容器，但仍要求显式 attestation。Pi Provider 与工具
+  共用容器网络，而 Claw Shell 离线，不能宣称网络策略等价。
 - 正式 SWE-bench 仍必须接入官方 Docker Harness；本地 Pilot 不能当作官方分数。
 
 推荐在 Docker 主机按以下顺序继续：

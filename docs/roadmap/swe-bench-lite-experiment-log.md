@@ -959,3 +959,23 @@ Docker Backend、digest-pinned 镜像和镜像内 Python 参数。Claw Base、Cl
 该阶段仅完成代码与聚焦测试验证。没有据此宣称本机 Docker daemon、任务镜像、Pi
 容器包装器或付费三臂 Episode 已验证；真实运行前仍需恢复忽略的历史 Python 环境和
 Pi runtime，并执行 model-free Docker/RPC smoke。
+
+## 2026-09-13 至 2026-09-14：首题 Docker 校准与 Pi RPC 容器冒烟
+
+Docker Desktop Linux Engine 与 Ubuntu-24.04 集成恢复后，固定 Alpine 探针验证了
+离线网络、只读 RootFS、非 root、能力清空和一次性工作区。Marshmallow-1343 专用镜像
+分离 `/usr/bin/python3` 的 Claw evaluator 与 `/opt/task/bin/python3.8` 的历史测试环境；
+基线/Oracle Docker 校准通过。为 Windows bind mount 的 UID 差异，Evaluator 只对精确
+Episode 仓库设置单命令 `safe.directory`，没有修改全局 Git 配置。
+
+旧命名空间 `@mariozechner/pi-coding-agent` 没有 0.85.1，但官方包已迁移为
+`@earendil-works/pi-coding-agent@0.85.1`；提交前复核新命名空间后保留原冻结逻辑版本，
+并由 v2 计划明确包名。锁文件与离线归档分别固化依赖闭包。`PiDockerRpcClient` 现在构造
+digest-pinned、禁止隐式拉取、非 root、只读 RootFS、能力与资源受限的完整 Pi RPC
+容器，并做精确名称清理。Node 24.20.0 中 Pi 0.85.1 版本检查通过，无网络空会话 RPC
+stats 返回 0 消息、0 工具、0 Token，未产生模型调用。
+
+边界不隐藏：真实 Pi Provider 请求需要容器网络，而 Pi Shell 与 Provider 同进程；
+Claw Shell 仍离线，因此两者不具备网络策略等价性。当前只完成首题任务镜像，按冻结
+准入规则，剩余任务镜像/校准及 `.env` 模型 ID 对齐完成前不启动 21 个付费 Episode。
+新计划见 `configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json`。

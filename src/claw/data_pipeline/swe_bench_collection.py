@@ -168,6 +168,7 @@ def collect_swe_bench_lite_dev_episode(
     sandbox_backend_name: str = "host",
     sandbox_image: Optional[str] = None,
     sandbox_python_executable: Optional[str] = None,
+    sandbox_evaluator_python_executable: Optional[str] = None,
     manage_agent_sandbox: bool = True,
 ) -> TrainingEpisodeCollectionResult:
     """Run one Dev issue while keeping evaluator assets outside agent context."""
@@ -270,9 +271,13 @@ def collect_swe_bench_lite_dev_episode(
             raise BenchmarkError(
                 "Docker SWE-bench collection requires sandbox_python_executable"
             )
-    elif sandbox_image or sandbox_python_executable:
+    elif (
+        sandbox_image
+        or sandbox_python_executable
+        or sandbox_evaluator_python_executable
+    ):
         raise BenchmarkError(
-            "sandbox_image and sandbox_python_executable require Docker"
+            "sandbox image and Python executables require Docker"
         )
 
     benchmark = SweBenchLiteDevAdapter(benchmark_root)
@@ -298,6 +303,9 @@ def collect_swe_bench_lite_dev_episode(
         timeout_seconds=timeout_seconds,
         allowed_path_patterns=patterns,
         sandbox_python_executable=sandbox_python_executable,
+        sandbox_evaluator_python_executable=(
+            sandbox_evaluator_python_executable
+        ),
     )
     task = materialized.task_spec
     config_root = Path(api_config_root or Path.cwd()).resolve()
@@ -338,6 +346,10 @@ def collect_swe_bench_lite_dev_episode(
         decoding_config["sandbox_image"] = str(sandbox_image)
         decoding_config["sandbox_python_executable"] = str(
             sandbox_python_executable
+        )
+        decoding_config["sandbox_evaluator_python_executable"] = str(
+            sandbox_evaluator_python_executable
+            or sandbox_python_executable
         )
 
     configured_python = Path(python_executable).expanduser().absolute()

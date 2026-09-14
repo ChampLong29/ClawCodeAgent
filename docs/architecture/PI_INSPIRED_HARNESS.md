@@ -171,11 +171,12 @@ same internal architecture.
 
 The attestation is an operator-supplied evidence label recorded in the
 trajectory. The adapter can enforce the repository's macOS Seatbelt profile
-for the complete Pi process. On Docker hosts, the operator can launch Pi through
-a container wrapper and record that stronger boundary, but the current
-`PiRpcClient` still owns a local long-lived subprocess and does not create or
-inspect that container through Claw's `SandboxBackend`. The comparison report
-therefore does not independently certify the operator's attestation.
+for the complete Pi process. On Docker hosts, `PiDockerRpcClient` constructs a
+digest-pinned, no-implicit-pull container for the complete JSONL process with a
+non-root user, read-only RootFS, dropped capabilities and resource limits. It
+also performs exact-name cleanup after the attached Docker process stops. This
+client is not owned by Claw's session `SandboxBackend`, so the operator's
+attestation remains distinct from the Agent/Verifier Sandbox evidence.
 
 `claw benchmark-pi` exposes this path without bypassing those requirements. It
 requires explicit Pi runtime/tool versions, model reference, and sandbox
@@ -211,7 +212,8 @@ are fixed and archived:
 1. the same immutable Test manifest and workspace template;
 2. the same model ID/revision, provider, temperature/thinking settings, and
    maximum tool-bearing turns where supported;
-3. equivalent filesystem/network containment;
+3. explicitly recorded filesystem/network containment; any difference must
+   remain a treatment difference rather than an equivalence claim;
 4. the same hidden tests and Diff allowlist;
 5. separate append-only trajectories and Verification v2 reports;
 6. the pinned Pi version and Claw commit/runtime version.
@@ -242,26 +244,30 @@ issue but made no source mutation. The immutable local artifacts remain outside
 Git under `.port_sessions/`; the checked-in JSON stores their hashes and narrow
 claim boundary.
 
-The preregistered pilot is
-`configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v1.json`. On a Docker
+The current preregistered pilot is
+`configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json`. It preserves
+the v1 task order and `pi@0.85.1` controls while naming the reconstructable
+`@earendil-works/pi-coding-agent@0.85.1` package and Docker boundary. On a Docker
 host, continue in this order:
 
 1. validate Claw's Docker Backend with
    `docs/architecture/DOCKER_SANDBOX_VALIDATION_RUNBOOK.md`;
-2. pin a Pi image/runtime and provide a wrapper that keeps the JSONL process
+2. pin a Pi image/runtime and use `--pi-docker-image` to keep the JSONL process
    inside that container for its entire lifetime;
 3. run one model-free RPC smoke and one calibrated task before the seven-task
    paid pilot;
 4. archive both local Verification v2 and official Harness evidence before
    making an official Benchmark claim.
 
-The three-arm entrypoint now accepts a digest-pinned Claw image and an
-in-container Python executable. Claw Base, Claw Enhanced, and every arm's
+The three-arm entrypoint now accepts a digest-pinned Claw image plus distinct
+in-container task and optional evaluator Python executables. Claw Base, Claw Enhanced, and every arm's
 Verifier use that backend; Docker task commands stage the evaluator with hidden
-assets rather than referencing host-only paths. Pi Agent execution remains the
-operator wrapper's responsibility, and disabling Seatbelt now fails closed
-unless an explicit Pi sandbox attestation is supplied. These are contract-level
-improvements, not evidence that a live Docker/Pi run succeeded.
+assets rather than referencing host-only paths. The Marshmallow-1343 image has
+passed local baseline/reference Docker calibration, and the fixed Pi image has
+answered a network-disabled empty-session RPC stats request with zero tokens.
+No paid model call was made. Pi must use Provider network access for real runs;
+because its tools share that process, this differs from Claw's offline Shell and
+prevents a network-policy parity claim.
 
 ## 8. Upstream references and provenance
 

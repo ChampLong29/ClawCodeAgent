@@ -362,16 +362,21 @@ python tools/run_swe_bench_lite_runtime_ablation.py \
   --model deepseek-flash \
   --claw-sandbox-backend docker \
   --claw-sandbox-image '<TASK_IMAGE@sha256:DIGEST>' \
-  --claw-sandbox-python /usr/local/bin/python \
-  --pi-executable '<OPERATOR_MANAGED_PI_DOCKER_WRAPPER>' \
+  --claw-sandbox-python /opt/task/bin/python3.8 \
+  --claw-sandbox-evaluator-python /usr/bin/python3 \
+  --pi-docker-image 'claw-local/pi-rpc@sha256:<64-hex-digest>' \
+  --pi-container-executable /opt/pi/node_modules/.bin/pi \
   --no-macos-seatbelt \
   --pi-sandbox-attestation '<EXACT_PI_CONTAINER_BOUNDARY>'
 ```
 
-镜像内 Python 必须可导入 Claw，并包含目标历史仓库的冻结测试依赖；宿主
+镜像内 evaluator Python 必须可导入 Claw，task Python 必须包含目标历史仓库的冻结
+测试依赖；两者可以是不同版本。宿主
 `--python` 仍用于模型调用前的工作区导入准入。Claw Agent 与 Verifier 由
-`SandboxBackend` 管理，Pi Agent 仍由外部包装器管理；不要把 Pi 的 attestation
-描述为程序独立验证。若缺少 digest、镜像内 Python 或非 macOS Pi 隔离证明，入口会在
+`SandboxBackend` 管理。Pi Docker RPC 由入口构造受限容器命令，但不归属于 Session
+Sandbox Backend；不要把 Pi 的 attestation 描述为完整策略等价认证。Pi 的模型请求和
+工具同进程，因此 Provider 网络也对 Pi Shell 可见，而 Claw Shell 保持离线。这是必须
+报告的处理差异。若缺少 digest、镜像内 Python 或非 macOS Pi 隔离证明，入口会在
 模型调用前失败。
 
 已归档一个 Marshmallow-1343 的真实 Claw–Pi 对照，Claw 通过测试而 Pi 未编辑；它只
