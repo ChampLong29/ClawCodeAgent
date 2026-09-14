@@ -42,6 +42,7 @@ def main() -> int:
             tmpfs_size="16m",
         )
     )
+    disposable_contract = runner.verify_disposable_workspace_contract()
     if args.workspace:
         workspace = Path(args.workspace).resolve()
         workspace.mkdir(parents=True, exist_ok=True)
@@ -64,7 +65,11 @@ def main() -> int:
                 f"cd {runner.config.workspace_target}"
             )
         ),
-        "verified": result.returncode == 0,
+        "disposable_workspace_contract": disposable_contract,
+        "verified": (
+            result.returncode == 0
+            and disposable_contract.get("status") == "passed"
+        ),
     }
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0 if payload["verified"] else 1

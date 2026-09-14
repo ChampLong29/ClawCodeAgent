@@ -40,6 +40,15 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=4096)
     parser.add_argument("--max-turns", type=int, default=24)
     parser.add_argument("--max-total-tokens", type=int, default=250000)
+    parser.add_argument(
+        "--thinking-mode",
+        choices=("enabled", "disabled"),
+        default="disabled",
+        help=(
+            "Freeze DeepSeek thinking explicitly. Corrected pilots default to "
+            "non-thinking mode; enabled mode requires reasoning-content replay."
+        ),
+    )
     parser.add_argument("--timeout", type=float, default=900.0)
     parser.add_argument("--allow-path", action="append")
     parser.add_argument(
@@ -57,9 +66,12 @@ def main() -> int:
     parser.add_argument("--generation-commit")
     parser.add_argument(
         "--claw-sandbox-backend",
-        choices=("host", "docker"),
-        default="host",
-        help="Execution backend for the Claw Base and Claw Enhanced arms.",
+        choices=("docker",),
+        default="docker",
+        help=(
+            "Execution backend for Claw arms. Corrected ablations require "
+            "Docker so allowlisted Shell calls use disposable copies."
+        ),
     )
     parser.add_argument(
         "--pi-docker-image",
@@ -73,6 +85,12 @@ def main() -> int:
     parser.add_argument(
         "--claw-sandbox-image",
         help="Digest-pinned image required for Docker Claw arms.",
+    )
+    parser.add_argument(
+        "--claw-container-engine",
+        choices=("auto", "docker", "podman"),
+        default="auto",
+        help="OCI engine used for disposable Claw shell commands.",
     )
     parser.add_argument(
         "--claw-sandbox-python",
@@ -135,8 +153,6 @@ def main() -> int:
             args.claw_sandbox_evaluator_python
             or task_environment.get("evaluator_python")
         )
-    elif args.python is None:
-        parser.error("--python is required with --claw-sandbox-backend host")
     pi_environment = environment_manifest.get("pi", {})
     if not isinstance(pi_environment, dict):
         parser.error("Pi runtime environment must be a JSON object")
@@ -174,6 +190,7 @@ def main() -> int:
         max_tokens=args.max_tokens,
         max_turns=args.max_turns,
         max_total_tokens=args.max_total_tokens,
+        thinking_mode=args.thinking_mode,
         timeout_seconds=args.timeout,
         enforce_macos_seatbelt=not args.no_macos_seatbelt,
         sandbox_attestation=args.pi_sandbox_attestation,
@@ -181,6 +198,7 @@ def main() -> int:
         claw_sandbox_image=args.claw_sandbox_image,
         claw_sandbox_python=args.claw_sandbox_python,
         claw_sandbox_evaluator_python=args.claw_sandbox_evaluator_python,
+        claw_container_engine=args.claw_container_engine,
         pi_docker_image=args.pi_docker_image,
         pi_container_executable=args.pi_container_executable,
     )

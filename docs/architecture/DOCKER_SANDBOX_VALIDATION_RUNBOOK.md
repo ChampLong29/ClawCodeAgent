@@ -240,6 +240,9 @@ python -m json.tool \
   Docker Backend。三臂入口可让 Pi 的 Verifier 使用同一 Backend，并可由
   `PiDockerRpcClient` 启动完整 Pi 容器，但仍要求显式 attestation。Pi Provider 与工具
   共用容器网络，而 Claw Shell 离线，不能宣称网络策略等价。
+- 校正后的三臂入口在任何模型调用前执行一次一次性 Shell 合约：候选快照必须可见，
+  容器写入必须被丢弃，并把通过证据写入 `runtime-ablation.json.admission`。该 Runner
+  必须同时注入两个 Claw 臂；只验证 Verifier 容器不足以通过准入。
 - 正式 SWE-bench 仍必须接入官方 Docker Harness；本地 Pilot 不能当作官方分数。
 
 推荐在 Docker 主机按以下顺序继续：

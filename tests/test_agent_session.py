@@ -69,6 +69,17 @@ class TestAgentSession(unittest.TestCase):
         self.assertEqual(s.messages[0]["tool_calls"][0]["id"], "call_1")
         self.assertEqual(s.messages[0]["tool_calls"][0]["name"], "bash")
 
+    def test_add_assistant_message_preserves_reasoning_for_provider_replay(self):
+        s = AgentSession(session_id="reasoning-test")
+        s.add_assistant_message(
+            thinking="private reasoning",
+            reasoning_content="private reasoning",
+        )
+        self.assertEqual(s.messages[0]["_thinking"], "private reasoning")
+        self.assertEqual(
+            s.messages[0]["reasoning_content"], "private reasoning"
+        )
+
     def test_add_tool_message(self):
         s = AgentSession(session_id="msg-test")
         s.add_tool_message(tool_call_id="call_1", content="file list output", tool_name="bash")

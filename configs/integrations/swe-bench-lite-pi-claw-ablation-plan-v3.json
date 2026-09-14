@@ -1,0 +1,68 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_plan.v3",
+  "status": "ready_for_corrected_micro_task",
+  "claim_boundary": "Local SWE-bench Lite Dev protocol only; not an official SWE-bench score. The first five v2 task samples are diagnostic and must not be pooled with v3 outcomes.",
+  "extends": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
+    "sha256": "c7e6cd5581ec64a8c09553f7b23ddeea0e26f1c0c7859d3b05863948f96c7222"
+  },
+  "retrospective_exclusions": {
+    "task_count": 5,
+    "reason": "All observed Claw bash requests were rejected because the three-arm driver omitted the disposable OCI command runner; DeepSeek thinking was also not explicitly frozen and OpenAI reasoning_content was not replayed.",
+    "use": "Failure analysis and regression evidence only",
+    "aggregate_with_v3": false,
+    "quality_retry": false
+  },
+  "corrected_controls": {
+    "model": "deepseek-flash",
+    "model_backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "thinking_mode": "disabled",
+    "temperature": 0.0,
+    "max_tokens": 4096,
+    "max_turns": 24,
+    "max_total_tokens": 250000,
+    "prompt_version": "swe-bench-lite-dev.runtime-ablation.v2",
+    "tool_version": "tool-schema.v4",
+    "verifier_version": "verifier-policy.v3",
+    "claw_config_version": "swe-bench-lite-claw-{base|enhanced}.v2",
+    "pi_config_version": "swe-bench-lite-pi-raw.v2"
+  },
+  "claw_base": {
+    "completion_reminder_turns": 0,
+    "completion_critical_turns": 0,
+    "implementation_deadline_turns": 0,
+    "implementation_escalation_turns": 0,
+    "force_direct_mutation_after_escalation": false,
+    "implementation_target_read_allowance": 0,
+    "implementation_constraint_repair_attempts": 0,
+    "reject_repeated_readonly_actions": false,
+    "repeated_action_repair_attempts": 0,
+    "force_final_response_at_critical": false,
+    "post_edit_contract_guidance": false
+  },
+  "claw_enhanced": {
+    "completion_reminder_turns": 8,
+    "completion_critical_turns": 3,
+    "implementation_deadline_turns": 10,
+    "implementation_escalation_turns": 4,
+    "force_direct_mutation_after_escalation": true,
+    "implementation_target_read_allowance": 1,
+    "implementation_constraint_repair_attempts": 1,
+    "reject_repeated_readonly_actions": true,
+    "repeated_action_repair_attempts": 1,
+    "force_final_response_at_critical": true,
+    "post_edit_contract_guidance": true
+  },
+  "admission_before_model_calls": {
+    "docker_backend": "required",
+    "digest_pinned_task_image": "required",
+    "disposable_shell_candidate_visible": "required",
+    "disposable_shell_mutations_discarded": "required",
+    "two_turn_openai_tool_probe": "required_once_per_endpoint_model_protocol",
+    "environment_baseline_to_oracle": "required_per_task",
+    "failure_policy": "fail_closed_without_model_request"
+  },
+  "admission_evidence": "configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json",
+  "continuation_rule": "Run a fresh corrected micro-task first. Start new SWE-bench task/arm Episodes only after the provider probe and disposable Shell admission pass; never rewrite or silently replace v2 records."
+}

@@ -1094,3 +1094,31 @@ settlement 记为 completed 且没有 runtime_stop。通用修复使未来 Pi `l
 该结果支持“早定位仍可能长期不编辑，单响应截断会成为独立瓶颈”，但不支持 Enhanced
 的因果结论或运行时统计优劣。机器证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-pvlib1707-result.json`。
+
+## 2026-09-15：三臂追溯审计与 v3 协议校正
+
+在继续扩题前对五题 Trajectory 做跨任务审计，发现可读的 Claw 轨迹中所有 `bash` 请求
+都被 `unsafe_shell_workspace` 安全拒绝。原因不是 Docker 不可用，而是三臂 Driver 只把
+Docker Backend 传给 Episode/Verifier，没有把现成的 `OCIContainerRunner` 传给 Claw
+Agent；写入 Allowlist 因而按设计 fail closed。Pi Shell 正常执行，导致三臂工具能力不
+等价。审计还发现 OpenAI 路径没有显式冻结 DeepSeek 默认思考模式，也没有在工具结果轮
+回放服务端要求的 `reasoning_content`；大文件 `read_file` 则可能先读取全文件，再被统一
+字符上限截断且不告知下一页。
+
+这些问题此前被逐题的环境与任务失败遮蔽，直到跨轨迹聚合 Shell 分发率才显现；这说明
+只做单题准入和末端测试不足。五题 v2 结果原样保留，但降级为诊断性证据，不再用于
+Harness 成功率比较，也不与后续结果合并。
+
+通用修复包括：三臂入口强制 Docker；模型调用前运行一次候选可见/写入丢弃的真实 Shell
+合约并将同一 Runner 注入两个 Claw 臂；默认显式关闭 DeepSeek Thinking，支持完整
+`reasoning_content` 保存、流式聚合、会话持久化和下一轮回放；`read_file` 改为默认
+120 行、最多 500 行的可分页结果；Enhanced v2 真正启用重复只读拒绝、一次修复、升级后
+直接编辑与 Critical 最终回答约束。新的版本化边界见
+`configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json`。在合成两轮 Provider
+探针和真实一次性 Shell 门禁通过前，不启动新的付费 SWE-bench Episode。
+
+同日，无模型 Docker 门禁在固定 Marshmallow 镜像上通过，确认候选可见、Shell 修改被
+丢弃、网络关闭、RootFS 只读且能力清空。随后仅向 `api.deepseek.com` 发送合成
+`src/example.py` 内容，未发送仓库代码；`deepseek-flash` 在 Thinking Disabled 下首轮
+返回一个结构化工具调用，回放工具结果后第二轮以 `finish_reason=stop` 正常结束。v3
+准入因此进入“可运行一个校正微任务”的状态，但仍未产生新的 SWE-bench 质量证据。

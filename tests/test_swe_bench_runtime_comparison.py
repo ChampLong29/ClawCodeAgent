@@ -55,7 +55,6 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                 / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
             ).read_text(encoding="utf-8")
         )
-
         self.assertEqual(
             plan["extends"]["sha256"],
             hashlib.sha256(v1_path.read_bytes()).hexdigest(),
@@ -68,6 +67,47 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             r"@sha256:[0-9a-f]{64}$",
         )
         self.assertFalse(plan["admission"]["model_calls_started"])
+
+    def test_v3_ablation_plan_excludes_diagnostic_v2_and_freezes_corrections(self):
+        repository = Path(__file__).resolve().parents[1]
+        v2_path = (
+            repository
+            / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json"
+        )
+        plan = json.loads(
+            (
+                repository
+                / "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json"
+            ).read_text(encoding="utf-8")
+        )
+        admission = json.loads(
+            (
+                repository
+                / "configs/integrations/"
+                "swe-bench-lite-pi-claw-ablation-v3-admission.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            plan["extends"]["sha256"],
+            hashlib.sha256(v2_path.read_bytes()).hexdigest(),
+        )
+        self.assertFalse(plan["retrospective_exclusions"]["aggregate_with_v3"])
+        self.assertEqual(plan["corrected_controls"]["thinking_mode"], "disabled")
+        self.assertEqual(
+            plan["corrected_controls"]["verifier_version"],
+            "verifier-policy.v3",
+        )
+        self.assertTrue(
+            plan["claw_enhanced"]["force_direct_mutation_after_escalation"]
+        )
+        self.assertEqual(
+            plan["admission_before_model_calls"]["docker_backend"], "required"
+        )
+        self.assertEqual(plan["status"], "ready_for_corrected_micro_task")
+        self.assertTrue(admission["claw_shell"]["verified"])
+        self.assertTrue(admission["provider_probe"]["verified"])
+        self.assertFalse(admission["provider_probe"]["repository_content_sent"])
 
     def test_first_ablation_result_preserves_raw_and_budgeted_outcomes(self):
         repository = Path(__file__).resolve().parents[1]
@@ -292,16 +332,26 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(
             {
                 key: plan["arms"]["claw_base"][key]
-                for key in resolve_claw_ablation_profile("base")
+                for key in plan["arms"]["claw_base"]
+                if key != "runtime"
             },
-            resolve_claw_ablation_profile("base"),
+            {
+                key: value
+                for key, value in resolve_claw_ablation_profile("base").items()
+                if key in plan["arms"]["claw_base"]
+            },
         )
         self.assertEqual(
             {
                 key: plan["arms"]["claw_enhanced"][key]
-                for key in resolve_claw_ablation_profile("enhanced")
+                for key in plan["arms"]["claw_enhanced"]
+                if key != "runtime"
             },
-            resolve_claw_ablation_profile("enhanced"),
+            {
+                key: value
+                for key, value in resolve_claw_ablation_profile("enhanced").items()
+                if key in plan["arms"]["claw_enhanced"]
+            },
         )
         self.assertTrue(
             all(
@@ -322,6 +372,12 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         self.assertGreater(enhanced["completion_reminder_turns"], 0)
         self.assertGreater(enhanced["implementation_deadline_turns"], 0)
         self.assertGreater(enhanced["implementation_escalation_turns"], 0)
+        self.assertTrue(enhanced["force_direct_mutation_after_escalation"])
+        self.assertEqual(enhanced["implementation_target_read_allowance"], 1)
+        self.assertEqual(enhanced["implementation_constraint_repair_attempts"], 1)
+        self.assertTrue(enhanced["reject_repeated_readonly_actions"])
+        self.assertEqual(enhanced["repeated_action_repair_attempts"], 1)
+        self.assertTrue(enhanced["force_final_response_at_critical"])
         self.assertTrue(enhanced["post_edit_contract_guidance"])
 
         with self.assertRaisesRegex(BenchmarkError, "unknown Claw ablation profile"):
@@ -489,11 +545,30 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                     "completion_critical_turns": kwargs["completion_critical_turns"],
                     "implementation_deadline_turns": kwargs["implementation_deadline_turns"],
                     "implementation_escalation_turns": kwargs["implementation_escalation_turns"],
+                    "force_direct_mutation_after_escalation": kwargs[
+                        "force_direct_mutation_after_escalation"
+                    ],
+                    "implementation_target_read_allowance": kwargs[
+                        "implementation_target_read_allowance"
+                    ],
+                    "implementation_constraint_repair_attempts": kwargs[
+                        "implementation_constraint_repair_attempts"
+                    ],
+                    "reject_repeated_readonly_actions": kwargs[
+                        "reject_repeated_readonly_actions"
+                    ],
+                    "repeated_action_repair_attempts": kwargs[
+                        "repeated_action_repair_attempts"
+                    ],
+                    "force_final_response_at_critical": kwargs[
+                        "force_final_response_at_critical"
+                    ],
                     "post_edit_contract_guidance": kwargs["post_edit_contract_guidance"],
                     "implementation_path_patterns": list(
                         kwargs["allowed_path_patterns"]
                     ),
                     "max_tokens": kwargs["max_tokens"],
+                    "thinking_mode": kwargs["thinking_mode"],
                 }
                 manifest = SimpleNamespace(
                     collection_id=f"collection-{len(calls)}",
@@ -531,11 +606,18 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             with patch(
                 "claw.data_pipeline.swe_bench_runtime_comparison.APIConfigRuntime"
             ) as runtime, patch(
+                "claw.data_pipeline.swe_bench_runtime_comparison.OCIContainerRunner"
+            ) as runner_class, patch(
                 "claw.data_pipeline.swe_bench_runtime_comparison."
                 "collect_swe_bench_lite_dev_episode",
                 side_effect=collect,
             ):
                 runtime.return_value.get_config.return_value = api
+                runner_class.return_value.verify_disposable_workspace_contract.return_value = {
+                    "status": "passed",
+                    "candidate_snapshot_visible": True,
+                    "shell_mutations_discarded": True,
+                }
                 result = run_swe_bench_lite_runtime_ablation(
                     benchmark_root=root / "benchmark",
                     instance_id="marshmallow-code__marshmallow-1343",
@@ -569,6 +651,13 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             self.assertFalse(calls[0]["post_edit_contract_guidance"])
             self.assertEqual(calls[1]["implementation_deadline_turns"], 10)
             self.assertTrue(calls[1]["post_edit_contract_guidance"])
+            self.assertFalse(calls[0]["force_direct_mutation_after_escalation"])
+            self.assertTrue(calls[1]["force_direct_mutation_after_escalation"])
+            self.assertTrue(calls[1]["reject_repeated_readonly_actions"])
+            self.assertTrue(calls[1]["force_final_response_at_critical"])
+            self.assertIs(calls[0]["agent_command_runner"], runner_class.return_value)
+            self.assertIs(calls[1]["agent_command_runner"], runner_class.return_value)
+            self.assertIsNone(calls[2].get("agent_command_runner"))
             self.assertEqual(
                 [call.get("sandbox_backend_name") for call in calls],
                 ["docker", "docker", "docker"],
@@ -612,6 +701,11 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
                 result["controls"]["decoding_config"]["max_total_tokens"],
                 250000,
             )
+            self.assertEqual(
+                result["controls"]["decoding_config"]["thinking_mode"],
+                "disabled",
+            )
+            self.assertEqual(result["admission"]["claw_disposable_shell"]["status"], "passed")
             self.assertEqual(
                 set(result["results"]), {"claw_base", "claw_enhanced", "pi_raw"}
             )
@@ -675,21 +769,32 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             root = Path(temporary)
             executable = root / "pi"
             executable.write_text("", encoding="utf-8")
-            with self.assertRaisesRegex(BenchmarkError, "sandbox_attestation"):
-                run_swe_bench_lite_runtime_ablation(
-                    benchmark_root=root / "benchmark",
-                    instance_id="unused",
-                    python_executable=root / "python",
-                    evaluator_script=root / "evaluator.py",
-                    output_root=root / "output",
-                    generation_commit="commit",
-                    api_config_root=root,
-                    model_ref="deepseek-flash",
-                    model_backend_version="v4-flash-9_10",
-                    pi_executable=executable,
-                    allowed_path_patterns=["target.py"],
-                    enforce_macos_seatbelt=False,
-                )
+            with patch(
+                "claw.data_pipeline.swe_bench_runtime_comparison.OCIContainerRunner"
+            ) as runner_class:
+                runner_class.return_value.verify_disposable_workspace_contract.return_value = {
+                    "status": "passed"
+                }
+                with self.assertRaisesRegex(BenchmarkError, "sandbox_attestation"):
+                    run_swe_bench_lite_runtime_ablation(
+                        benchmark_root=root / "benchmark",
+                        instance_id="unused",
+                        python_executable=None,
+                        evaluator_script=root / "evaluator.py",
+                        output_root=root / "output",
+                        generation_commit="commit",
+                        api_config_root=root,
+                        model_ref="deepseek-flash",
+                        model_backend_version="v4-flash-9_10",
+                        pi_executable=executable,
+                        allowed_path_patterns=["target.py"],
+                        enforce_macos_seatbelt=False,
+                        claw_sandbox_backend="docker",
+                        claw_sandbox_image=(
+                            "claw/swe-pilot@sha256:" + "a" * 64
+                        ),
+                        claw_sandbox_python="/opt/task/bin/python3.8",
+                    )
 
 
 if __name__ == "__main__":

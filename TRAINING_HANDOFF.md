@@ -35,11 +35,12 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
 - The resource-bounded comparison protocol separates DSH Minimal, Claw Minimal,
   and Claw Controlled and fixes policy-compliant resolution plus budgeted
   resolution as primary metrics.
-- The seven-task Claw Base / Claw Enhanced / Pi Raw pilot has completed its first
-  five tasks. Raw resolution is respectively Base 0/5, Enhanced 1/5, and Pi 1/5;
-  every policy-compliant and budgeted result is 0/5. The SQLFluff-1763 original Verifier
-  regression failures are preserved but were traced to missing private `/dev/shm`;
-  model-free clean verification passes all 66 regressions for every candidate.
+- The first five Claw Base / Claw Enhanced / Pi Raw samples are retained as a
+  diagnostic v2 pilot, not a success-rate comparison. A retrospective audit found
+  that every readable Claw `bash` request was rejected because the three-arm driver
+  omitted the disposable OCI command runner, while Pi Shell remained available.
+  DeepSeek thinking was also not explicitly frozen and OpenAI `reasoning_content`
+  was not replayed. Do not pool their 0/5, 1/5, 1/5 raw outcomes with corrected runs.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
   portable source of truth for the seven task images, in-container interpreters,
   allowlists, and Pi image. Docker admission now runs inside the pinned image, so
@@ -69,6 +70,8 @@ The authoritative evidence files are:
 - `configs/integrations/swe-bench-lite-pvlib1854-official-harness-evidence.json`
 - `configs/integrations/swe-bench-lite-pi-claw-ablation-sqlfluff1763-result.json`
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json`
+- `configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json`
+- `configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json`
 
 ## 2. What Git does not transfer
 

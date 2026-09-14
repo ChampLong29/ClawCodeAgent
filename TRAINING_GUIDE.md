@@ -363,6 +363,24 @@ python tools/run_swe_bench_lite_runtime_ablation.py \
   --pi-sandbox-attestation '<EXACT_PI_CONTAINER_BOUNDARY>'
 ```
 
+校正后的三臂入口强制使用 Docker，并在模型请求前运行一次可执行 Shell 门禁：容器必须
+能读取当前候选副本，容器内修改必须被丢弃。该 Runner 会实际注入 Claw Base 与 Enhanced，
+不再只配置 Verifier Docker。默认显式发送 `thinking={"type":"disabled"}`；启用思考时，
+OpenAI 客户端保留并回放工具调用消息的完整 `reasoning_content`。首次使用某个
+endpoint/model/protocol 组合前，先运行不含仓库内容的合成两轮探针：
+
+```bash
+python tools/probe_openai_tool_reasoning.py \
+  --api-config-root . \
+  --model deepseek-flash \
+  --thinking-mode disabled \
+  --output .port_sessions/provider-probes/deepseek-openai-disabled.json
+```
+
+`read_file` 使用有上限的分页结果（默认 120 行、最多 500 行），并把 `truncated` 与
+`next_offset` 放在内容字段之前。Claw Enhanced v2 除 Deadline/Post-edit 提示外，还真正
+启用重复只读拒绝、一次修复机会、升级后的直接编辑约束和 Critical 最终回答约束。
+
 默认的 `configs/integrations/swe-bench-lite-runtime-environments-v1.json` 集中解析任务
 镜像摘要、task/evaluator Python、Allowlist 与 Pi 容器；可用
 `--runtime-environments` 切换另一份版本化清单，或用原有参数逐项覆盖。镜像内 evaluator
@@ -416,6 +434,15 @@ Claw 的截断停止被 Bad Case 优先级误标为环境故障，Pi 则把截�
 completed。修复后，未来两条路径都保留 `runtime_stop=model_output_truncated` 并归入
 `budget_or_timeout`；原始 Episode 不改写、不重跑。证据见
 `configs/integrations/swe-bench-lite-pi-claw-ablation-pvlib1707-result.json`。
+
+对前五题轨迹做跨任务追溯审计后，发现所有可读 Claw `bash` 请求都被
+`unsafe_shell_workspace` 拒绝：三臂 Driver 配置了写入 Allowlist，却没有把已有的
+一次性 OCI Command Runner 传给 Agent；Pi Shell 不受这一接线缺陷影响。这使三臂执行
+能力不等价，是严重实验污染，而不是模型能力结论。另有 DeepSeek 思考默认值未冻结及
+OpenAI `reasoning_content` 未回放问题。因此前五题降级为诊断性 v2 证据，累计 0/5、1/5、
+1/5 不得继续作为 Harness 成功率对比。原始 Episode 不改写、不做质量重试；后续只按
+`configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json` 产生新的、独立汇总的
+校正 Episode。
 
 ## 7. Episode、Trajectory 与 Verification
 

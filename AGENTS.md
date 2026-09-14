@@ -141,6 +141,13 @@ attested host executable supplied as `--pi-executable`, or through the explicit
 Use `--api-config-root <dir>` when benchmark arms need isolated model-provider
 configuration. It changes API configuration discovery only, not the task workspace.
 
+Corrected three-arm runs use protocol v3 and require Docker. Before any model call,
+the entrypoint must prove that the injected disposable OCI Shell runner can read the
+candidate snapshot and that its writes do not persist. Freeze DeepSeek thinking
+explicitly (the default is disabled); if enabled, preserve and replay the complete
+OpenAI `reasoning_content` on the next tool-result turn. Run the synthetic
+`tools/probe_openai_tool_reasoning.py` once per endpoint/model/protocol combination.
+
 Docker benchmarks require a local digest-pinned image and use distinct Agent
 and Verifier sandboxes:
 
@@ -439,6 +446,11 @@ When changing session schemas, maintain backward-compatible loading or provide a
   the disclosed Pi-only infrastructure retry passed all tests but exceeded the
   cumulative token budget, so it is raw Resolved but not policy-compliant or
   budgeted Resolved. Do not replace these records with quality retries.
+- A later trajectory audit invalidated the first five v2 samples as a Harness
+  success-rate comparison: the three-arm driver omitted the disposable command
+  runner, so all readable Claw Shell requests were policy-rejected while Pi Shell
+  worked; thinking mode was also not explicit and OpenAI reasoning was not replayed.
+  Preserve these Episodes only as diagnostic evidence and never pool them with v3.
 - Astroid-1196 is also sampled. Base and Pi made no edit; Enhanced passed two
   target and 24 regression tests but hit the turn limit. Preserve Base from the
   run whose collection finalization failed after verification, and preserve

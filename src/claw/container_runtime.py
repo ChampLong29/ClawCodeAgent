@@ -210,6 +210,42 @@ class OCIContainerRunner:
             **self._probe,
         }
 
+    def verify_disposable_workspace_contract(self) -> Dict[str, Any]:
+        """Prove that shell commands see a snapshot and cannot mutate its source."""
+        with tempfile.TemporaryDirectory(prefix="claw-shell-contract-") as temporary:
+            workspace = Path(temporary) / "workspace"
+            workspace.mkdir()
+            source = workspace / "candidate.txt"
+            source.write_text("candidate-visible\n", encoding="utf-8")
+            result = self.run(
+                (
+                    "test \"$(cat candidate.txt)\" = candidate-visible && "
+                    "printf 'container-only\\n' > candidate.txt && "
+                    "printf 'discarded\\n' > shell-marker.txt"
+                ),
+                cwd=str(workspace),
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise ContainerRuntimeError(
+                    "disposable Agent shell could not read the candidate snapshot: "
+                    + (result.stderr.strip() or result.stdout.strip() or "unknown error")
+                )
+            if source.read_text(encoding="utf-8") != "candidate-visible\n":
+                raise ContainerRuntimeError(
+                    "disposable Agent shell modified the source workspace"
+                )
+            if (workspace / "shell-marker.txt").exists():
+                raise ContainerRuntimeError(
+                    "disposable Agent shell persisted a container-created file"
+                )
+        return {
+            "status": "passed",
+            "candidate_snapshot_visible": True,
+            "shell_mutations_discarded": True,
+            "runner": self.describe(),
+        }
+
     def run(
         self,
         command: str,

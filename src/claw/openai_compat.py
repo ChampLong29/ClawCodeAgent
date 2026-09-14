@@ -52,6 +52,34 @@ class OpenAICompatClient:
         self.model = model or os.environ.get("OPENAI_MODEL", DEFAULT_MODEL_NAME)
         self._timeout = int(os.environ.get("CLAW_API_TIMEOUT", str(self.DEFAULT_TIMEOUT)))
 
+    def _prepare_messages(
+        self, messages: List[Dict[str, Any]], *, model: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Strip runtime-only fields and restore DeepSeek reasoning on replay."""
+        selected_model = str(model or self.model).lower()
+        is_deepseek = (
+            "deepseek" in selected_model or "api.deepseek.com" in self.base_url.lower()
+        )
+        allowed = {
+            "role",
+            "content",
+            "name",
+            "tool_calls",
+            "tool_call_id",
+            "function_call",
+        }
+        prepared: List[Dict[str, Any]] = []
+        for original in messages:
+            message = {key: value for key, value in original.items() if key in allowed}
+            if is_deepseek and message.get("role") == "assistant":
+                reasoning_content = original.get("reasoning_content")
+                if reasoning_content is None:
+                    reasoning_content = original.get("_thinking")
+                if reasoning_content is not None:
+                    message["reasoning_content"] = reasoning_content
+            prepared.append(message)
+        return prepared
+
     def complete(
         self,
         messages: List[Dict[str, Any]],
@@ -68,7 +96,7 @@ class OpenAICompatClient:
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
-            "messages": messages,
+            "messages": self._prepare_messages(messages, model=model),
         }
 
         if temperature is not None:
@@ -122,6 +150,13 @@ class OpenAICompatClient:
                 if "function_call" in message:
                     result["function_call"] = message["function_call"]
 
+                # DeepSeek requires the complete reasoning_content to be sent
+                # back with an assistant tool-call message on the next turn.
+                if "reasoning_content" in message:
+                    result["reasoning_content"] = message["reasoning_content"]
+                    if message["reasoning_content"]:
+                        result["_thinking"] = message["reasoning_content"]
+
                 # Parse usage
                 usage = data.get("usage", {})
                 result["usage"] = {
@@ -158,7 +193,7 @@ class OpenAICompatClient:
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
-            "messages": messages,
+            "messages": self._prepare_messages(messages, model=model),
             "stream": True,
         }
 
@@ -199,7 +234,8 @@ class OpenAICompatClient:
 
                     try:
                         chunk = json.loads(line)
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choice = chunk.get("choices", [{}])[0]
+                        delta = choice.get("delta", {})
 
                         result = {"role": delta.get("role", "assistant")}
                         if "content" in delta:
@@ -208,6 +244,18 @@ class OpenAICompatClient:
                             result["tool_calls"] = delta["tool_calls"]
                         if "function_call" in delta:
                             result["function_call"] = delta["function_call"]
+                        if "reasoning_content" in delta:
+                            result["reasoning_content"] = delta["reasoning_content"]
+                        if choice.get("finish_reason") is not None:
+                            result["finish_reason"] = choice["finish_reason"]
+                        usage = chunk.get("usage")
+                        if usage:
+                            result["usage"] = {
+                                "input_tokens": usage.get("prompt_tokens", 0),
+                                "output_tokens": usage.get("completion_tokens", 0),
+                                "model_calls": 1,
+                                "tool_calls": 0,
+                            }
 
                         yield result
                     except json.JSONDecodeError:

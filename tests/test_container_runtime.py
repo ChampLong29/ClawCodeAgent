@@ -56,6 +56,21 @@ class EpisodeCommandRunner:
 
 
 class OCIContainerRunnerTests(unittest.TestCase):
+    def test_disposable_workspace_contract_is_a_fail_closed_admission_gate(self):
+        executor = RecordingExecutor()
+        runner = OCIContainerRunner(
+            OCIContainerConfig(image="python:3.11-slim"),
+            executable="docker",
+            executor=executor,
+        )
+
+        result = runner.verify_disposable_workspace_contract()
+
+        self.assertEqual(result["status"], "passed")
+        self.assertTrue(result["candidate_snapshot_visible"])
+        self.assertTrue(result["shell_mutations_discarded"])
+        self.assertTrue(any(args[1] == "run" for args, _ in executor.calls))
+
     def test_builds_hardened_portable_run_invocation_and_pins_image(self):
         executor = RecordingExecutor()
         runner = OCIContainerRunner(

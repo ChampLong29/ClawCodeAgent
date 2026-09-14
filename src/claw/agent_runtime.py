@@ -1473,6 +1473,7 @@ class LocalCodingAgent:
                 # Extract thinking metadata for session persistence
                 _thinking = response.get("_thinking")
                 _thinking_signature = response.get("_thinking_signature")
+                reasoning_content = response.get("reasoning_content")
 
                 # Add assistant message
                 if tool_calls:
@@ -1498,11 +1499,13 @@ class LocalCodingAgent:
                     self.session.add_assistant_message(
                         content=content, tool_calls=parsed_tool_calls,
                         thinking=_thinking, thinking_signature=_thinking_signature,
+                        reasoning_content=reasoning_content,
                     )
                 elif content:
                     self.session.add_assistant_message(
                         content=content,
                         thinking=_thinking, thinking_signature=_thinking_signature,
+                        reasoning_content=reasoning_content,
                     )
 
                 messages.append(response)
@@ -2057,8 +2060,10 @@ class LocalCodingAgent:
     ) -> Dict[str, Any]:
         """Stream completion from OpenAI-compatible API and accumulate response."""
         content_parts = []
+        reasoning_parts = []
         tool_calls_map: Dict[int, Dict[str, Any]] = {}
         usage = {"input_tokens": 0, "output_tokens": 0, "model_calls": 1, "tool_calls": 0}
+        finish_reason = None
 
         for chunk in self.client.stream(
             messages=messages,
@@ -2069,6 +2074,14 @@ class LocalCodingAgent:
                 text = chunk["content"]
                 content_parts.append(text)
                 print(text, end="", flush=True)
+
+            if "reasoning_content" in chunk and chunk["reasoning_content"]:
+                reasoning_parts.append(chunk["reasoning_content"])
+
+            if chunk.get("finish_reason") is not None:
+                finish_reason = chunk["finish_reason"]
+            if chunk.get("usage"):
+                usage.update(chunk["usage"])
 
             if "tool_calls" in chunk:
                 for tc in chunk["tool_calls"]:
@@ -2099,6 +2112,13 @@ class LocalCodingAgent:
             tool_calls = [tool_calls_map[i] for i in sorted(tool_calls_map.keys())]
             response["tool_calls"] = tool_calls
             usage["tool_calls"] = len(tool_calls)
+
+        if reasoning_parts:
+            reasoning_content = "".join(reasoning_parts)
+            response["reasoning_content"] = reasoning_content
+            response["_thinking"] = reasoning_content
+        if finish_reason is not None:
+            response["finish_reason"] = finish_reason
 
         response["usage"] = usage
         return response

@@ -228,7 +228,24 @@ Docker 模式下默认读取它，因此不再要求为每题导出一个宿主�
 清单。每个臂在创建 Agent 前，会在固定镜像内验证工作区导入、pytest、镜像身份和 Python
 多进程信号量，失败即停止且不发送模型请求。
 
+当前三臂入口已升级为校正协议：Docker 是必需边界，并在任何模型调用前实际运行一次
+一次性 Shell 合约，证明容器能读取候选快照且其写入不会回流到 Episode 工作区；Claw
+Base 和 Enhanced 随后复用这个 Runner。DeepSeek `thinking` 被显式冻结，默认关闭；若
+启用，OpenAI 兼容客户端会保存并在工具结果下一轮完整回放 `reasoning_content`。`read_file`
+默认只返回 120 行，并在正文前给出总行数、截断状态和 `next_offset`，避免全文件结果被
+统一截断后失去翻页信息。合成的两轮 Provider 预检可通过
+`tools/probe_openai_tool_reasoning.py` 执行，不发送仓库内容。
+本机已用固定 Marshmallow 镜像通过真实 Docker 合约，并以 `deepseek-flash`、Thinking
+Disabled 完成合成两轮探针；证据摘要见
+[`swe-bench-lite-pi-claw-ablation-v3-admission.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json)。
+
 ### 已归档的代表性实验
+
+> 追溯审计结论：下列七题计划中的前五题是诊断性 v2 试跑，不能用于估计或比较 Harness
+> 成功率。其 Claw 轨迹中的 Shell 请求因三臂 Driver 未注入一次性 OCI Runner 而被系统性
+> 拒绝，同时 DeepSeek 思考模式未显式冻结、OpenAI `reasoning_content` 未跨工具轮回放。
+> 原始证据仍保留用于失败分析，不会被重写，也不得与校正后的 v3 Episode 合并。校正协议见
+> [`swe-bench-lite-pi-claw-ablation-plan-v3.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json)。
 
 - Tool UX v2 冻结对照覆盖 10 个本地版本化任务：Qwen3-1.7B 为 0/10，
   DeepSeek-V4-Flash 为 8/10；两个臂均记录完整工具与终止证据。该实验定位了当前小模型

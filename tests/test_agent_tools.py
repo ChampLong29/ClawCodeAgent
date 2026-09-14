@@ -39,6 +39,45 @@ class TestToolRegistry(unittest.TestCase):
 
 
 class TestToolExecution(unittest.TestCase):
+    def test_read_file_is_bounded_and_reports_next_page_before_content(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "large.txt"
+            source.write_text(
+                "\n".join(f"line-{index}" for index in range(130)) + "\n",
+                encoding="utf-8",
+            )
+            first = execute_tool(
+                "read_file",
+                {"path": "large.txt"},
+                ToolExecutionContext(cwd=directory),
+            )
+            second = execute_tool(
+                "read_file",
+                {"path": "large.txt", "offset": 120, "limit": 20},
+                ToolExecutionContext(cwd=directory),
+            )
+
+        self.assertTrue(first.ok)
+        self.assertEqual(first.result["returned_lines"], 120)
+        self.assertEqual(first.result["total_lines"], 130)
+        self.assertTrue(first.result["truncated"])
+        self.assertEqual(first.result["next_offset"], 120)
+        self.assertEqual(second.result["returned_lines"], 10)
+        self.assertFalse(second.result["truncated"])
+        self.assertIsNone(second.result["next_offset"])
+        self.assertIn("line-129", second.result["content"])
+
+    def test_read_file_rejects_unbounded_page_size(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "source.py").write_text("x\n", encoding="utf-8")
+            result = execute_tool(
+                "read_file",
+                {"path": "source.py", "limit": 501},
+                ToolExecutionContext(cwd=directory),
+            )
+        self.assertFalse(result.ok)
+        self.assertIn("limit", result.error)
+
     def test_code_outline_query_finds_late_symbol_without_full_outline(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "large_module.py"

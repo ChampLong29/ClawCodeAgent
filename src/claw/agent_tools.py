@@ -103,12 +103,18 @@ def _build_default_registry() -> ToolRegistry:
     # read_file tool
     registry.register(AgentTool(
         name="read_file",
-        description="Read file contents",
+        description=(
+            "Read a bounded page of file contents. Results include total_lines, "
+            "truncated, and next_offset; continue from next_offset when needed."
+        ),
         parameters={
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "File path to read"},
-                "limit": {"type": "integer", "description": "Max lines to read"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Lines to read (default 120, maximum 500)",
+                },
                 "offset": {"type": "integer", "description": "Line offset to start from"},
             },
             "required": ["path"],
@@ -376,24 +382,34 @@ def _enforce_allowed_write_path(
 
 
 def _read_file(path: str, limit: Optional[int] = None, offset: Optional[int] = None, **kwargs) -> Dict[str, Any]:
-    """Read file contents.
+    """Read one bounded, explicitly pageable section of a file.
 
     ``offset`` is a 0-based line offset, matching the tool schema.
     """
     path = _resolve_cwd_path(path, kwargs)
     try:
-        start_line = max(0, int(offset or 0))
-        max_lines = int(limit) if limit else None
-        with open(path, "r", encoding="utf-8") as f:
-            lines = []
-            for i, line in enumerate(f):
-                if i < start_line:
-                    continue
-                if max_lines is not None and len(lines) >= max_lines:
-                    break
-                lines.append(line.rstrip("\n"))
-        content = "\n".join(lines)
-        return {"ok": True, "content": content, "path": path}
+        start_line = int(offset or 0)
+        max_lines = 120 if limit is None else int(limit)
+        if start_line < 0:
+            raise ValueError("offset must be non-negative")
+        if max_lines <= 0 or max_lines > 500:
+            raise ValueError("limit must be between 1 and 500")
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.read().splitlines()
+        selected = all_lines[start_line : start_line + max_lines]
+        next_offset = start_line + len(selected)
+        truncated = next_offset < len(all_lines)
+        return {
+            "ok": True,
+            "path": path,
+            "offset": start_line,
+            "limit": max_lines,
+            "returned_lines": len(selected),
+            "total_lines": len(all_lines),
+            "truncated": truncated,
+            "next_offset": next_offset if truncated else None,
+            "content": "\n".join(selected),
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

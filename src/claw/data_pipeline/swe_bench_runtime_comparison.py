@@ -15,6 +15,7 @@ from ..api_config import APIConfigRuntime
 from ..benchmark.metrics import BenchmarkEpisodeResult
 from ..benchmark.pi_rpc_adapter import PiDockerRpcClient, PiRpcAgent
 from ..benchmark.runner import BenchmarkError
+from ..container_runtime import OCIContainerConfig, OCIContainerRunner
 from ..experiment.schemas import canonical_hash
 from ..openai_compat import OpenAICompatClient
 from ..trajectory.schema import stable_id
@@ -48,6 +49,12 @@ _CLAW_ABLATION_PROFILES = {
         "completion_critical_turns": 0,
         "implementation_deadline_turns": 0,
         "implementation_escalation_turns": 0,
+        "force_direct_mutation_after_escalation": False,
+        "implementation_target_read_allowance": 0,
+        "implementation_constraint_repair_attempts": 0,
+        "reject_repeated_readonly_actions": False,
+        "repeated_action_repair_attempts": 0,
+        "force_final_response_at_critical": False,
         "post_edit_contract_guidance": False,
     },
     "enhanced": {
@@ -55,6 +62,12 @@ _CLAW_ABLATION_PROFILES = {
         "completion_critical_turns": 3,
         "implementation_deadline_turns": 10,
         "implementation_escalation_turns": 4,
+        "force_direct_mutation_after_escalation": True,
+        "implementation_target_read_allowance": 1,
+        "implementation_constraint_repair_attempts": 1,
+        "reject_repeated_readonly_actions": True,
+        "repeated_action_repair_attempts": 1,
+        "force_final_response_at_critical": True,
         "post_edit_contract_guidance": True,
     },
 }
@@ -345,6 +358,7 @@ def build_swe_bench_runtime_ablation(
     collections: Dict[str, TrainingEpisodeCollectionResult],
     model_backend_version: str,
     protocol: str,
+    admission: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build one guarded Pi Raw / Claw Base / Claw Enhanced comparison."""
     expected = {"claw_base", "claw_enhanced", "pi_raw"}
@@ -424,6 +438,7 @@ def build_swe_bench_runtime_ablation(
         },
         "controls": controls,
         "treatments": treatment_config,
+        "admission": dict(admission or {}),
         "results": results,
         "deltas": {
             "claw_enhanced_minus_claw_base": delta(
@@ -507,12 +522,14 @@ def write_swe_bench_runtime_ablation(
     collections: Dict[str, TrainingEpisodeCollectionResult],
     model_backend_version: str,
     protocol: str,
+    admission: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     root = Path(output_root).resolve()
     payload = build_swe_bench_runtime_ablation(
         collections=collections,
         model_backend_version=model_backend_version,
         protocol=protocol,
+        admission=admission,
     )
     _atomic_write(
         root / "runtime-ablation.json",
@@ -793,18 +810,20 @@ def run_swe_bench_lite_runtime_ablation(
     max_tokens: int = 4096,
     max_turns: int = 24,
     max_total_tokens: int = 250000,
+    thinking_mode: str = "disabled",
     timeout_seconds: float = 900.0,
-    prompt_version: str = "swe-bench-lite-dev.runtime-ablation.v1",
-    verifier_version: str = "verifier-policy.v1",
+    prompt_version: str = "swe-bench-lite-dev.runtime-ablation.v2",
+    verifier_version: str = "verifier-policy.v3",
     pi_runtime_version: str = "pi@0.85.1",
     pi_tool_version: str = "pi-builtins@0.85.1",
     pi_extra_args: Sequence[str] = DEFAULT_PI_COMPARISON_ARGS,
     enforce_macos_seatbelt: bool = True,
     sandbox_attestation: Optional[str] = None,
-    claw_sandbox_backend: str = "host",
+    claw_sandbox_backend: str = "docker",
     claw_sandbox_image: Optional[str] = None,
     claw_sandbox_python: Optional[str] = None,
     claw_sandbox_evaluator_python: Optional[str] = None,
+    claw_container_engine: str = "auto",
     pi_docker_image: Optional[str] = None,
     pi_docker_executable: str = "docker",
     pi_container_executable: str = "/opt/pi/node_modules/.bin/pi",
@@ -817,6 +836,9 @@ def run_swe_bench_lite_runtime_ablation(
         raise BenchmarkError("model_ref and model_backend_version must not be empty")
     if not allowed_path_patterns:
         raise BenchmarkError("allowed_path_patterns must not be empty")
+    thinking_mode = str(thinking_mode).strip().lower()
+    if thinking_mode not in {"enabled", "disabled"}:
+        raise BenchmarkError("thinking_mode must be 'enabled' or 'disabled'")
     if pi_docker_image and re.fullmatch(
         r"[^@\s]+@sha256:[0-9a-fA-F]{64}", str(pi_docker_image)
     ) is None:
@@ -829,6 +851,11 @@ def run_swe_bench_lite_runtime_ablation(
     if claw_sandbox_backend not in {"host", "docker"}:
         raise BenchmarkError(
             "claw_sandbox_backend must be either 'host' or 'docker'"
+        )
+    if claw_sandbox_backend != "docker":
+        raise BenchmarkError(
+            "corrected three-arm ablations require the Docker backend so "
+            "allowlisted Claw shell calls use a disposable workspace"
         )
     if claw_sandbox_backend == "docker":
         if re.fullmatch(
@@ -855,6 +882,17 @@ def run_swe_bench_lite_runtime_ablation(
         raise BenchmarkError(
             "claw_sandbox_evaluator_python is only valid with the Docker backend"
         )
+    claw_shell_runner: Optional[OCIContainerRunner] = None
+    claw_shell_contract: Dict[str, Any] = {}
+    if claw_sandbox_backend == "docker":
+        claw_shell_runner = OCIContainerRunner(
+            OCIContainerConfig(
+                image=str(claw_sandbox_image),
+                engine=str(claw_container_engine),
+                ephemeral_workspace=True,
+            )
+        )
+        claw_shell_contract = claw_shell_runner.verify_disposable_workspace_contract()
     if sandbox_attestation is None and enforce_macos_seatbelt:
         sandbox_attestation = (
             "macos-seatbelt:episode-parent-write-deny+sensitive-paths-v2"
@@ -906,7 +944,7 @@ def run_swe_bench_lite_runtime_ablation(
                     {
                         "id": model_ref,
                         "name": f"Claw ablation: {model_ref}",
-                        "reasoning": False,
+                        "reasoning": thinking_mode == "enabled",
                         "input": ["text"],
                         "contextWindow": 1_000_000,
                         "maxTokens": max_tokens,
@@ -917,6 +955,14 @@ def run_swe_bench_lite_runtime_ablation(
                             "cacheWrite": 0,
                         },
                         "samplingParams": {"temperature": temperature},
+                        "extraBody": {"thinking": {"type": thinking_mode}},
+                        "compat": {
+                            "supportsToolChoice": False,
+                            "requiresAssistantContentForToolCalls": True,
+                            "requiresReasoningContentForToolCalls": (
+                                thinking_mode == "enabled"
+                            ),
+                        },
                     }
                 ],
             }
@@ -940,6 +986,7 @@ def run_swe_bench_lite_runtime_ablation(
                     name=model_ref,
                     temperature=float(inference_config["temperature"]),
                     max_tokens=int(inference_config["max_tokens"]),
+                    thinking_mode=str(inference_config["thinking_mode"]),
                 ),
                 permissions=AgentPermissions(
                     allow_write=True,
@@ -969,6 +1016,24 @@ def run_swe_bench_lite_runtime_ablation(
                 ),
                 implementation_escalation_turns=int(
                     profile["implementation_escalation_turns"]
+                ),
+                force_direct_mutation_after_escalation=bool(
+                    profile["force_direct_mutation_after_escalation"]
+                ),
+                implementation_target_read_allowance=int(
+                    profile["implementation_target_read_allowance"]
+                ),
+                implementation_constraint_repair_attempts=int(
+                    profile["implementation_constraint_repair_attempts"]
+                ),
+                reject_repeated_readonly_actions=bool(
+                    profile["reject_repeated_readonly_actions"]
+                ),
+                repeated_action_repair_attempts=int(
+                    profile["repeated_action_repair_attempts"]
+                ),
+                force_final_response_at_critical=bool(
+                    profile["force_final_response_at_critical"]
                 ),
                 post_edit_contract_guidance=bool(
                     profile["post_edit_contract_guidance"]
@@ -1033,6 +1098,7 @@ def run_swe_bench_lite_runtime_ablation(
         "max_tokens": max_tokens,
         "max_turns": max_turns,
         "max_total_tokens": max_total_tokens,
+        "thinking_mode": thinking_mode,
         "timeout_seconds": timeout_seconds,
         "prompt_version": prompt_version,
         "verifier_version": verifier_version,
@@ -1047,9 +1113,10 @@ def run_swe_bench_lite_runtime_ablation(
         collections[arm] = collect_swe_bench_lite_dev_episode(
             output_root=root / arm.replace("_", "-"),
             runtime_version="local-agent-runtime.v1",
-            tool_version="tool-schema.v1",
-            config_version=f"swe-bench-lite-claw-{profile_name}.v1",
+            tool_version="tool-schema.v4",
+            config_version=f"swe-bench-lite-claw-{profile_name}.v2",
             agent_factory=claw_factory(profile),
+            agent_command_runner=claw_shell_runner,
             sandbox_backend_name=claw_sandbox_backend,
             sandbox_image=claw_sandbox_image,
             sandbox_python_executable=claw_sandbox_python,
@@ -1065,7 +1132,7 @@ def run_swe_bench_lite_runtime_ablation(
         output_root=root / "pi-raw",
         runtime_version=pi_runtime_version,
         tool_version=pi_tool_version,
-        config_version="swe-bench-lite-pi-raw.v1",
+        config_version="swe-bench-lite-pi-raw.v2",
         agent_factory=pi_factory,
         sandbox_backend_name=claw_sandbox_backend,
         sandbox_image=claw_sandbox_image,
@@ -1080,4 +1147,8 @@ def run_swe_bench_lite_runtime_ablation(
         collections=collections,
         model_backend_version=model_backend_version,
         protocol="openai-completions",
+        admission={
+            "claw_disposable_shell": claw_shell_contract,
+            "thinking_mode": thinking_mode,
+        },
     )

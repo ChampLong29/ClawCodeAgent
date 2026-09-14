@@ -128,6 +128,7 @@ class AgentSession:
         tool_calls: Optional[List[ToolCall]] = None,
         thinking: Optional[str] = None,
         thinking_signature: Optional[str] = None,
+        reasoning_content: Optional[str] = None,
     ) -> None:
         msg: Dict[str, Any] = {"role": "assistant"}
         if content:
@@ -136,6 +137,8 @@ class AgentSession:
             msg["tool_calls"] = [tc.to_dict() for tc in tool_calls]
         if thinking:
             msg["_thinking"] = thinking
+        if reasoning_content is not None:
+            msg["reasoning_content"] = reasoning_content
         if thinking_signature:
             msg["_thinking_signature"] = thinking_signature
         self._append_message(msg)
