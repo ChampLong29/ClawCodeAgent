@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, AsyncIterator, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 import urllib.request
 import urllib.error
 
@@ -80,6 +80,52 @@ class OpenAICompatClient:
             prepared.append(message)
         return prepared
 
+    def _build_payload(
+        self,
+        *,
+        messages: List[Dict[str, Any]],
+        model: Optional[str],
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        tools: Optional[List[Dict[str, Any]]],
+        tool_choice: Optional[Union[str, Dict[str, Any]]],
+        thinking_mode: Optional[str],
+        stream: bool,
+    ) -> Dict[str, Any]:
+        """Build one protocol-valid request for streaming and non-streaming."""
+        selected_model = model or self.model
+        normalized_thinking = str(thinking_mode or "auto").strip().lower()
+        if normalized_thinking not in {"auto", "enabled", "disabled"}:
+            raise ValueError(
+                "thinking_mode must be one of auto, enabled, or disabled"
+            )
+        is_deepseek = (
+            "deepseek" in str(selected_model).lower()
+            or "api.deepseek.com" in self.base_url.lower()
+        )
+        payload: Dict[str, Any] = {
+            "model": selected_model,
+            "messages": self._prepare_messages(messages, model=model),
+        }
+        if stream:
+            payload["stream"] = True
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        if tools:
+            payload["tools"] = tools
+        # DeepSeek's thinking-mode tool protocol does not accept tool_choice.
+        # Runtime action masking remains enforced by the exposed tool subset and
+        # by post-response validation, so omitting this hint is not a bypass.
+        if tool_choice is not None and not (
+            is_deepseek and normalized_thinking == "enabled"
+        ):
+            payload["tool_choice"] = tool_choice
+        if normalized_thinking != "auto":
+            payload["thinking"] = {"type": normalized_thinking}
+        return payload
+
     def complete(
         self,
         messages: List[Dict[str, Any]],
@@ -94,21 +140,16 @@ class OpenAICompatClient:
         """Make a non-streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/chat/completions"
 
-        payload: Dict[str, Any] = {
-            "model": model or self.model,
-            "messages": self._prepare_messages(messages, model=model),
-        }
-
-        if temperature is not None:
-            payload["temperature"] = temperature
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-        if tools:
-            payload["tools"] = tools
-        if tool_choice is not None:
-            payload["tool_choice"] = tool_choice
-        if thinking_mode and thinking_mode != "auto":
-            payload["thinking"] = {"type": thinking_mode}
+        payload = self._build_payload(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools,
+            tool_choice=tool_choice,
+            thinking_mode=thinking_mode,
+            stream=False,
+        )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -187,26 +228,20 @@ class OpenAICompatClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         thinking_mode: Optional[str] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """Make a streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/chat/completions"
 
-        payload: Dict[str, Any] = {
-            "model": model or self.model,
-            "messages": self._prepare_messages(messages, model=model),
-            "stream": True,
-        }
-
-        if temperature is not None:
-            payload["temperature"] = temperature
-        if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
-        if tools:
-            payload["tools"] = tools
-        if tool_choice is not None:
-            payload["tool_choice"] = tool_choice
-        if thinking_mode and thinking_mode != "auto":
-            payload["thinking"] = {"type": thinking_mode}
+        payload = self._build_payload(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            tools=tools,
+            tool_choice=tool_choice,
+            thinking_mode=thinking_mode,
+            stream=True,
+        )
 
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -334,6 +369,8 @@ class AnthropicClient:
         self,
         messages: List[Dict[str, Any]],
         system_prompt: Optional[str] = None,
+        *,
+        include_thinking: Optional[bool] = None,
     ) -> tuple:
         """Convert internal message format to Anthropic Messages API format.
 
@@ -353,7 +390,8 @@ class AnthropicClient:
         """
         anthropic_messages = []
         system_content = system_prompt or ""
-        include_thinking = self._thinking_enabled != "false"
+        if include_thinking is None:
+            include_thinking = self._thinking_enabled != "false"
 
         for msg in messages:
             role = msg.get("role", "user")
@@ -441,6 +479,20 @@ class AnthropicClient:
 
         return anthropic_messages, system_content
 
+    def _resolve_thinking_mode(self, thinking_mode: Optional[str]) -> str:
+        requested = thinking_mode
+        if requested is None:
+            requested = {
+                "true": "enabled",
+                "false": "disabled",
+            }.get(self._thinking_enabled, "auto")
+        normalized = str(requested).strip().lower()
+        if normalized not in {"auto", "enabled", "disabled"}:
+            raise ValueError(
+                "thinking_mode must be one of auto, enabled, or disabled"
+            )
+        return normalized
+
     def complete(
         self,
         messages: List[Dict[str, Any]],
@@ -456,7 +508,12 @@ class AnthropicClient:
         """Make a non-streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/v1/messages"
 
-        anthropic_messages, system_content = self._convert_messages(messages, system_prompt)
+        requested_thinking = self._resolve_thinking_mode(thinking_mode)
+        anthropic_messages, system_content = self._convert_messages(
+            messages,
+            system_prompt,
+            include_thinking=requested_thinking != "disabled",
+        )
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
@@ -485,16 +542,6 @@ class AnthropicClient:
             else:
                 payload["tool_choice"] = tool_choice
 
-        requested_thinking = thinking_mode
-        if requested_thinking is None:
-            requested_thinking = {
-                "true": "enabled",
-                "false": "disabled",
-            }.get(self._thinking_enabled, "auto")
-        if requested_thinking not in {"auto", "enabled", "disabled"}:
-            raise ValueError(
-                "thinking_mode must be one of auto, enabled, or disabled"
-            )
         if requested_thinking == "enabled":
             payload["thinking"] = {
                 "type": "enabled",
@@ -603,11 +650,16 @@ class AnthropicClient:
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         thinking_mode: Optional[str] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
+    ) -> Iterator[Dict[str, Any]]:
         """Make a streaming completion request."""
         url = f"{self.base_url.rstrip('/')}/v1/messages"
 
-        anthropic_messages, system_content = self._convert_messages(messages, system_prompt)
+        requested_thinking = self._resolve_thinking_mode(thinking_mode)
+        anthropic_messages, system_content = self._convert_messages(
+            messages,
+            system_prompt,
+            include_thinking=requested_thinking != "disabled",
+        )
 
         payload: Dict[str, Any] = {
             "model": model or self.model,
@@ -636,16 +688,6 @@ class AnthropicClient:
             else:
                 payload["tool_choice"] = tool_choice
 
-        requested_thinking = thinking_mode
-        if requested_thinking is None:
-            requested_thinking = {
-                "true": "enabled",
-                "false": "disabled",
-            }.get(self._thinking_enabled, "auto")
-        if requested_thinking not in {"auto", "enabled", "disabled"}:
-            raise ValueError(
-                "thinking_mode must be one of auto, enabled, or disabled"
-            )
         if requested_thinking == "enabled":
             payload["thinking"] = {
                 "type": "enabled",

@@ -143,11 +143,39 @@ class ModelClientFinishReasonTests(unittest.TestCase):
         ) as mocked:
             client.complete(
                 messages=[{"role": "user", "content": "x"}],
+                tool_choice="required",
                 thinking_mode="disabled",
             )
 
         sent = json.loads(mocked.call_args.args[0].data.decode("utf-8"))
         self.assertEqual(sent["thinking"], {"type": "disabled"})
+        self.assertEqual(sent["tool_choice"], "required")
+
+    def test_deepseek_thinking_omits_unsupported_tool_choice(self):
+        payload = {
+            "choices": [{
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "done"},
+            }],
+        }
+        client = OpenAICompatClient(
+            base_url="https://api.deepseek.com",
+            api_key="test",
+            model="deepseek-flash",
+        )
+        with patch(
+            "claw.openai_compat.urllib.request.urlopen",
+            return_value=_Response(payload),
+        ) as mocked:
+            client.complete(
+                messages=[{"role": "user", "content": "x"}],
+                tool_choice="required",
+                thinking_mode="enabled",
+            )
+
+        sent = json.loads(mocked.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(sent["thinking"], {"type": "enabled"})
+        self.assertNotIn("tool_choice", sent)
 
     def test_openai_stream_preserves_reasoning_finish_reason_and_usage(self):
         chunks = [
@@ -229,7 +257,15 @@ class ModelClientFinishReasonTests(unittest.TestCase):
             return_value=_Response(payload),
         ) as mocked:
             result = client.complete(
-                messages=[{"role": "user", "content": "x"}],
+                messages=[
+                    {"role": "user", "content": "x"},
+                    {
+                        "role": "assistant",
+                        "_thinking": "must not be replayed",
+                        "content": "previous",
+                    },
+                    {"role": "user", "content": "continue"},
+                ],
                 tools=[{
                     "name": "edit_file",
                     "description": "edit",
@@ -243,9 +279,50 @@ class ModelClientFinishReasonTests(unittest.TestCase):
         sent = json.loads(request.data.decode("utf-8"))
         self.assertEqual(sent["thinking"], {"type": "disabled"})
         self.assertEqual(sent["tool_choice"], {"type": "any"})
+        self.assertFalse(
+            any(
+                block.get("type") == "thinking"
+                for message in sent["messages"]
+                if isinstance(message.get("content"), list)
+                for block in message["content"]
+            )
+        )
         self.assertEqual(
             result["tool_calls"][0]["function"]["name"], "edit_file"
         )
+
+    def test_anthropic_per_request_enabled_replays_thinking(self):
+        payload = {
+            "content": [{"type": "text", "text": "done"}],
+            "stop_reason": "end_turn",
+        }
+        client = AnthropicClient(
+            base_url="https://example.invalid",
+            api_key="test",
+            model="test-model",
+            thinking_enabled="false",
+        )
+        with patch(
+            "claw.openai_compat.urllib.request.urlopen",
+            return_value=_Response(payload),
+        ) as mocked:
+            client.complete(
+                messages=[
+                    {"role": "user", "content": "x"},
+                    {
+                        "role": "assistant",
+                        "_thinking": "replay this",
+                        "content": "previous",
+                    },
+                    {"role": "user", "content": "continue"},
+                ],
+                thinking_mode="enabled",
+            )
+
+        sent = json.loads(mocked.call_args.args[0].data.decode("utf-8"))
+        assistant_blocks = sent["messages"][1]["content"]
+        self.assertEqual(assistant_blocks[0]["type"], "thinking")
+        self.assertEqual(assistant_blocks[0]["thinking"], "replay this")
 
 
 if __name__ == "__main__":

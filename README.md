@@ -230,13 +230,18 @@ Docker 模式下默认读取它，因此不再要求为每题导出一个宿主�
 
 当前三臂入口已升级为校正协议：Docker 是必需边界，并在任何模型调用前实际运行一次
 一次性 Shell 合约，证明容器能读取候选快照且其写入不会回流到 Episode 工作区；Claw
-Base 和 Enhanced 随后复用这个 Runner。DeepSeek `thinking` 被显式冻结，默认关闭；若
-启用，OpenAI 兼容客户端会保存并在工具结果下一轮完整回放 `reasoning_content`。`read_file`
+Base 和 Enhanced 随后复用这个 Runner。DeepSeek `thinking` 被显式冻结，消融实验默认关闭
+只是为了控制成本与方差，并非协议正确性的前提。启用时，OpenAI 兼容客户端会保存并在
+工具结果下一轮完整回放 `reasoning_content`，并避开 DeepSeek Thinking 不接受的
+`tool_choice` 字段；动作约束仍由暴露工具集合与响应后校验执行。`read_file`
 默认只返回 120 行，并在正文前给出总行数、截断状态和 `next_offset`，避免全文件结果被
 统一截断后失去翻页信息。合成的两轮 Provider 预检可通过
 `tools/probe_openai_tool_reasoning.py` 执行，不发送仓库内容。
-本机已用固定 Marshmallow 镜像通过真实 Docker 合约，并以 `deepseek-flash`、Thinking
-Disabled 完成合成两轮探针；证据摘要见
+本机已用固定 Marshmallow 镜像通过真实 Docker 合约，并以 `deepseek-flash` 分别在
+Thinking Disabled 和 Enabled 下完成合成两轮探针。随后在 Thinking Enabled 下完成一个
+版本化本地微任务：6 轮、7 次工具调用、一次受控编辑，测试及必要 Hard Gate 全部通过；
+一次 Shell 策略拒绝后模型成功恢复。该结果验证协议与运行时接线，不是 SWE-bench 成绩。
+证据摘要见
 [`swe-bench-lite-pi-claw-ablation-v3-admission.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json)。
 
 ### 已归档的代表性实验

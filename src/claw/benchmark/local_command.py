@@ -173,7 +173,9 @@ def run_local_benchmark(
                 user=container_user,
             )
         )
-        command_runner.probe()
+        shell_contract = command_runner.verify_disposable_workspace_contract()
+    else:
+        shell_contract = None
 
     manifest = TaskSuiteManifest.load(manifest_path)
     tasks = _select_test_tasks(manifest, task_ids, limit)
@@ -196,6 +198,8 @@ def run_local_benchmark(
             else {"kind": "native"}
         ),
     }
+    if shell_contract is not None:
+        decoding_config["disposable_shell_contract"] = shell_contract
     if max_tokens is not None:
         decoding_config["max_tokens"] = max_tokens
     if thinking_mode is not None:
@@ -223,6 +227,7 @@ def run_local_benchmark(
                     allow_write=True,
                     allow_shell=True,
                     restrict_workspace=True,
+                    allowed_write_paths=(list(patterns) if patterns else None),
                     allowed_tools=[
                         "list_dir",
                         "read_file",

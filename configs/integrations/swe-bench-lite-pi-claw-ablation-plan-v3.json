@@ -1,6 +1,6 @@
 {
   "schema_version": "swe_bench_lite_runtime_ablation_plan.v3",
-  "status": "ready_for_corrected_micro_task",
+  "status": "ready_for_fresh_v3_swe_bench_episode",
   "claim_boundary": "Local SWE-bench Lite Dev protocol only; not an official SWE-bench score. The first five v2 task samples are diagnostic and must not be pooled with v3 outcomes.",
   "extends": {
     "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
@@ -18,6 +18,7 @@
     "model_backend_version": "v4-flash-9_10",
     "protocol": "openai-completions",
     "thinking_mode": "disabled",
+    "thinking_mode_rationale": "Frozen experimental control for cost and variance; protocol correctness does not require disabling Thinking.",
     "temperature": 0.0,
     "max_tokens": 4096,
     "max_turns": 24,
@@ -64,5 +65,10 @@
     "failure_policy": "fail_closed_without_model_request"
   },
   "admission_evidence": "configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json",
-  "continuation_rule": "Run a fresh corrected micro-task first. Start new SWE-bench task/arm Episodes only after the provider probe and disposable Shell admission pass; never rewrite or silently replace v2 records."
+  "protocol_admission": {
+    "thinking_disabled_two_turn_probe": "passed",
+    "thinking_enabled_two_turn_probe": "passed",
+    "thinking_enabled_versioned_micro_task": "passed"
+  },
+  "continuation_rule": "Start only fresh v3 SWE-bench task/arm Episodes after all admission evidence passes; keep Thinking disabled as the preregistered experimental control, and never rewrite, quality-retry, or silently replace v2 records."
 }

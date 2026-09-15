@@ -41,6 +41,12 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   omitted the disposable OCI command runner, while Pi Shell remained available.
   DeepSeek thinking was also not explicitly frozen and OpenAI `reasoning_content`
   was not replayed. Do not pool their 0/5, 1/5, 1/5 raw outcomes with corrected runs.
+- Protocol v3 admission now passes both Disabled and Enabled synthetic DeepSeek
+  two-turn tool probes. A versioned local micro-task also succeeds with Thinking
+  Enabled: two Shell calls ran in the pinned OCI image, one policy-rejected Shell
+  request recovered, only `challenge.py` changed, and all required Verifier gates
+  passed. This is integration evidence, not SWE-bench quality evidence. The frozen
+  v3 SWE-bench arms still use Thinking Disabled solely as a cost/variance control.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
   portable source of truth for the seven task images, in-container interpreters,
   allowlists, and Pi image. Docker admission now runs inside the pinned image, so

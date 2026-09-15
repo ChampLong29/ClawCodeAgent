@@ -365,17 +365,26 @@ python tools/run_swe_bench_lite_runtime_ablation.py \
 
 校正后的三臂入口强制使用 Docker，并在模型请求前运行一次可执行 Shell 门禁：容器必须
 能读取当前候选副本，容器内修改必须被丢弃。该 Runner 会实际注入 Claw Base 与 Enhanced，
-不再只配置 Verifier Docker。默认显式发送 `thinking={"type":"disabled"}`；启用思考时，
-OpenAI 客户端保留并回放工具调用消息的完整 `reasoning_content`。首次使用某个
+不再只配置 Verifier Docker。消融默认显式发送 `thinking={"type":"disabled"}`，这是冻结
+成本与方差的实验控制，不是兼容性补丁。启用思考时，OpenAI 客户端保留并回放工具调用消息
+的完整 `reasoning_content`；DeepSeek Thinking 请求不发送其不支持的 `tool_choice`，动作
+约束仍由工具子集和 Runtime 响应校验保证。首次使用某个
 endpoint/model/protocol 组合前，先运行不含仓库内容的合成两轮探针：
 
 ```bash
 python tools/probe_openai_tool_reasoning.py \
   --api-config-root . \
   --model deepseek-flash \
-  --thinking-mode disabled \
-  --output .port_sessions/provider-probes/deepseek-openai-disabled.json
+  --thinking-mode enabled \
+  --max-tokens 4096 \
+  --output .port_sessions/provider-probes/deepseek-openai-enabled.json
 ```
+
+本机的 Disabled、Enabled 两轮探针均通过。Thinking Enabled 还通过了版本化
+`python-cli-add_feature-07` 微任务：两次 Shell 在固定 OCI 镜像中成功执行、一次复杂 Shell
+被策略拒绝后恢复、仅编辑 Allowlist 内的 `challenge.py`，最终测试、Diff Scope、Permission
+与 Termination Hard Gate 均通过。它只证明协议/工具/运行时集成可工作，不估计 SWE-bench
+成功率。冻结的 v3 SWE-bench 消融仍使用 Disabled，避免在实验开始后改变控制变量。
 
 `read_file` 使用有上限的分页结果（默认 120 行、最多 500 行），并把 `truncated` 与
 `next_offset` 放在内容字段之前。Claw Enhanced v2 除 Deadline/Post-edit 提示外，还真正

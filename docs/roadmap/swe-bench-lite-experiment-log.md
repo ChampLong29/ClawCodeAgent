@@ -1122,3 +1122,24 @@ Harness 成功率比较，也不与后续结果合并。
 `src/example.py` 内容，未发送仓库代码；`deepseek-flash` 在 Thinking Disabled 下首轮
 返回一个结构化工具调用，回放工具结果后第二轮以 `finish_reason=stop` 正常结束。v3
 准入因此进入“可运行一个校正微任务”的状态，但仍未产生新的 SWE-bench 质量证据。
+
+## 2026-09-15：Thinking Enabled 协议复核与校正微任务
+
+进一步复核确认，“关闭 Thinking”不应被当作协议修复。客户端原实现确有两项通用技术债：
+OpenAI 的流式与非流式请求重复组装，容易产生字段漂移；Anthropic 消息转换依据客户端初始化
+值决定是否回放 Thinking，而不是依据本次请求的 `thinking_mode`。现已统一 OpenAI 请求构造，
+按请求解析 Anthropic Thinking 状态，并在 DeepSeek Thinking Enabled 时省略端点不支持的
+`tool_choice`；工具子集和响应后动作校验继续独立执行，未放宽 Runtime 边界。
+
+不含仓库内容的 DeepSeek 合成两轮探针在 Thinking Enabled 下通过：首轮返回结构化工具调用
+及 95 字符 `reasoning_content`，回放后第二轮正常 `stop`。随后运行版本化本地任务
+`python-cli-add_feature-07`，保持 Thinking Enabled、温度 0、4096 单响应 Token、12 Turn、
+`tool-schema.v4` 与 `verifier-policy.v3`。模型在 6 轮内请求 7 次工具，完成一次 Allowlist 内
+编辑；两次 Shell 在 digest 固定、断网、只读 RootFS 的 OCI Runner 中成功执行且修改被丢弃，
+一次复杂 Shell 被安全策略拒绝后模型改用允许命令恢复。最终 2 条单元测试通过，Diff Scope、
+Permission、Termination 与 Evaluation Integrity 等必要 Hard Gate 全部通过。
+
+这证明 Thinking Enabled 的 reasoning/tool-result 回放与当前工具运行时能够端到端工作，因此
+v3 消融继续关闭 Thinking 仅是预注册的成本与方差控制。该微任务不是 SWE-bench 样本，不能
+用于成功率估计；准入状态现为可开始全新的 v3 SWE-bench Episode，且不得与前五个诊断性
+v2 Episode 合并。

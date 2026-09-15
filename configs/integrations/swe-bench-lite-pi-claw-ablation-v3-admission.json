@@ -1,8 +1,8 @@
 {
   "schema_version": "swe_bench_lite_runtime_ablation_admission.v3",
-  "generated_at": "2026-09-14T16:03:15.065782+00:00",
+  "generated_at": "2026-09-15T03:42:37.701004+00:00",
   "status": "passed",
-  "source_revision_base": "9195d71ea18180abd32f037cae77aedfb954cb1c",
+  "source_revision_base": "695b985d6cf3109095cf4110bcdbed7a73820661",
   "fix_set_committed_after_probe": true,
   "claw_shell": {
     "engine": "docker",
@@ -16,20 +16,71 @@
     "capabilities": "none",
     "verified": true
   },
-  "provider_probe": {
-    "schema_version": "openai_tool_reasoning_probe.v1",
-    "endpoint_host": "api.deepseek.com",
-    "requested_model": "deepseek-flash",
-    "thinking_mode": "disabled",
-    "max_tokens_per_request": 512,
-    "first_finish_reason": "tool_calls",
-    "second_finish_reason": "stop",
-    "first_path_exact": true,
-    "second_text_present": true,
-    "input_tokens": 643,
-    "output_tokens": 44,
-    "repository_content_sent": false,
+  "provider_probes": {
+    "thinking_disabled": {
+      "schema_version": "openai_tool_reasoning_probe.v1",
+      "endpoint_host": "api.deepseek.com",
+      "requested_model": "deepseek-flash",
+      "thinking_mode": "disabled",
+      "max_tokens_per_request": 512,
+      "first_finish_reason": "tool_calls",
+      "second_finish_reason": "stop",
+      "first_path_exact": true,
+      "second_text_present": true,
+      "input_tokens": 643,
+      "output_tokens": 44,
+      "repository_content_sent": false,
+      "verified": true
+    },
+    "thinking_enabled": {
+      "schema_version": "openai_tool_reasoning_probe.v1",
+      "endpoint_host": "api.deepseek.com",
+      "requested_model": "deepseek-flash",
+      "thinking_mode": "enabled",
+      "max_tokens_per_request": 4096,
+      "first_finish_reason": "tool_calls",
+      "second_finish_reason": "stop",
+      "first_path_exact": true,
+      "second_text_present": true,
+      "first_reasoning_chars": 95,
+      "input_tokens": 712,
+      "output_tokens": 66,
+      "repository_content_sent": false,
+      "verified": true
+    }
+  },
+  "corrected_micro_task": {
+    "task_id": "python-cli-add_feature-07",
+    "run_id": "benchmark_18f6339378a1581eba65",
+    "model": "deepseek-flash",
+    "protocol": "openai-completions",
+    "thinking_mode": "enabled",
+    "prompt_version": "v3-admission-micro.v1",
+    "tool_schema_version": "tool-schema.v4",
+    "verifier_bundle_version": "verifier-policy.v3",
+    "container_image": "python@sha256:9534e5a8e315485d4061ed659af0fd78a284c015f9b73661b41d6bab25604534",
+    "allowed_write_paths": [
+      "challenge.py"
+    ],
+    "success": true,
+    "test_pass_rate": 1.0,
+    "hard_gate_passed": true,
+    "diff_scope_passed": true,
+    "process_permission_passed": true,
+    "turns": 6,
+    "input_tokens": 13595,
+    "output_tokens": 745,
+    "model_requested_tool_calls": 7,
+    "shell_requests": 3,
+    "shell_dispatched_in_oci": 2,
+    "shell_policy_rejections": 1,
+    "shell_recovery_observed": true,
+    "shell_mutations_discarded": true,
+    "direct_mutation_calls": 1,
+    "changed_files": [
+      "challenge.py"
+    ],
     "verified": true
   },
-  "claim_boundary": "Model-free OCI contract evidence plus a synthetic two-request provider protocol probe. This does not measure coding quality or SWE-bench resolution."
+  "claim_boundary": "Model-free OCI contract evidence, synthetic two-request provider probes with Thinking disabled and enabled, and one versioned local micro-task with Thinking enabled. The micro-task verifies protocol/tool/runtime integration and recovery from one Shell-policy rejection; it is not a SWE-bench result or a success-rate estimate."
 }

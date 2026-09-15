@@ -144,8 +144,11 @@ configuration. It changes API configuration discovery only, not the task workspa
 Corrected three-arm runs use protocol v3 and require Docker. Before any model call,
 the entrypoint must prove that the injected disposable OCI Shell runner can read the
 candidate snapshot and that its writes do not persist. Freeze DeepSeek thinking
-explicitly (the default is disabled); if enabled, preserve and replay the complete
-OpenAI `reasoning_content` on the next tool-result turn. Run the synthetic
+explicitly (the ablation default is disabled for cost/variance control, not as a
+protocol workaround); if enabled, preserve and replay the complete OpenAI
+`reasoning_content` on the next tool-result turn and omit DeepSeek's unsupported
+`tool_choice`. Runtime action masking must remain enforced independently. Run the
+synthetic
 `tools/probe_openai_tool_reasoning.py` once per endpoint/model/protocol combination.
 
 Docker benchmarks require a local digest-pinned image and use distinct Agent
@@ -451,6 +454,11 @@ When changing session schemas, maintain backward-compatible loading or provide a
   runner, so all readable Claw Shell requests were policy-rejected while Pi Shell
   worked; thinking mode was also not explicit and OpenAI reasoning was not replayed.
   Preserve these Episodes only as diagnostic evidence and never pool them with v3.
+- Protocol v3 admission passes synthetic DeepSeek two-turn tool probes with Thinking
+  both disabled and enabled. The versioned `python-cli-add_feature-07` micro-task
+  also passes with Thinking enabled, including OCI Shell, allowlisted edit, recovery
+  from one Shell-policy rejection, and all required Verifier gates. Treat it as
+  integration evidence only, not a SWE-bench result or success-rate estimate.
 - Astroid-1196 is also sampled. Base and Pi made no edit; Enhanced passed two
   target and 24 regression tests but hit the turn limit. Preserve Base from the
   run whose collection finalization failed after verification, and preserve

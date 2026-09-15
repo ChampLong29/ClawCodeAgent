@@ -104,10 +104,25 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(
             plan["admission_before_model_calls"]["docker_backend"], "required"
         )
-        self.assertEqual(plan["status"], "ready_for_corrected_micro_task")
+        self.assertEqual(
+            plan["status"], "ready_for_fresh_v3_swe_bench_episode"
+        )
         self.assertTrue(admission["claw_shell"]["verified"])
-        self.assertTrue(admission["provider_probe"]["verified"])
-        self.assertFalse(admission["provider_probe"]["repository_content_sent"])
+        for probe in admission["provider_probes"].values():
+            self.assertTrue(probe["verified"])
+            self.assertFalse(probe["repository_content_sent"])
+        self.assertTrue(
+            admission["provider_probes"]["thinking_enabled"][
+                "first_reasoning_chars"
+            ]
+        )
+        self.assertTrue(admission["corrected_micro_task"]["verified"])
+        self.assertEqual(
+            admission["corrected_micro_task"]["thinking_mode"], "enabled"
+        )
+        self.assertEqual(
+            admission["corrected_micro_task"]["shell_dispatched_in_oci"], 2
+        )
 
     def test_first_ablation_result_preserves_raw_and_budgeted_outcomes(self):
         repository = Path(__file__).resolve().parents[1]

@@ -12,6 +12,7 @@ from unittest.mock import patch
 from claw.agent_runtime import LocalCodingAgent
 from claw.agent_types import AgentPermissions, ModelConfig
 from claw.benchmark import BenchmarkConfig, BenchmarkError, run_local_benchmark
+from claw.benchmark.runner import BenchmarkRunner
 from claw.main import main
 
 
@@ -208,6 +209,45 @@ class LocalBenchmarkCommandTests(unittest.TestCase):
         self.assertEqual(
             diff_scope["details"]["allowed_patterns"],
             ["custom/**"],
+        )
+
+    def test_container_benchmark_gates_shell_and_applies_write_allowlist(self):
+        image = "python@sha256:" + "a" * 64
+        fake_result = SimpleNamespace(run_id="not-executed")
+        with patch(
+            "claw.benchmark.local_command.OCIContainerRunner"
+        ) as runner_class, patch.object(
+            BenchmarkRunner, "run", return_value=fake_result
+        ) as benchmark_run:
+            runner = runner_class.return_value
+            runner.describe.return_value = {
+                "kind": "oci-container",
+                "image_digest": image,
+            }
+            runner.verify_disposable_workspace_contract.return_value = {
+                "status": "passed",
+                "candidate_snapshot_visible": True,
+                "shell_mutations_discarded": True,
+            }
+            result = run_local_benchmark(
+                manifest_path=self.manifest,
+                output_root=self.output / "container-admission",
+                model_ref=self.model,
+                task_ids=["python-cli-add_feature-07"],
+                allowed_path_patterns=["challenge.py"],
+                container_image=image,
+            )
+
+        self.assertIs(result, fake_result)
+        runner.verify_disposable_workspace_contract.assert_called_once_with()
+        _tasks, adapter, config = benchmark_run.call_args.args
+        agent = adapter.agent_factory(
+            str(self.output), dict(config.decoding_config)
+        )
+        self.assertEqual(agent.permissions["allowed_write_paths"], ["challenge.py"])
+        self.assertEqual(
+            config.decoding_config["disposable_shell_contract"]["status"],
+            "passed",
         )
 
     def test_unknown_or_non_test_task_is_rejected_before_agent_creation(self):
