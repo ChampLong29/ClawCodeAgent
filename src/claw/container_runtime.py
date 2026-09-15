@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
+import time
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -37,6 +39,8 @@ class OCIContainerConfig:
     tmpfs_size: str = "256m"
     read_only_root: bool = True
     ephemeral_workspace: bool = True
+    workspace_copy_mode: str = "container"
+    workspace_tmpfs_size: str = "1g"
     user: Optional[str] = None
 
     def validate(self) -> None:
@@ -46,13 +50,26 @@ class OCIContainerConfig:
             raise ValueError("container engine must be auto, docker, or podman")
         if not self.workspace_target.startswith("/"):
             raise ValueError("container workspace_target must be absolute")
+        if self.workspace_copy_mode == "container" and self.workspace_target in {
+            "/claw-source",
+            "/tmp",
+        }:
+            raise ValueError(
+                "container workspace_target conflicts with an internal mount"
+            )
         if self.network != "none":
             raise ValueError("the isolated OCI profile currently requires network=none")
+        if self.workspace_copy_mode not in {"container", "host"}:
+            raise ValueError("workspace_copy_mode must be container or host")
         if self.cpus <= 0:
             raise ValueError("container cpus must be positive")
         if self.pids_limit <= 0:
             raise ValueError("container pids_limit must be positive")
-        for name, value in (("memory", self.memory), ("tmpfs_size", self.tmpfs_size)):
+        for name, value in (
+            ("memory", self.memory),
+            ("tmpfs_size", self.tmpfs_size),
+            ("workspace_tmpfs_size", self.workspace_tmpfs_size),
+        ):
             if not re.fullmatch(r"[1-9][0-9]*[bkmgBKMG]?", value):
                 raise ValueError(f"container {name} must be a positive size")
         if self.user is not None and any(c in self.user for c in "\r\n\0"):
@@ -146,7 +163,7 @@ class OCIContainerRunner:
         self, result: subprocess.CompletedProcess
     ) -> Dict[str, Any]:
         args = result.args if isinstance(result.args, (list, tuple)) else ()
-        return {
+        metadata = {
             "execution_backend": "oci-container",
             "container_engine": self.engine_name,
             "container_image_id": self._probe.get("image_id", ""),
@@ -155,7 +172,26 @@ class OCIContainerRunner:
             "workspace_mutations": (
                 "discarded" if self.config.ephemeral_workspace else "persistent"
             ),
+            "workspace_copy_mode": self.config.workspace_copy_mode,
         }
+        metadata.update(getattr(result, "_claw_container_metadata", {}))
+        return metadata
+
+    @staticmethod
+    def _annotate_result(
+        result: subprocess.CompletedProcess, **metadata: Any
+    ) -> subprocess.CompletedProcess:
+        setattr(result, "_claw_container_metadata", metadata)
+        return result
+
+    @staticmethod
+    def _strip_internal_sentinels(value: str) -> str:
+        internal = {"claw-workspace-ready", "claw-shell-started"}
+        remaining = [line for line in value.splitlines() if line not in internal]
+        if not remaining:
+            return ""
+        stripped = "\n".join(remaining)
+        return stripped + ("\n" if value.endswith("\n") else "")
 
     def probe(self) -> Dict[str, Any]:
         """Verify daemon/image availability and pin the observed image identity."""
@@ -273,35 +309,64 @@ class OCIContainerRunner:
                 "persistent workspace mounts are not allowed for agent shell execution"
             )
         name = f"claw-episode-{uuid.uuid4().hex[:16]}"
-        # Keep the disposable copy on the same host-visible volume as the
-        # Episode workspace.  In particular, Docker Desktop can bind a WSL
-        # /mnt/<drive> path through docker.exe even when direct distro mounts
-        # such as \\wsl.localhost\... are unavailable.
-        temporary = tempfile.TemporaryDirectory(
-            prefix="claw-shell-", dir=workspace.parent
-        )
-        disposable_workspace = Path(temporary.name) / "workspace"
+        started_at = time.monotonic()
+        temporary: Optional[tempfile.TemporaryDirectory] = None
 
         def ignore(_directory: str, names: Sequence[str]) -> Sequence[str]:
             blocked = {"__pycache__", ".pytest_cache", ".mypy_cache", ".port_sessions"}
             return [name for name in names if name in blocked]
 
-        shutil.copytree(
-            workspace,
-            disposable_workspace,
-            symlinks=True,
-            ignore=ignore,
-        )
+        if self.config.workspace_copy_mode == "host":
+            # Compatibility fallback. Prefer the container-side copy because
+            # drvfs/SMB-style host copies are expensive and harder to diagnose.
+            temporary = tempfile.TemporaryDirectory(
+                prefix="claw-shell-", dir=workspace.parent
+            )
+            disposable_workspace = Path(temporary.name) / "workspace"
+            shutil.copytree(
+                workspace,
+                disposable_workspace,
+                symlinks=True,
+                ignore=ignore,
+            )
+            mount_source = self._mount_source(disposable_workspace)
+            mounts = [
+                "--mount",
+                f"type=bind,source={mount_source},target={self.config.workspace_target}",
+            ]
+            bootstrap = ""
+        else:
+            mount_source = self._mount_source(workspace)
+            shell_workspace = shlex.quote(self.config.workspace_target)
+            mounts = [
+                "--mount",
+                (
+                    f"type=bind,source={mount_source},target=/claw-source,readonly"
+                ),
+                "--tmpfs",
+                (
+                    f"{self.config.workspace_target}:rw,exec,nosuid,mode=1777,"
+                    f"size={self.config.workspace_tmpfs_size}"
+                ),
+            ]
+            bootstrap = (
+                f"cp -R /claw-source/. {shell_workspace}/ && "
+                f"rm -rf {shell_workspace}/.port_sessions "
+                f"{shell_workspace}/__pycache__ "
+                f"{shell_workspace}/.pytest_cache "
+                f"{shell_workspace}/.mypy_cache && "
+            )
         effective_command = self._translate_command(command, workspace)
-        mount_source = self._mount_source(disposable_workspace)
-        mount = (
-            f"type=bind,source={mount_source},"
-            f"target={self.config.workspace_target}"
+        wrapped_command = (
+            "set -eu; "
+            "printf 'claw-shell-started\\n' >&2; "
+            f"{bootstrap}"
+            "printf 'claw-workspace-ready\\n' >&2; "
+            f"exec /bin/sh -lc {shlex.quote(effective_command)}"
         )
         args = [
             self.executable,
-            "run",
-            "--rm",
+            "create",
             "--name",
             name,
             "--network",
@@ -316,8 +381,7 @@ class OCIContainerRunner:
             self.config.memory,
             "--cpus",
             str(self.config.cpus),
-            "--mount",
-            mount,
+            *mounts,
             "--workdir",
             self.config.workspace_target,
         ]
@@ -332,23 +396,123 @@ class OCIContainerRunner:
         effective_user = self._effective_user()
         if effective_user:
             args.extend(["--user", effective_user])
-        args.extend([self.config.image, "/bin/sh", "-lc", effective_command])
+        args.extend(
+            ["--entrypoint", "/bin/sh", self.config.image, "-lc", wrapped_command]
+        )
+        create_started = time.monotonic()
+        outcome: Optional[subprocess.CompletedProcess] = None
+        container_created = False
         try:
-            return self._executor(
+            created = self._executor(
                 args,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
             )
+            create_seconds = time.monotonic() - create_started
+            if created.returncode != 0:
+                outcome = self._annotate_result(
+                    created,
+                    effective_command=effective_command,
+                    failure_stage="container_create",
+                    container_create_seconds=create_seconds,
+                    total_seconds=time.monotonic() - started_at,
+                )
+                return outcome
+            container_created = True
+            start_started = time.monotonic()
+            remaining_timeout = timeout - (start_started - started_at)
+            if remaining_timeout <= 0:
+                raise subprocess.TimeoutExpired(args, timeout)
+            result = self._executor(
+                [self.executable, "start", "-a", name],
+                capture_output=True,
+                text=True,
+                timeout=remaining_timeout,
+            )
+            start_seconds = time.monotonic() - start_started
+            raw_stderr = result.stderr or ""
+            workspace_ready = "claw-workspace-ready" in raw_stderr.splitlines()
+            shell_started = "claw-shell-started" in raw_stderr.splitlines()
+            result.stderr = self._strip_internal_sentinels(raw_stderr)
+            failure_stage = ""
+            if result.returncode != 0:
+                if not shell_started:
+                    failure_stage = "shell_start"
+                elif not workspace_ready:
+                    failure_stage = "workspace_materialization"
+                else:
+                    failure_stage = "task_command"
+            state = ""
+            if result.returncode != 0:
+                try:
+                    inspected = self._executor(
+                        [
+                            self.executable,
+                            "inspect",
+                            "--format",
+                            "{{json .State}}",
+                            name,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    state = (inspected.stdout or inspected.stderr or "").strip()[
+                        -2000:
+                    ]
+                except (subprocess.TimeoutExpired, OSError) as exc:
+                    state = f"inspect failed: {type(exc).__name__}: {exc}"[-2000:]
+            outcome = self._annotate_result(
+                result,
+                effective_command=effective_command,
+                failure_stage=failure_stage,
+                workspace_ready=workspace_ready,
+                shell_started=shell_started,
+                container_state=state,
+                container_create_seconds=create_seconds,
+                container_start_seconds=start_seconds,
+                total_seconds=time.monotonic() - started_at,
+            )
+            return outcome
         except (subprocess.TimeoutExpired, KeyboardInterrupt, OSError):
-            self._cleanup(name)
             raise
         finally:
-            temporary.cleanup()
+            cleanup_started = time.monotonic()
+            cleanup_result: Optional[subprocess.CompletedProcess] = None
+            cleanup_error = ""
+            try:
+                cleanup_result = self._cleanup(name)
+            except (subprocess.TimeoutExpired, OSError) as exc:
+                cleanup_error = f"{type(exc).__name__}: {exc}"
+            if outcome is not None:
+                metadata = getattr(outcome, "_claw_container_metadata", {})
+                metadata["container_cleanup_seconds"] = (
+                    time.monotonic() - cleanup_started
+                )
+                metadata["container_cleanup_returncode"] = (
+                    cleanup_result.returncode if cleanup_result is not None else None
+                )
+                if cleanup_error:
+                    metadata["container_cleanup_error"] = cleanup_error[:500]
+                cleanup_failed = container_created and (
+                    cleanup_result is None or cleanup_result.returncode != 0
+                )
+                if cleanup_failed and outcome.returncode == 0:
+                    outcome.returncode = 1
+                    metadata["failure_stage"] = "container_cleanup"
+                    detail = cleanup_error or (
+                        cleanup_result.stderr.strip()
+                        or cleanup_result.stdout.strip()
+                        or "cleanup returned a non-zero exit without output"
+                    )
+                    outcome.stderr = f"container cleanup failed: {detail}\n"
+            if temporary is not None:
+                temporary.cleanup()
 
-    def _cleanup(self, container_name: str) -> None:
-        self._executor(
-            [self.executable, "rm", "-f", container_name],
+    def _cleanup(self, container_name: str) -> subprocess.CompletedProcess:
+        return self._executor(
+            [self.executable, "rm", "-f", "-v", container_name],
             capture_output=True,
             text=True,
             timeout=30,

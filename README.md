@@ -524,8 +524,10 @@ claw benchmark-run \
 
 该路径以相同 Docker/Podman CLI 参数支持 Windows、macOS 与 Linux：Agent 的
 `bash` 和任务检查在一次性容器中执行，容器默认断网、删除全部 Linux capability、
-启用 `no-new-privileges`、只读根文件系统及资源限制。每次命令先复制当前 Episode
-workspace，仅将一次性副本读写挂载到 `/workspace`，命令结束后丢弃副本中的全部变化。
+启用 `no-new-privileges`、只读根文件系统及资源限制。每次命令将当前 Episode
+workspace 只读挂载为容器输入，再复制到容器内有界 Tmpfs `/workspace`；命令结束后
+删除容器并丢弃其中全部变化。这样避免在 Windows/WSL 文件系统上为每条 Shell 命令
+递归复制和删除仓库，同时保持 Shell 修改不可持久化。
 直接文件工具仍由宿主 Agent 进程执行，但 Benchmark
 将其路径强制限制在该 workspace。镜像 ID/digest 与有效策略会进入 Benchmark
 协议指纹和 Episode metadata。在 Linux/WSL 中默认映射宿主 UID:GID，避免容器
@@ -537,8 +539,18 @@ workspace，仅将一次性副本读写挂载到 `/workspace`，命令结束后�
 ```bash
 python tools/probe_container_runtime.py \
   --image alpine@sha256:<digest> \
-  --engine auto
+  --engine auto \
+  --workspace /absolute/path/to/episode/workspace \
+  --task-python /opt/task/bin/python3.8 \
+  --import-name package_name \
+  --repeat 5
 ```
+
+Runner 显式覆盖镜像自带 `ENTRYPOINT`，并把失败标记为容器创建、工作区材料化、Shell
+启动或任务命令阶段；轨迹还记录创建/启动耗时与失败时的容器 State 摘要。`host` 复制模式
+仅作为兼容回退，可通过探针的 `--workspace-copy-mode host` 对照，不用于默认运行。
+Pydicom-1413 实际归档工作区的无模型压力与同口径性能证据见
+[`configs/integrations/oci-agent-shell-pydicom1413-stress-v2.json`](configs/integrations/oci-agent-shell-pydicom1413-stress-v2.json)。
 
 Windows + WSL2 + Docker Desktop 的真实探针证据见
 [`configs/integrations/oci-container-runtime-smoke.json`](configs/integrations/oci-container-runtime-smoke.json)。

@@ -20,6 +20,7 @@ class RecordingExecutor:
     def __init__(self, *, time_out_run=False):
         self.calls = []
         self.time_out_run = time_out_run
+        self.create_args = []
 
     def __call__(self, args, **kwargs):
         self.calls.append((list(args), dict(kwargs)))
@@ -28,12 +29,24 @@ class RecordingExecutor:
         if args[1:3] == ["image", "inspect"]:
             payload = [{"Id": "sha256:image", "RepoDigests": ["image@sha256:digest"]}]
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
-        if args[1] == "run" and self.time_out_run:
+        if args[1] == "create":
+            self.create_args = list(args)
+            return subprocess.CompletedProcess(args, 0, "container-id\n", "")
+        if args[1] == "start" and self.time_out_run:
             raise subprocess.TimeoutExpired(args, kwargs["timeout"])
-        if args[1] == "run" and "claw-shell-contract=ok" in args[-1]:
+        if args[1] == "start" and "claw-shell-contract=ok" in self.create_args[-1]:
             return subprocess.CompletedProcess(
-                args, 0, "claw-shell-contract=ok\n", ""
+                args,
+                0,
+                "claw-shell-contract=ok\n",
+                "claw-workspace-ready\nclaw-shell-started\n",
             )
+        if args[1] == "start":
+            return subprocess.CompletedProcess(
+                args, 0, "inside\n", "claw-workspace-ready\nclaw-shell-started\n"
+            )
+        if args[1] == "inspect":
+            return subprocess.CompletedProcess(args, 0, '{"ExitCode":1}\n', "")
         return subprocess.CompletedProcess(args, 0, "inside\n", "")
 
 
@@ -73,7 +86,7 @@ class OCIContainerRunnerTests(unittest.TestCase):
         self.assertEqual(result["status"], "passed")
         self.assertTrue(result["candidate_snapshot_visible"])
         self.assertTrue(result["shell_mutations_discarded"])
-        self.assertTrue(any(args[1] == "run" for args, _ in executor.calls))
+        self.assertTrue(any(args[1] == "create" for args, _ in executor.calls))
 
     def test_builds_hardened_portable_run_invocation_and_pins_image(self):
         executor = RecordingExecutor()
@@ -86,9 +99,8 @@ class OCIContainerRunnerTests(unittest.TestCase):
             result = runner.run("python -V", cwd=temporary, timeout=12)
 
         self.assertEqual(result.returncode, 0)
-        run = next(args for args, _ in executor.calls if args[1] == "run")
+        run = next(args for args, _ in executor.calls if args[1] == "create")
         for required in (
-            "--rm",
             "--network",
             "none",
             "--cap-drop",
@@ -97,9 +109,16 @@ class OCIContainerRunnerTests(unittest.TestCase):
             "no-new-privileges",
             "--read-only",
             "--pids-limit",
+            "--entrypoint",
         ):
             self.assertIn(required, run)
-        self.assertEqual(run[-4:], ["python:3.11-slim", "/bin/sh", "-lc", "python -V"])
+        self.assertEqual(run[-4:-1], ["/bin/sh", "python:3.11-slim", "-lc"])
+        self.assertIn("exec /bin/sh -lc 'python -V'", run[-1])
+        source_mount = run[run.index("--mount") + 1]
+        self.assertIn("target=/claw-source,readonly", source_mount)
+        self.assertTrue(
+            any("/workspace:rw,exec,nosuid" in item for item in run)
+        )
         if hasattr(__import__("os"), "getuid") and __import__("os").getuid() > 0:
             self.assertIn("--user", run)
         description = runner.describe()
@@ -118,7 +137,8 @@ class OCIContainerRunnerTests(unittest.TestCase):
                 runner.run("sleep 60", cwd=temporary, timeout=0.1)
         cleanup = [args for args, _ in executor.calls if args[1:3] == ["rm", "-f"]]
         self.assertEqual(len(cleanup), 1)
-        self.assertTrue(cleanup[0][3].startswith("claw-episode-"))
+        self.assertEqual(cleanup[0][3], "-v")
+        self.assertTrue(cleanup[0][4].startswith("claw-episode-"))
 
     def test_agent_bash_dispatches_through_configured_runner(self):
         executor = RecordingExecutor()
@@ -155,8 +175,8 @@ class OCIContainerRunnerTests(unittest.TestCase):
                 cwd=str(workspace),
                 timeout=12,
             )
-        run = next(args for args, _ in executor.calls if args[1] == "run")
-        self.assertEqual(run[-1], "cd /workspace && python -V")
+        run = next(args for args, _ in executor.calls if args[1] == "create")
+        self.assertIn("cd /workspace && python -V", run[-1])
 
     def test_streaming_agent_bash_preserves_container_audit_metadata(self):
         executor = RecordingExecutor()
@@ -181,8 +201,9 @@ class OCIContainerRunnerTests(unittest.TestCase):
         self.assertEqual(events[0]["execution_backend"], "oci-container")
         self.assertEqual(events[0]["effective_command"], "python -V")
 
-    def test_container_mounts_disposable_copy_and_discards_shell_writes(self):
+    def test_container_mounts_source_readonly_and_discards_shell_writes(self):
         mounted_sources = []
+        create_args = []
 
         def executor(args, **kwargs):
             if args[1] == "version":
@@ -191,10 +212,19 @@ class OCIContainerRunnerTests(unittest.TestCase):
                 return subprocess.CompletedProcess(
                     args, 0, json.dumps([{"Id": "sha256:image"}]), ""
                 )
-            mount = args[args.index("--mount") + 1]
-            source = mount.split("source=", 1)[1].split(",target=", 1)[0]
-            mounted_sources.append(Path(source))
-            (Path(source) / "tests.txt").write_text("mutated\n", encoding="utf-8")
+            if args[1] == "create":
+                create_args[:] = args
+                mount = args[args.index("--mount") + 1]
+                source = mount.split("source=", 1)[1].split(",target=", 1)[0]
+                mounted_sources.append(Path(source))
+                return subprocess.CompletedProcess(args, 0, "container-id\n", "")
+            if args[1] == "start":
+                return subprocess.CompletedProcess(
+                    args,
+                    0,
+                    "inside\n",
+                    "claw-workspace-ready\nclaw-shell-started\n",
+                )
             return subprocess.CompletedProcess(args, 0, "inside\n", "")
 
         runner = OCIContainerRunner(
@@ -204,7 +234,6 @@ class OCIContainerRunnerTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary:
             workspace = Path(temporary)
-            workspace_parent = workspace.parent.resolve()
             (workspace / "tests.txt").write_text("original\n", encoding="utf-8")
             result = runner.run("echo mutated > tests.txt", cwd=temporary, timeout=12)
             self.assertEqual(
@@ -213,14 +242,84 @@ class OCIContainerRunnerTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0)
         self.assertTrue(mounted_sources)
-        self.assertEqual(mounted_sources[0].parent.parent, workspace_parent)
-        self.assertFalse(mounted_sources[0].exists())
+        self.assertEqual(mounted_sources[0], workspace.resolve())
+        self.assertTrue(
+            any("target=/claw-source,readonly" in item for item in create_args)
+        )
         self.assertEqual(runner.result_metadata(result)["workspace_mutations"], "discarded")
+        self.assertEqual(runner.result_metadata(result)["workspace_copy_mode"], "container")
+
+    def test_diagnostics_distinguish_create_workspace_and_task_failures(self):
+        class FailingExecutor(RecordingExecutor):
+            def __init__(self, failure):
+                super().__init__()
+                self.failure = failure
+
+            def __call__(self, args, **kwargs):
+                if args[1] == "create" and self.failure == "create":
+                    return subprocess.CompletedProcess(args, 1, "", "mount denied")
+                if args[1] == "start" and self.failure == "workspace":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "claw-shell-started\ncopy failed\n"
+                    )
+                if args[1] == "start" and self.failure == "task":
+                    return subprocess.CompletedProcess(
+                        args,
+                        1,
+                        "",
+                        "claw-workspace-ready\nclaw-shell-started\ntest failed\n",
+                    )
+                return super().__call__(args, **kwargs)
+
+        expected = {
+            "create": "container_create",
+            "workspace": "workspace_materialization",
+            "task": "task_command",
+        }
+        for failure, stage in expected.items():
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                runner = OCIContainerRunner(
+                    OCIContainerConfig(image="python:3.11-slim"),
+                    executable="docker",
+                    executor=FailingExecutor(failure),
+                )
+                result = runner.run("false", cwd=temporary, timeout=12)
+                metadata = runner.result_metadata(result)
+                self.assertEqual(metadata["failure_stage"], stage)
+                self.assertEqual(result.returncode, 1)
+                self.assertNotIn("claw-shell-started", result.stderr)
+
+    def test_cleanup_failure_converts_success_to_infrastructure_failure(self):
+        class CleanupFailingExecutor(RecordingExecutor):
+            def __call__(self, args, **kwargs):
+                if args[1:3] == ["rm", "-f"]:
+                    return subprocess.CompletedProcess(args, 1, "", "daemon busy")
+                return super().__call__(args, **kwargs)
+
+        runner = OCIContainerRunner(
+            OCIContainerConfig(image="python:3.11-slim"),
+            executable="docker",
+            executor=CleanupFailingExecutor(),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            result = runner.run("true", cwd=temporary, timeout=12)
+
+        metadata = runner.result_metadata(result)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(metadata["failure_stage"], "container_cleanup")
+        self.assertEqual(metadata["container_cleanup_returncode"], 1)
+        self.assertIn("daemon busy", result.stderr)
 
     def test_rejects_non_isolated_network_profile(self):
         with self.assertRaisesRegex(ValueError, "network=none"):
             OCIContainerConfig(
                 image="python:3.11-slim", network="bridge"
+            ).validate()
+
+    def test_rejects_workspace_target_that_conflicts_with_internal_mount(self):
+        with self.assertRaisesRegex(ValueError, "internal mount"):
+            OCIContainerConfig(
+                image="python:3.11-slim", workspace_target="/claw-source"
             ).validate()
 
     def test_windows_cli_translates_wsl_drive_mount(self):

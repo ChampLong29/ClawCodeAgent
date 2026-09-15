@@ -1,8 +1,8 @@
 # Docker Sandbox 主机验证与接续手册
 
-状态：实现与合同已验证；真实 Docker 边界及首个任务镜像已完成冒烟，付费 Pilot 未执行
+状态：实现与合同已验证；真实 Docker 边界、任务镜像与实际工作区无模型探针已执行
 
-状态日期：2026-09-14
+状态日期：2026-09-15
 
 本文是把当前工作迁移到具备 Docker 的主机后直接继续执行的操作手册。架构决策、
 威胁模型和后端比较见
@@ -41,6 +41,12 @@ Agent Sandbox 清理失败时不会继续最终验证；该结果记录为基础
 测试失败。Episode 重新打开时默认继承 Manifest 中的 Backend、镜像和安全 Profile，
 避免无提示降级到 Host。
 
+Agent 的一次性 Shell 与长生命周期 Verifier Sandbox 是两个不同边界。一次性 Shell
+显式覆盖任务镜像的 `ENTRYPOINT`，将 Episode 源目录只读挂载为 `/claw-source`，并在
+容器内有界 Tmpfs `/workspace` 中准备可写副本。每条命令后删除容器和临时副本，Shell
+侧修改不会写回 Episode。执行证据分别标记容器创建、工作区材料化、Shell 启动和任务
+命令阶段，避免把挂载失败误报成普通测试失败。
+
 ## 2. Docker Backend 当前强制项
 
 隔离 Profile 使用结构化 Docker CLI 参数，不接受模型提供任意 Docker 参数：
@@ -68,7 +74,7 @@ Benchmark 使用 `benchmark_offline` Profile，并强制镜像引用采用
 1. 安装 Docker Engine 或 Docker Desktop，并确认当前用户可以执行 Docker 命令。
 2. Docker Desktop 需要允许共享本仓库所在目录。
 3. 推荐使用 Rootless Docker；当前代码不会自动证明 Docker daemon 本身是 Rootless。
-4. 镜像至少需要 `/bin/sh` 和 `sleep`。运行 Live Test 还需要 `id` 与 `grep`。
+4. 镜像至少需要 `/bin/sh`、`cp`、`rm` 和 `sleep`。运行 Live Test 还需要 `id` 与 `grep`。
 5. 实际 Coding/Benchmark 镜像需要包含任务用到的 Python、Git、Ripgrep、编译工具和
    依赖；`python:3.12-slim` 只适合作为最小合同验证起点。
 6. 容器默认使用宿主当前数字 UID/GID。工作区必须允许该身份读写。
@@ -122,6 +128,25 @@ Live Test 同时验证：
 
 只有这一步在目标 Docker 主机真实通过后，才可以把该主机/镜像组合标记为“真实
 Backend Smoke 已执行”；它仍不足以单独宣称完成全面安全验证。
+
+随后必须对即将使用的实际 Episode 工作区运行无模型压力探针：
+
+```bash
+PYTHONPATH=src python tools/probe_container_runtime.py \
+  --image '<PINNED_IMAGE>' \
+  --engine auto \
+  --workspace /absolute/path/to/materialized/episode/workspace \
+  --task-python /path/inside/image/to/python \
+  --import-name repository_package \
+  --repeat 5
+```
+
+`--repeat` 在同一真实工作区执行多次，不调用模型。每个 attempt 必须同时满足
+`workspace_ready=true`、`shell_started=true`、退出码 0，并且宿主目录不存在探针标记。
+指定任务解释器时还必须满足 `task_import_verified=true`，且导入模块来自该 Episode 副本。
+`failure_stage=container_create` 优先检查 daemon、Docker context 和 bind source；
+`workspace_materialization` 优先检查挂载可读性、Tmpfs 容量与文件权限；`shell_start`
+检查镜像 `/bin/sh`；`task_command` 才表示命令自身的非零退出。
 
 ## 5. 第二阶段：交互式 Agent Smoke
 

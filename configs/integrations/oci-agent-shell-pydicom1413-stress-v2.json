@@ -1,0 +1,70 @@
+{
+  "schema_version": "oci_agent_shell_stress.v2",
+  "captured_at": "2026-09-15",
+  "status": "passed",
+  "model_calls": 0,
+  "implementation_base_commit": "e3c8b982c95a5788792405165f351587a42bb566",
+  "host": {
+    "os_boundary": "Windows + WSL2 + Docker Desktop",
+    "wsl_distribution": "Ubuntu-24.04",
+    "docker_context": "desktop-linux",
+    "docker_server_version": "29.7.2"
+  },
+  "fixture": {
+    "instance_id": "pydicom__pydicom-1413",
+    "workspace_artifact": ".port_sessions/swe-bench-lite-ablation-v3-pydicom1413-20260915/claw-enhanced/episodes/training-d0d989fc3d3846d2a146/workspace",
+    "image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+    "observed_image_entrypoint": [
+      "docker-entrypoint.sh"
+    ],
+    "observed_image_cmd": [
+      "node"
+    ],
+    "task_python": "/opt/task/bin/python3.8",
+    "import_name": "pydicom"
+  },
+  "container_copy": {
+    "attempts": 3,
+    "passed": 3,
+    "total_seconds": [
+      6.863878271993599,
+      6.949792955012526,
+      6.755501745996298
+    ],
+    "mean_total_seconds": 6.856390991000808,
+    "task_import_verified": true,
+    "source_workspace_marker_absent": true,
+    "root_filesystem_read_only": true,
+    "network": "none",
+    "capabilities": "none",
+    "cleanup_returncodes": [
+      0,
+      0,
+      0
+    ]
+  },
+  "host_copy_fallback": {
+    "attempts": 1,
+    "passed": 1,
+    "total_seconds": 28.324287199997343,
+    "task_import_verified": true,
+    "source_workspace_marker_absent": true,
+    "cleanup_returncode": 0
+  },
+  "derived_performance": {
+    "container_copy_speedup_over_single_host_copy": 4.13107817759718,
+    "claim_boundary": "Host-specific model-free runtime evidence from one archived Episode workspace; not a cross-host benchmark and not task-quality evidence."
+  },
+  "diagnostic_contract": {
+    "explicit_entrypoint": "/bin/sh",
+    "failure_stages": [
+      "container_create",
+      "workspace_materialization",
+      "shell_start",
+      "task_command",
+      "container_cleanup"
+    ],
+    "failed_container_state_captured_before_cleanup": true,
+    "legacy_empty_exit_root_cause_claimed": false
+  }
+}

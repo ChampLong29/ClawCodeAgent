@@ -1169,3 +1169,19 @@ v3 聚合。
 工作区验证。Collector 现新增模型调用前的任务本地门禁，通过同一个 Runner 执行指定任务
 Python、从候选目录导入仓库包，并写入一个必须被丢弃的标记；空退出或任何异常均 fail
 closed。下一步只能以新 ID 进行一次披露的基础设施重试，原三份 Episode 不改写、不替换。
+
+## 2026-09-15：一次性 OCI Shell 分阶段诊断与复制路径优化
+
+后续审计确认固定 Pydicom 镜像带有 `docker-entrypoint.sh` 和默认 `node` CMD。它不能解释
+已经无法复现的原始空退出，因此不追认其为根因；但 Runner 依赖镜像入口脚本转交
+`/bin/sh` 属于不必要歧义，现已显式覆盖 entrypoint。一次调用从不透明的 `docker run
+--rm` 改为可审计的 create/start/inspect/remove 生命周期，通过内部哨兵区分容器创建、
+工作区材料化、Shell 启动和任务命令失败，并记录创建/启动耗时和失败 State 摘要。
+
+默认复制路径也从 WSL/Windows 宿主上的 `shutil.copytree` 改为：只读挂载真实 Episode
+目录，在容器内有界 Tmpfs 准备工作副本，执行后连同容器丢弃。真实 Docker 使用同一
+归档 Pydicom-1413 Enhanced 工作区完成无模型边界探针：根文件系统只读、网络关闭、
+capability 清零、工作区修改未持久化。相同任务导入探针下，旧 Host Copy 单次为
+28.32 秒，新 Container Copy 最终连续三次为 6.86、6.95、6.76 秒，平均 6.86 秒，约快
+4.1 倍；该数字只描述当前 Windows/WSL/Docker Desktop
+主机，不作为跨主机性能结论。正式模型重试仍需在多次实际工作区探针稳定后另行授权。

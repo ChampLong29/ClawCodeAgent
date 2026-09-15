@@ -64,13 +64,19 @@ def _probe_agent_shell_workspace(
         "printf 'discarded\\n' > .claw-agent-shell-admission"
     )
     result = command_runner.run(command, cwd=str(workspace), timeout=60)
+    metadata = (
+        command_runner.result_metadata(result)
+        if hasattr(command_runner, "result_metadata")
+        else {}
+    )
     if result.returncode != 0:
         details = result.stderr.strip() or result.stdout.strip()
         if not details:
             details = f"exit {result.returncode} without stdout/stderr"
+        stage = str(metadata.get("failure_stage") or "unclassified")
         raise BenchmarkError(
-            "disposable Agent Shell failed in the exact task workspace: "
-            + details[:500]
+            "disposable Agent Shell failed in the exact task workspace "
+            f"at {stage}: {details[:400]}"
         )
     if "agent-shell-workspace=ok" not in result.stdout.splitlines():
         raise BenchmarkError(
@@ -80,11 +86,6 @@ def _probe_agent_shell_workspace(
         raise BenchmarkError(
             "disposable Agent Shell persisted its admission marker"
         )
-    metadata = (
-        command_runner.result_metadata(result)
-        if hasattr(command_runner, "result_metadata")
-        else {}
-    )
     return {
         "status": "passed",
         "candidate_import": import_name,
@@ -93,6 +94,11 @@ def _probe_agent_shell_workspace(
         "shell_mutations_discarded": True,
         "execution_backend": metadata.get("execution_backend", ""),
         "container_image_digest": metadata.get("container_image_digest", ""),
+        "workspace_copy_mode": metadata.get("workspace_copy_mode", ""),
+        "container_create_seconds": metadata.get("container_create_seconds"),
+        "container_start_seconds": metadata.get("container_start_seconds"),
+        "workspace_ready": metadata.get("workspace_ready"),
+        "shell_started": metadata.get("shell_started"),
     }
 
 

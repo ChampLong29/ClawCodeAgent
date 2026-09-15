@@ -394,6 +394,16 @@ Claw 臂的 Shell 虽然都被分发到 OCI Runner，却全部以空输出、退
 丢弃的标记；任一步失败都停止且不调用模型。基础设施重试必须使用新 Episode ID 并保留
 原始记录。
 
+一次性 OCI Shell 默认使用 `workspace_copy_mode=container`：实际 Episode 目录作为只读
+输入挂载，容器启动后复制到有界 `/workspace` Tmpfs，命令只能修改该临时副本。Runner
+使用显式 `/bin/sh` entrypoint，不再依赖任务镜像自带入口脚本；执行证据区分
+`container_create`、`workspace_materialization`、`shell_start` 与 `task_command`，并记录
+创建/启动耗时和失败容器 State。可用 `tools/probe_container_runtime.py --workspace ...
+--repeat 5` 在不调用模型的情况下压力测试真实任务目录。本机 Pydicom-1413 归档目录的
+同口径单样本对照为旧 Host Copy 28.32 秒、新 Container Copy 最终连续三次平均 6.86 秒，
+约快 4.1 倍；这只是该主机
+上的运行时证据，不外推为通用性能基准。
+
 `read_file` 使用有上限的分页结果（默认 120 行、最多 500 行），并把 `truncated` 与
 `next_offset` 放在内容字段之前。Claw Enhanced v2 除 Deadline/Post-edit 提示外，还真正
 启用重复只读拒绝、一次修复机会、升级后的直接编辑约束和 Critical 最终回答约束。

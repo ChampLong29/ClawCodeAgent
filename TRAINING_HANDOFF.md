@@ -55,6 +55,13 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   reproduce after the run. An exact materialized-workspace Shell gate is now
   required before model calls; the next permitted run is a disclosed
   infrastructure retry with fresh IDs, not a replacement or quality retry.
+- The disposable OCI Shell now read-only mounts the actual Episode source and
+  copies it into a bounded in-container tmpfs. It explicitly overrides image
+  entrypoints and records container-create, workspace-materialization,
+  shell-start, and task-command failure stages. On this host, one archived
+  Pydicom-1413 probe averaged 6.86 seconds over three container-copy attempts
+  versus 28.32 seconds for one legacy host-copy attempt (about 4.1x faster);
+  this is host-specific runtime evidence, not a benchmark.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
   portable source of truth for the seven task images, in-container interpreters,
   allowlists, and Pi image. Docker admission now runs inside the pinned image, so

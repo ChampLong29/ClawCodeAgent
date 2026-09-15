@@ -311,6 +311,13 @@ When changing tool execution:
   Sandbox Backend. Host mode is compatibility execution, not OS isolation.
 - Docker mode requires an explicit local image, must not pull implicitly, and
   must fail closed rather than fall back to Host.
+- The disposable OCI Shell must explicitly override image entrypoints. Its
+  default isolation mounts the Episode workspace read-only and copies it into a
+  bounded in-container tmpfs; Shell writes must never reach the source workspace.
+  Preserve stage diagnostics for container creation, workspace materialization,
+  Shell startup, task execution, and cleanup rather than collapsing them into an
+  unclassified exit code.
+  Task images used by this path must provide `/bin/sh`, `cp`, and `rm`.
 - Isolated Docker containers keep `--ipc=none` and mount a private, bounded,
   noexec `/dev/shm`; removing it breaks Python multiprocessing semaphores and
   can create false regression failures. Docker SWE admission must probe the
@@ -400,8 +407,9 @@ When changing session schemas, maintain backward-compatible loading or provide a
 - SWE collection also passes that allowlist into `allowed_write_paths`; explicit
   `write_file` and `edit_file` calls outside it must be rejected before filesystem
   mutation. While an allowlist is active, Shell fails closed unless its command runner
-  advertises disposable-workspace execution. The OCI runner copies the current Episode
-  workspace, mounts only that copy, and discards all Shell-side changes.
+  advertises disposable-workspace execution. The OCI runner mounts the current Episode
+  workspace read-only, prepares a bounded in-container copy, and discards all
+  Shell-side changes. Host-side recursive copy remains a compatibility fallback.
 - SWE candidate verification must rebuild from the Episode Git `HEAD`, overlay only
   allowlisted candidate files, and then inject hidden tests. Never copy a possibly
   contaminated Agent test tree into the verifier workspace.
