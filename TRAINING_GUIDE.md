@@ -386,6 +386,14 @@ python tools/probe_openai_tool_reasoning.py \
 与 Termination Hard Gate 均通过。它只证明协议/工具/运行时集成可工作，不估计 SWE-bench
 成功率。冻结的 v3 SWE-bench 消融仍使用 Disabled，避免在实验开始后改变控制变量。
 
+合成目录门禁不能替代真实 Episode 工作区门禁。首个 Pydicom-1413 v3 三臂运行中，两个
+Claw 臂的 Shell 虽然都被分发到 OCI Runner，却全部以空输出、退出码 1 失败；Enhanced
+仍靠文件工具和代码推理通过 3 条目标测试与 301 条回归，但运行能力已不等价，所以不得
+纳入 Harness 对比。后续 Collector 会在任何 Claw 模型请求前，通过同一个一次性 Runner
+在已经材料化的任务工作区运行指定任务 Python、从候选目录导入仓库包，并写入一个必须被
+丢弃的标记；任一步失败都停止且不调用模型。基础设施重试必须使用新 Episode ID 并保留
+原始记录。
+
 `read_file` 使用有上限的分页结果（默认 120 行、最多 500 行），并把 `truncated` 与
 `next_offset` 放在内容字段之前。Claw Enhanced v2 除 Deadline/Post-edit 提示外，还真正
 启用重复只读拒绝、一次修复机会、升级后的直接编辑约束和 Critical 最终回答约束。

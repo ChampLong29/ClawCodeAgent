@@ -1,6 +1,6 @@
 {
   "schema_version": "swe_bench_lite_runtime_ablation_plan.v3",
-  "status": "ready_for_fresh_v3_swe_bench_episode",
+  "status": "task_workspace_shell_gate_implemented_requires_infrastructure_retry",
   "claim_boundary": "Local SWE-bench Lite Dev protocol only; not an official SWE-bench score. The first five v2 task samples are diagnostic and must not be pooled with v3 outcomes.",
   "extends": {
     "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v2.json",
@@ -70,5 +70,16 @@
     "thinking_enabled_two_turn_probe": "passed",
     "thinking_enabled_versioned_micro_task": "passed"
   },
-  "continuation_rule": "Start only fresh v3 SWE-bench task/arm Episodes after all admission evidence passes; keep Thinking disabled as the preregistered experimental control, and never rewrite, quality-retry, or silently replace v2 records."
+  "first_v3_task_evidence": "configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1413-v3-result.json",
+  "task_workspace_shell_admission": {
+    "status": "implemented_after_first_v3_run",
+    "requirements": [
+      "exact_materialized_episode_workspace",
+      "configured_task_interpreter",
+      "repository_import_from_candidate",
+      "discarded_shell_marker",
+      "fail_closed_before_model_request"
+    ]
+  },
+  "continuation_rule": "The original Pydicom-1413 v3 Episodes remain immutable and excluded from comparison because both Claw arms had zero successful Shell calls. After the exact-workspace gate is committed, run one disclosed infrastructure retry with fresh output IDs; keep Thinking disabled and never replace the original records."
 }

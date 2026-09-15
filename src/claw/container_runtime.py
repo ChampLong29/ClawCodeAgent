@@ -221,7 +221,8 @@ class OCIContainerRunner:
                 (
                     "test \"$(cat candidate.txt)\" = candidate-visible && "
                     "printf 'container-only\\n' > candidate.txt && "
-                    "printf 'discarded\\n' > shell-marker.txt"
+                    "printf 'discarded\\n' > shell-marker.txt && "
+                    "printf 'claw-shell-contract=ok\\n'"
                 ),
                 cwd=str(workspace),
                 timeout=30,
@@ -230,6 +231,10 @@ class OCIContainerRunner:
                 raise ContainerRuntimeError(
                     "disposable Agent shell could not read the candidate snapshot: "
                     + (result.stderr.strip() or result.stdout.strip() or "unknown error")
+                )
+            if "claw-shell-contract=ok" not in result.stdout.splitlines():
+                raise ContainerRuntimeError(
+                    "disposable Agent shell did not execute the contract command"
                 )
             if source.read_text(encoding="utf-8") != "candidate-visible\n":
                 raise ContainerRuntimeError(

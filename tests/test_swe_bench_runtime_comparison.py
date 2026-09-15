@@ -105,7 +105,8 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
             plan["admission_before_model_calls"]["docker_backend"], "required"
         )
         self.assertEqual(
-            plan["status"], "ready_for_fresh_v3_swe_bench_episode"
+            plan["status"],
+            "task_workspace_shell_gate_implemented_requires_infrastructure_retry",
         )
         self.assertTrue(admission["claw_shell"]["verified"])
         for probe in admission["provider_probes"].values():
@@ -123,6 +124,26 @@ class SweBenchRuntimeComparisonTests(unittest.TestCase):
         self.assertEqual(
             admission["corrected_micro_task"]["shell_dispatched_in_oci"], 2
         )
+        self.assertEqual(
+            admission["exact_task_workspace_shell_gate"]["failure_policy"],
+            "fail_closed_without_model_request",
+        )
+
+        first_v3 = json.loads(
+            (repository / plan["first_v3_task_evidence"]).read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            first_v3["operational_comparability"]["derived_status"],
+            "not_comparable",
+        )
+        self.assertTrue(first_v3["results"]["claw_enhanced"]["raw_resolved"])
+        self.assertFalse(
+            first_v3["results"]["claw_enhanced"]["comparison_eligible"]
+        )
+        self.assertEqual(first_v3["results"]["claw_base"]["shell_successes"], 0)
+        self.assertEqual(first_v3["results"]["claw_enhanced"]["shell_successes"], 0)
 
     def test_first_ablation_result_preserves_raw_and_budgeted_outcomes(self):
         repository = Path(__file__).resolve().parents[1]

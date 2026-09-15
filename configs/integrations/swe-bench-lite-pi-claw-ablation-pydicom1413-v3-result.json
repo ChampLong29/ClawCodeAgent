@@ -1,0 +1,157 @@
+{
+  "schema_version": "swe_bench_lite_runtime_ablation_evidence.v1",
+  "captured_at": "2026-09-15",
+  "status": "first_v3_task_complete_with_claw_shell_contamination",
+  "protocol": {
+    "path": "configs/integrations/swe-bench-lite-pi-claw-ablation-plan-v3.json",
+    "sha256_at_execution": "b27c65d89c48cf780131df0760a2445cb9dfece23f4d023743d0eef76595c504"
+  },
+  "generation_commit": "484022a79babe3b6a53f3027906ced74de16721c",
+  "data_transfer_authorization": "The user explicitly authorized sending this task's repository code and task context to the configured DeepSeek endpoint and running Claw Base, Claw Enhanced, and Pi Raw once each.",
+  "task": {
+    "instance_id": "pydicom__pydicom-1413",
+    "dataset_revision": "69611d31007e1c6731db8bd5b5c3f2d33f5bab6e",
+    "base_commit": "f909c76e31f759246cec3708dadd173c5d6e84b1",
+    "split": "dev",
+    "official_swebench_harness": false
+  },
+  "controls": {
+    "model": "deepseek-flash",
+    "backend_version": "v4-flash-9_10",
+    "protocol": "openai-completions",
+    "thinking_mode": "disabled",
+    "temperature": 0.0,
+    "max_tokens_per_response": 4096,
+    "max_total_tokens": 250000,
+    "max_turns": 24,
+    "allowed_paths": [
+      "pydicom/dataelem.py"
+    ],
+    "task_image": "claw-local/sweb-pydicom@sha256:7b75f81a55dfc77d0e9ee1bcc61b4747cadd1ee07dd89010ef6bfa58d8e20351",
+    "task_python": "/opt/task/bin/python3.8",
+    "evaluator_python": "/usr/bin/python3",
+    "pi_image": "claw-local/pi-rpc@sha256:cd01a10974964bc6179e532a9d821dbf22074b3ecb5051a15680180f261c3e69"
+  },
+  "admission": {
+    "repository_commit_match": true,
+    "repository_clean": true,
+    "task_image_digest_match": true,
+    "pi_image_digest_match": true,
+    "environment_contract": {
+      "status": "passed",
+      "python_version": "3.8.20",
+      "pytest_version": "5.4.3",
+      "workspace_import": "pydicom/__init__.py",
+      "multiprocessing_semaphore": true
+    },
+    "generic_disposable_shell_contract": "passed",
+    "missing_at_execution": "No pre-model probe exercised the exact materialized task workspace through the Agent's disposable Shell runner."
+  },
+  "results": {
+    "claw_base": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "comparison_eligible": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass": "0 passed, 3 failed",
+      "pass_to_pass": "301 passed, 0 failed",
+      "turns": 24,
+      "tool_calls": 26,
+      "input_tokens": 137355,
+      "output_tokens": 2552,
+      "first_target_path_turn": 3,
+      "first_direct_mutation_turn": 22,
+      "direct_mutation_calls": 2,
+      "changed_files": [
+        "pydicom/dataelem.py"
+      ],
+      "candidate_change": "Added OD and OL to the no-backslash-splitting VR list, but omitted the other VRs required by the frozen target tests.",
+      "shell_requests": 8,
+      "shell_successes": 0,
+      "shell_failure_signature": "Every dispatched Shell command, including pwd and true, returned exit 1 with empty stdout/stderr after about 28 seconds.",
+      "termination": "max_turns_reached",
+      "process_violations": 0,
+      "collection_manifest_sha256": "ef25479b87c83e0fa208dcb97d459306bdb66afa4ad0a41bd4bce47a6244d663",
+      "trajectory_sha256": "79b8e323e8ad0ce4db5174b7cbc62312d41bf0ccc4829dc78140c20a03b942d7",
+      "verification_sha256": "c49ef243576f26ff004dbdfc5fec2658bea8bb7d94d1738d8ccaf7d24396b8d7"
+    },
+    "claw_enhanced": {
+      "raw_resolved": true,
+      "policy_compliant_resolved": true,
+      "budgeted_resolved": true,
+      "comparison_eligible": false,
+      "test_pass_rate": 1.0,
+      "fail_to_pass": "3 passed, 0 failed",
+      "pass_to_pass": "301 passed, 0 failed",
+      "turns": 15,
+      "tool_calls": 17,
+      "input_tokens": 80319,
+      "output_tokens": 2724,
+      "first_target_path_turn": 1,
+      "implementation_deadline_turn": 10,
+      "first_direct_mutation_turn": 11,
+      "post_edit_contract_guidance_turn": 11,
+      "direct_mutation_calls": 1,
+      "changed_files": [
+        "pydicom/dataelem.py"
+      ],
+      "candidate_change": "Added OL, OD, UC, UR, OV, SV, and UV to the no-backslash-splitting VR list; the frozen verifier accepted the candidate.",
+      "shell_requests": 5,
+      "shell_successes": 0,
+      "shell_failure_signature": "Every dispatched Shell command, including pwd and echo, returned exit 1 with empty stdout/stderr after about 28 seconds.",
+      "termination": "completed",
+      "process_violations": 0,
+      "collection_manifest_sha256": "6b2fc0d6eed6a93791e718920fd06d9a8da6447189bda9fd97f41dd7c9b6245b",
+      "trajectory_sha256": "5c72ca2aef2634f396f1b892e857db2991a02a3e8f24bfd3b409edda41e1d17e",
+      "verification_sha256": "e46453bb03248829246a5c207757e92282fd15b7f8fc3931453926177b9568ac"
+    },
+    "pi_raw": {
+      "raw_resolved": false,
+      "policy_compliant_resolved": false,
+      "budgeted_resolved": false,
+      "comparison_eligible": false,
+      "test_pass_rate": 0.0,
+      "fail_to_pass": "0 passed, 3 failed",
+      "pass_to_pass": "301 passed, 0 failed",
+      "turns": 17,
+      "tool_calls": 25,
+      "input_tokens": 245387,
+      "cache_read_input_tokens": 228992,
+      "output_tokens": 7365,
+      "total_tokens": 252752,
+      "first_target_path_turn": 1,
+      "direct_mutation_calls": 0,
+      "changed_files": [],
+      "termination": "max_total_tokens_exceeded",
+      "process_violations": 0,
+      "collection_manifest_sha256": "823dd8aaba24ecf06db16e6c27c44f2e45c44740f4f2da237989011caabcda8e",
+      "trajectory_sha256": "c163725b30fea0629f15551c56bcf84ae51c11a2a96ee5a96c6f3b3b84acc953",
+      "verification_sha256": "918d86a2b1a41d52abe8e04a1a30f54a39b5af823da7b8a9f7db8d59a095c43e"
+    }
+  },
+  "operational_comparability": {
+    "reported_structural_status": "comparable",
+    "derived_status": "not_comparable",
+    "reason": "Claw Base and Enhanced had zero successful Shell executions while Pi Shell remained operational. The frozen fields match, but runtime capabilities did not.",
+    "enhanced_success_retained": true,
+    "aggregate_with_clean_v3": false,
+    "quality_retry": false
+  },
+  "remediation": {
+    "root_cause_scope": "The generic synthetic Shell admission did not exercise the exact materialized task workspace. The lower-level Docker failure is not claimed because the empty exit-1 condition did not reproduce after the run.",
+    "implemented": "Before any future Claw model request, the collection path now runs the configured task interpreter, imports the repository package, and writes a discarded marker through the same disposable Shell runner against the exact Episode workspace.",
+    "post_run_model_free_probe": "passed",
+    "post_run_probe_limitation": "A later pass proves the image and archived workspace are usable, but does not retroactively make the original Episodes operationally comparable.",
+    "next_action": "After committing the fail-closed gate, perform one disclosed infrastructure retry under fresh output IDs; do not replace these original Episodes."
+  },
+  "reproducibility": {
+    "runtime_environment_manifest": "configs/integrations/swe-bench-lite-runtime-environments-v1.json",
+    "runtime_environment_manifest_sha256": "4a3faa81784668352ffdbc579e81baba6f350fa0b2f2da8020c89f76b868dc5e",
+    "runtime_ablation_sha256": "717ed1391ce777f6e7545058dfc3e4faf16b1d18b1864db146352de7a20add29",
+    "quality_retries": 0,
+    "infrastructure_retries": 0,
+    "local_artifact_root": ".port_sessions/swe-bench-lite-ablation-v3-pydicom1413-20260915"
+  },
+  "claim_boundary": "One three-arm local SWE-bench Lite Dev first run with immutable hard outcomes and a disclosed Claw Shell execution failure. Enhanced is a raw, policy-compliant, budgeted local success, but the three-arm run is excluded from causal or aggregate comparison because runtime capabilities were unequal. This is not an official SWE-bench score."
+}

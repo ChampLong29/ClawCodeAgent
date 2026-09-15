@@ -20,6 +20,7 @@ from claw.data_pipeline import (
 from claw.data_pipeline.swe_bench_collection import (
     collect_swe_bench_lite_dev_episode,
     _infer_workspace_import_name,
+    _probe_agent_shell_workspace,
     _probe_docker_workspace_import,
     _probe_workspace_import,
     _workspace_pythonpath,
@@ -170,6 +171,63 @@ class TrainingEpisodeCollectionTests(unittest.TestCase):
 
 
 class SweBenchEnvironmentContractTests(unittest.TestCase):
+    def test_agent_shell_probe_uses_exact_workspace_and_fails_closed(self):
+        class Runner:
+            def __init__(self, returncode=0):
+                self.returncode = returncode
+                self.calls = []
+
+            def run(self, command, *, cwd, timeout):
+                self.calls.append((command, cwd, timeout))
+                return SimpleNamespace(
+                    returncode=self.returncode,
+                    stdout=("agent-shell-workspace=ok\n" if not self.returncode else ""),
+                    stderr="",
+                )
+
+            def result_metadata(self, _result):
+                return {
+                    "execution_backend": "oci-container",
+                    "container_image_digest": "image@sha256:digest",
+                }
+
+        with tempfile.TemporaryDirectory() as temporary:
+            runner = Runner()
+            result = _probe_agent_shell_workspace(
+                command_runner=runner,
+                cwd=temporary,
+                python_executable="/opt/task/bin/python3.8",
+                import_name="package",
+            )
+            self.assertEqual(result["status"], "passed")
+            self.assertEqual(runner.calls[0][1], str(Path(temporary).resolve()))
+            self.assertIn(".claw-agent-shell-admission", runner.calls[0][0])
+            self.assertFalse(
+                (Path(temporary) / ".claw-agent-shell-admission").exists()
+            )
+
+            with self.assertRaisesRegex(
+                BenchmarkError, "exact task workspace.*without stdout/stderr"
+            ):
+                _probe_agent_shell_workspace(
+                    command_runner=Runner(returncode=1),
+                    cwd=temporary,
+                    python_executable="/opt/task/bin/python3.8",
+                    import_name="package",
+                )
+
+            silent_runner = Runner()
+            silent_runner.run = lambda *_args, **_kwargs: SimpleNamespace(
+                returncode=0, stdout="", stderr=""
+            )
+            with self.assertRaisesRegex(BenchmarkError, "did not execute"):
+                _probe_agent_shell_workspace(
+                    command_runner=silent_runner,
+                    cwd=temporary,
+                    python_executable="/opt/task/bin/python3.8",
+                    import_name="package",
+                )
+
     def test_docker_import_probe_uses_pinned_container_environment(self):
         fake_backend = SimpleNamespace()
         fake_handle = SimpleNamespace(

@@ -244,6 +244,13 @@ Thinking Disabled 和 Enabled 下完成合成两轮探针。随后在 Thinking E
 证据摘要见
 [`swe-bench-lite-pi-claw-ablation-v3-admission.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-v3-admission.json)。
 
+首个正式 v3 本地 Dev 三臂任务 `pydicom__pydicom-1413` 产生了一个 Enhanced Hard
+Success（3 条目标测试与 301 条回归通过），Base 未解决，Pi 超出总 Token 预算且未编辑。
+但轨迹审计发现两个 Claw 臂的所有已分发 Shell 都以空输出、退出码 1 失败，而 Pi Shell
+可用，因此该三臂运行不进入因果或聚合比较。现在每个 Claw Episode 在模型调用前还必须
+通过“真实材料化工作区 + 指定任务解释器 + 仓库导入 + 修改丢弃”门禁。原始结果与修复边界见
+[`swe-bench-lite-pi-claw-ablation-pydicom1413-v3-result.json`](configs/integrations/swe-bench-lite-pi-claw-ablation-pydicom1413-v3-result.json)。
+
 ### 已归档的代表性实验
 
 > 追溯审计结论：下列七题计划中的前五题是诊断性 v2 试跑，不能用于估计或比较 Harness

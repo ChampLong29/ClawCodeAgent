@@ -1143,3 +1143,29 @@ Permission、Termination 与 Evaluation Integrity 等必要 Hard Gate 全部通�
 v3 消融继续关闭 Thinking 仅是预注册的成本与方差控制。该微任务不是 SWE-bench 样本，不能
 用于成功率估计；准入状态现为可开始全新的 v3 SWE-bench Episode，且不得与前五个诊断性
 v2 Episode 合并。
+
+## 2026-09-15：首个 v3 Pydicom-1413 三臂运行与任务工作区门禁
+
+在用户明确授权后，按冻结 v3 配置各运行一次 Claw Base、Claw Enhanced 与 Pi Raw。
+结构化字段一致，镜像、解释器、仓库提交、Allowlist 与隐藏评测指纹均匹配。硬结果为：
+
+- Base 在第 22 回合才首次编辑，只将 `OD`、`OL` 加入排除列表，遗漏目标测试要求的其他
+  VR；3 条 FAIL_TO_PASS 全失败、301 条 PASS_TO_PASS 通过，最终达到 24 Turn 上限。
+- Enhanced 在第 10 回合收到 Deadline，第 11 回合编辑并收到 Post-edit Contract；补齐
+  `OL`、`OD`、`UC`、`UR`、`OV`、`SV`、`UV`，3 条目标与 301 条回归全部通过，Hard Gate
+  成功，总 Token 83,043。
+- Pi Raw 在 17 回合内请求 25 次工具但没有编辑，达到 252,752 总 Token，超过 250,000
+  预算；目标测试全失败、301 条回归通过。
+
+不过，跨轨迹审计发现 Base 的 8 次和 Enhanced 的 5 次 Shell 调用虽然都已分发到 OCI
+Runner，却全部在约 28 秒后以空 stdout/stderr、退出码 1 返回，甚至 `pwd`、`true`、
+`echo` 也失败；Pi Shell 正常。Enhanced 靠文件读取和静态推理得到正确补丁，这个 Hard
+Success 可以保留为本地候选结果，但不能据此比较 Harness。生成报告的 `comparable` 只代表
+冻结字段相同，不代表运行能力等价；版本化派生结论明确将三臂运行标为不可比较且不进入
+v3 聚合。
+
+运行结束后的同工作区无模型探针能够通过，因此不把未复现的 Docker 底层原因写成既定事实。
+可以确定的缺陷是准入覆盖不足：此前只在合成目录验证 Runner，没有在材料化后的实际任务
+工作区验证。Collector 现新增模型调用前的任务本地门禁，通过同一个 Runner 执行指定任务
+Python、从候选目录导入仓库包，并写入一个必须被丢弃的标记；空退出或任何异常均 fail
+closed。下一步只能以新 ID 进行一次披露的基础设施重试，原三份 Episode 不改写、不替换。

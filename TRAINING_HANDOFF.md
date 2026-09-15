@@ -47,6 +47,14 @@ do not reuse the older `68b7ae0` generation commit for new Episodes.
   request recovered, only `challenge.py` changed, and all required Verifier gates
   passed. This is integration evidence, not SWE-bench quality evidence. The frozen
   v3 SWE-bench arms still use Thinking Disabled solely as a cost/variance control.
+- The first formal v3 Pydicom-1413 run has immutable outcomes: Enhanced passes all
+  3 FAIL_TO_PASS and 301 PASS_TO_PASS tests, Base fails the target tests at the
+  turn limit, and Pi makes no edit before exceeding 250k total tokens. Do not use
+  this as a three-arm comparison: all 13 dispatched Claw Shell calls returned an
+  empty exit-1 result while Pi Shell worked. The lower-level failure did not
+  reproduce after the run. An exact materialized-workspace Shell gate is now
+  required before model calls; the next permitted run is a disclosed
+  infrastructure retry with fresh IDs, not a replacement or quality retry.
 - `configs/integrations/swe-bench-lite-runtime-environments-v1.json` is the
   portable source of truth for the seven task images, in-container interpreters,
   allowlists, and Pi image. Docker admission now runs inside the pinned image, so

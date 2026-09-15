@@ -82,5 +82,15 @@
     ],
     "verified": true
   },
+  "exact_task_workspace_shell_gate": {
+    "status": "implemented_after_first_v3_task",
+    "runs_before_model_request": true,
+    "uses_configured_task_interpreter": true,
+    "requires_repository_import_from_candidate": true,
+    "requires_discarded_marker": true,
+    "failure_policy": "fail_closed_without_model_request",
+    "post_run_pydicom1413_workspace_probe": "passed",
+    "claim_boundary": "The post-run probe validates the new gate against an archived task workspace. It does not retroactively validate Shell availability during the original three Episodes."
+  },
   "claim_boundary": "Model-free OCI contract evidence, synthetic two-request provider probes with Thinking disabled and enabled, and one versioned local micro-task with Thinking enabled. The micro-task verifies protocol/tool/runtime integration and recovery from one Shell-policy rejection; it is not a SWE-bench result or a success-rate estimate."
 }

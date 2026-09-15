@@ -150,6 +150,11 @@ protocol workaround); if enabled, preserve and replay the complete OpenAI
 `tool_choice`. Runtime action masking must remain enforced independently. Run the
 synthetic
 `tools/probe_openai_tool_reasoning.py` once per endpoint/model/protocol combination.
+The generic synthetic Shell contract is necessary but insufficient. After a SWE
+task is materialized, the Collector must use the same Agent command runner against
+that exact workspace to run the configured task interpreter, import the repository
+package from the candidate, and discard a marker. Fail closed before the first model
+request if this task-local contract fails.
 
 Docker benchmarks require a local digest-pinned image and use distinct Agent
 and Verifier sandboxes:
@@ -459,6 +464,13 @@ When changing session schemas, maintain backward-compatible loading or provide a
   also passes with Thinking enabled, including OCI Shell, allowlisted edit, recovery
   from one Shell-policy rejection, and all required Verifier gates. Treat it as
   integration evidence only, not a SWE-bench result or success-rate estimate.
+- The first formal v3 Pydicom-1413 run retains an Enhanced hard success, a Base
+  target-test/turn-limit failure, and a Pi token-budget failure. It is not eligible
+  for comparison or aggregation because every dispatched Claw Shell call failed
+  with empty output and exit 1 while Pi Shell worked. Preserve all three original
+  Episodes. The post-run failure did not reproduce; future runs require the exact
+  task-workspace Shell gate and may use one disclosed infrastructure retry with
+  fresh IDs, never an outcome-replacing quality retry.
 - Astroid-1196 is also sampled. Base and Pi made no edit; Enhanced passed two
   target and 24 regression tests but hit the turn limit. Preserve Base from the
   run whose collection finalization failed after verification, and preserve

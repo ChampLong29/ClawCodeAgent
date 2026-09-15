@@ -30,6 +30,10 @@ class RecordingExecutor:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
         if args[1] == "run" and self.time_out_run:
             raise subprocess.TimeoutExpired(args, kwargs["timeout"])
+        if args[1] == "run" and "claw-shell-contract=ok" in args[-1]:
+            return subprocess.CompletedProcess(
+                args, 0, "claw-shell-contract=ok\n", ""
+            )
         return subprocess.CompletedProcess(args, 0, "inside\n", "")
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Union
@@ -33,6 +34,66 @@ from .collection import (
 
 
 ENVIRONMENT_CONTRACT_SCHEMA_VERSION = "swe_bench_environment_contract.v2"
+
+
+def _probe_agent_shell_workspace(
+    *,
+    command_runner: Any,
+    cwd: str,
+    python_executable: str,
+    import_name: str,
+) -> Dict[str, Any]:
+    """Prove the Agent's exact disposable workspace is executable before inference."""
+    workspace = Path(cwd).resolve()
+    marker = workspace / ".claw-agent-shell-admission"
+    if marker.exists():
+        raise BenchmarkError(
+            "Agent Shell admission marker already exists in the source workspace"
+        )
+    script = (
+        "import importlib,pathlib,sys;"
+        "root=pathlib.Path.cwd().resolve();"
+        "sys.path[:0]=[str(root/'src'),str(root)];"
+        "origin=pathlib.Path(importlib.import_module(sys.argv[1]).__file__).resolve();"
+        "origin.relative_to(root);"
+        "print('agent-shell-workspace=ok')"
+    )
+    command = (
+        f"{shlex.quote(str(python_executable))} -c {shlex.quote(script)} "
+        f"{shlex.quote(str(import_name))} && "
+        "printf 'discarded\\n' > .claw-agent-shell-admission"
+    )
+    result = command_runner.run(command, cwd=str(workspace), timeout=60)
+    if result.returncode != 0:
+        details = result.stderr.strip() or result.stdout.strip()
+        if not details:
+            details = f"exit {result.returncode} without stdout/stderr"
+        raise BenchmarkError(
+            "disposable Agent Shell failed in the exact task workspace: "
+            + details[:500]
+        )
+    if "agent-shell-workspace=ok" not in result.stdout.splitlines():
+        raise BenchmarkError(
+            "disposable Agent Shell did not execute the exact-workspace probe"
+        )
+    if marker.exists():
+        raise BenchmarkError(
+            "disposable Agent Shell persisted its admission marker"
+        )
+    metadata = (
+        command_runner.result_metadata(result)
+        if hasattr(command_runner, "result_metadata")
+        else {}
+    )
+    return {
+        "status": "passed",
+        "candidate_import": import_name,
+        "candidate_snapshot_visible": True,
+        "task_python_executable": str(python_executable),
+        "shell_mutations_discarded": True,
+        "execution_backend": metadata.get("execution_backend", ""),
+        "container_image_digest": metadata.get("container_image_digest", ""),
+    }
 
 
 def _workspace_pythonpath(cwd: str, existing: str = "") -> str:
@@ -552,12 +613,22 @@ def collect_swe_bench_lite_dev_episode(
         nonlocal environment_contract
         if sandbox_backend_name == "docker":
             try:
+                import_name = _infer_workspace_import_name(public_task.repo, cwd)
                 environment_contract = _probe_docker_workspace_import(
                     cwd=cwd,
                     image=str(sandbox_image),
                     python_executable=str(sandbox_python_executable),
-                    import_name=_infer_workspace_import_name(public_task.repo, cwd),
+                    import_name=import_name,
                 )
+                if agent_command_runner is not None:
+                    environment_contract["agent_shell_workspace"] = (
+                        _probe_agent_shell_workspace(
+                            command_runner=agent_command_runner,
+                            cwd=cwd,
+                            python_executable=str(sandbox_python_executable),
+                            import_name=str(import_name),
+                        )
+                    )
             except Exception as exc:
                 environment_contract = {
                     "schema_version": ENVIRONMENT_CONTRACT_SCHEMA_VERSION,
